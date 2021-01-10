@@ -1,0 +1,20 @@
+[package]
+name = "bevy_egui"
+version = "0.1.0"
+authors = ["mvlabat <mvlabat@gmail.com>"]
+description = "A plugin for Egui integration into Bevy"
+license = "MIT"
+edition = "2018"
+repository = "https://github.com/mvlabat/bevy_egui"
+exclude = ["assets/**/*", ".github/**/*"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = { version = "0.4", default-features = false, features = ["render"] }
+egui = "0.7.0"
+
+[[example]]
+name = "ui"
+path = "examples/ui.rs"
+required-features = ["bevy/x11", "bevy/png", "bevy/bevy_wgpu"]

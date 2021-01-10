@@ -1,0 +1,373 @@
+#![deny(missing_docs)]
+
+//! This crate provides a [egui](https://crates.io/crates/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+//!
+//! `bevy_egui` depends solely on `egui` and `bevy` with only `render` feature required.
+//!
+//! ## Trying out
+//!
+//! An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
+//!
+//! **Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.4.1` version.
+//!
+//! ## Usage
+//!
+//! Here's a minimal usage example:
+//!
+//! ```rust
+//! use bevy::prelude::*;
+//! use bevy_egui::{
+//!     egui::{hash, Vector2},
+//!     EguiContext, EguiPlugin,
+//! };
+//!
+//! fn main() {
+//!     App::build()
+//!         .add_plugins(DefaultPlugins)
+//!         .add_plugin(EguiPlugin)
+//!         .add_system(ui_example.system())
+//!         .run();
+//! }
+//!
+//! fn ui_example(_world: &mut World, resources: &mut Resources) {
+//!     let mut ui = resources.get_thread_local_mut::<EguiContext>().unwrap();
+//!
+//!     ui.draw_window(
+//!         hash!(),
+//!         Vector2::new(5.0, 5.0),
+//!         Vector2::new(100.0, 50.0),
+//!         None,
+//!         |ui| {
+//!             ui.label(None, "Hello world!");
+//!         },
+//!     );
+//! }
+//! ```
+//!
+//! For a more advanced example, see [examples/ui.rs](examples/ui.rs).
+//!
+//! ```bash
+//! cargo run --example ui --features="bevy/x11 bevy/png bevy/bevy_wgpu"
+//! ```
+
+pub use egui;
+
+mod egui_node;
+mod systems;
+mod transform_node;
+
+use crate::{
+    egui_node::EguiNode,
+    systems::{begin_frame, process_input},
+    transform_node::EguiTransformNode,
+};
+use bevy::{
+    app::{stage as bevy_stage, AppBuilder, EventReader, Plugin},
+    asset::{Assets, Handle, HandleUntyped},
+    ecs::{IntoSystem, SystemStage},
+    log,
+    reflect::TypeUuid,
+    render::{
+        pipeline::{
+            BlendDescriptor, BlendFactor, BlendOperation, ColorStateDescriptor, ColorWrite,
+            CompareFunction, CullMode, DepthStencilStateDescriptor, FrontFace, IndexFormat,
+            PipelineDescriptor, RasterizationStateDescriptor, StencilStateDescriptor,
+            StencilStateFaceDescriptor,
+        },
+        render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
+        shader::{Shader, ShaderStage, ShaderStages},
+        texture::{Texture, TextureFormat},
+    },
+    window::{CursorMoved, ReceivedCharacter},
+};
+use std::collections::HashMap;
+
+/// A handle pointing to the egui [PipelineDescriptor].
+pub const EGUI_PIPELINE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 9404026720151354217);
+/// Name of the transform uniform.
+pub const EGUI_TRANSFORM_RESOURCE_BINDING_NAME: &str = "EguiTransform";
+/// Name of the texture uniform.
+pub const EGUI_TEXTURE_RESOURCE_BINDING_NAME: &str = "EguiTexture_texture";
+
+/// Adds all egui resources and render graph nodes.
+pub struct EguiPlugin;
+
+/// A resource containing global UI settings.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EguiSettings {
+    /// Global scale factor for egui widgets (`1.0` by default).
+    ///
+    /// This setting can be used to force the UI to render in physical pixels regardless of DPI as follows:
+    /// ```rust
+    /// use bevy::prelude::*;
+    /// use bevy_egui::EguiSettings;
+    ///
+    /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
+    ///     if let Some(window) = windows.get_primary() {
+    ///         egui_settings.scale_factor = 1.0 / window.scale_factor();
+    ///     }
+    /// }
+    /// ```
+    pub scale_factor: f64,
+}
+
+impl Default for EguiSettings {
+    fn default() -> Self {
+        Self { scale_factor: 1.0 }
+    }
+}
+
+/// A resource that is used to store `bevy_egui` context.
+pub struct EguiContext {
+    /// Egui context.
+    pub ctx: egui::CtxRef,
+    /// TODO.
+    pub raw_input: egui::RawInput,
+    egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
+
+    mouse_position: (f32, f32),
+    cursor: EventReader<CursorMoved>,
+    received_character: EventReader<ReceivedCharacter>,
+}
+
+impl EguiContext {
+    fn new() -> Self {
+        Self {
+            ctx: Default::default(),
+            raw_input: Default::default(),
+            egui_textures: Default::default(),
+            mouse_position: (0.0, 0.0),
+            cursor: Default::default(),
+            received_character: Default::default(),
+        }
+    }
+
+    /// Can accept either a strong or a weak handle.
+    ///
+    /// You may want to pass a weak handle if you control removing texture assets in your
+    /// application manually and you don't want to bother with cleaning up textures in egui.
+    ///
+    /// You'll want to pass a strong handle if a texture is used only in egui and there's no
+    /// handle copies stored anywhere else.
+    pub fn set_egui_texture(&mut self, id: u64, texture: Handle<Texture>) {
+        log::debug!("Set egui texture: {:?}", texture);
+        self.egui_textures
+            .insert(egui::TextureId::User(id), texture);
+    }
+
+    /// Removes a texture handle associated with the id.
+    pub fn remove_egui_texture(&mut self, id: u64) {
+        let texture_handle = self.egui_textures.remove(&egui::TextureId::User(id));
+        log::debug!("Remove egui texture: {:?}", texture_handle);
+    }
+
+    // Is called when we get an event that a texture asset is removed.
+    fn remove_texture(&mut self, texture_handle: &Handle<Texture>) {
+        log::debug!("Removing egui handles: {:?}", texture_handle);
+        self.egui_textures = self
+            .egui_textures
+            .iter()
+            .map(|(id, texture)| (*id, texture.clone()))
+            .filter(|(_, texture)| texture != texture_handle)
+            .collect();
+    }
+}
+
+/// Params that are used for defining a window with [EguiContext::draw_window].
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct WindowParams {
+    /// Window label (empty by default).
+    pub label: String,
+    /// Defines whether a window is movable (`true` by default).
+    pub movable: bool,
+    /// Defines whether a window is closable (`false` by default).
+    pub close_button: bool,
+    /// Defines whether a window has a titlebar (`true` by default).
+    pub titlebar: bool,
+}
+
+impl Default for WindowParams {
+    fn default() -> WindowParams {
+        WindowParams {
+            label: "".to_string(),
+            movable: true,
+            close_button: false,
+            titlebar: true,
+        }
+    }
+}
+
+/// TODO.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct WindowSize {
+    physical_width: f32,
+    physical_height: f32,
+    scale_factor: f32,
+}
+
+impl WindowSize {
+    fn new(physical_width: f32, physical_height: f32, scale_factor: f32) -> Self {
+        Self {
+            physical_width,
+            physical_height,
+            scale_factor,
+        }
+    }
+
+    #[inline]
+    fn width(&self) -> f32 {
+        self.physical_width / self.scale_factor
+    }
+
+    #[inline]
+    fn height(&self) -> f32 {
+        self.physical_height / self.scale_factor
+    }
+}
+
+/// The names of `bevy_egui` nodes.
+pub mod node {
+    /// The main egui pass.
+    pub const EGUI_PASS: &str = "egui_pass";
+    /// Keeps the transform uniform up to date.
+    pub const EGUI_TRANSFORM: &str = "egui_transform";
+}
+
+/// TODO.
+pub mod stage {
+    /// Runs after Bevy's EVENT stage.
+    pub const INPUT: &str = "input";
+    /// Runs after INPUT.
+    pub const POST_INPUT: &str = "post_input";
+    /// Runs after POST_INPUT.
+    pub const UI_FRAME: &str = "ui_frame";
+}
+
+impl Plugin for EguiPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_stage_after(bevy_stage::EVENT, stage::INPUT, SystemStage::parallel());
+        app.add_stage_after(stage::INPUT, stage::POST_INPUT, SystemStage::parallel());
+        app.add_stage_after(stage::POST_INPUT, stage::UI_FRAME, SystemStage::parallel());
+
+        app.add_system_to_stage(stage::INPUT, process_input.system());
+        app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
+
+        let resources = app.resources_mut();
+        resources.get_or_insert_with(EguiSettings::default);
+        resources.insert(WindowSize::new(0.0, 0.0, 0.0));
+        resources.insert(EguiContext::new());
+
+        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
+        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
+        let msaa = resources.get::<Msaa>().unwrap();
+
+        pipelines.set_untracked(
+            EGUI_PIPELINE_HANDLE,
+            build_egui_pipeline(&mut shaders, msaa.samples),
+        );
+        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
+
+        render_graph.add_node(node::EGUI_PASS, EguiNode::new(&msaa));
+        render_graph
+            .add_node_edge(base::node::MAIN_PASS, node::EGUI_PASS)
+            .unwrap();
+
+        render_graph
+            .add_slot_edge(
+                base::node::PRIMARY_SWAP_CHAIN,
+                WindowSwapChainNode::OUT_TEXTURE,
+                node::EGUI_PASS,
+                if msaa.samples > 1 {
+                    "color_resolve_target"
+                } else {
+                    "color_attachment"
+                },
+            )
+            .unwrap();
+
+        render_graph
+            .add_slot_edge(
+                base::node::MAIN_DEPTH_TEXTURE,
+                WindowTextureNode::OUT_TEXTURE,
+                node::EGUI_PASS,
+                "depth",
+            )
+            .unwrap();
+
+        if msaa.samples > 1 {
+            render_graph
+                .add_slot_edge(
+                    base::node::MAIN_SAMPLED_COLOR_ATTACHMENT,
+                    WindowSwapChainNode::OUT_TEXTURE,
+                    node::EGUI_PASS,
+                    "color_attachment",
+                )
+                .unwrap();
+        }
+
+        // Transform.
+        render_graph.add_system_node(node::EGUI_TRANSFORM, EguiTransformNode::new());
+        render_graph
+            .add_node_edge(node::EGUI_TRANSFORM, node::EGUI_PASS)
+            .unwrap();
+    }
+}
+
+fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> PipelineDescriptor {
+    PipelineDescriptor {
+        rasterization_state: Some(RasterizationStateDescriptor {
+            front_face: FrontFace::Cw,
+            cull_mode: CullMode::None,
+            depth_bias: 0,
+            depth_bias_slope_scale: 0.0,
+            depth_bias_clamp: 0.0,
+            clamp_depth: false,
+        }),
+        depth_stencil_state: Some(DepthStencilStateDescriptor {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: CompareFunction::LessEqual,
+            stencil: StencilStateDescriptor {
+                front: StencilStateFaceDescriptor::IGNORE,
+                back: StencilStateFaceDescriptor::IGNORE,
+                read_mask: 0,
+                write_mask: 0,
+            },
+        }),
+        color_states: vec![ColorStateDescriptor {
+            format: TextureFormat::default(),
+            color_blend: BlendDescriptor {
+                src_factor: BlendFactor::One,
+                dst_factor: BlendFactor::OneMinusSrcAlpha,
+                operation: BlendOperation::Add,
+            },
+            alpha_blend: BlendDescriptor {
+                src_factor: BlendFactor::OneMinusDstAlpha,
+                dst_factor: BlendFactor::One,
+                operation: BlendOperation::Add,
+            },
+            write_mask: ColorWrite::ALL,
+        }],
+        index_format: IndexFormat::Uint32,
+        sample_count,
+        ..PipelineDescriptor::new(ShaderStages {
+            vertex: shaders.add(Shader::from_glsl(
+                ShaderStage::Vertex,
+                if cfg!(target_arch = "wasm32") {
+                    include_str!("egui.es.vert")
+                } else {
+                    include_str!("egui.vert")
+                },
+            )),
+            fragment: Some(shaders.add(Shader::from_glsl(
+                ShaderStage::Fragment,
+                if cfg!(target_arch = "wasm32") {
+                    include_str!("egui.es.frag")
+                } else {
+                    include_str!("egui.frag")
+                },
+            ))),
+        })
+    }
+}
