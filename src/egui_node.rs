@@ -203,7 +203,15 @@ impl Node for EguiNode {
             for vertex in &triangles.vertices {
                 vertex_buffer.extend_from_slice([vertex.pos.x, vertex.pos.y].as_bytes());
                 vertex_buffer.extend_from_slice([vertex.uv.x, vertex.uv.y].as_bytes());
-                vertex_buffer.extend_from_slice(vertex.color.to_array().as_bytes());
+                vertex_buffer.extend_from_slice(
+                    vertex
+                        .color
+                        .to_array()
+                        .iter()
+                        .map(|c| *c as f32)
+                        .collect::<Vec<_>>()
+                        .as_bytes(),
+                );
             }
             let indices_with_offset = triangles
                 .indices
@@ -351,7 +359,7 @@ impl EguiNode {
                 VertexAttributeDescriptor {
                     name: Cow::from("Vertex_Color"),
                     offset: VertexFormat::Float2.get_size() + VertexFormat::Float2.get_size(),
-                    format: VertexFormat::Uint,
+                    format: VertexFormat::Float4,
                     shader_location: 2,
                 },
             ];

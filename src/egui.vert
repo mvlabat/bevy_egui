@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec2 Vertex_Position;
 layout(location = 1) in vec2 Vertex_Uv;
-layout(location = 2) in uint Vertex_Color;
+layout(location = 2) in vec4 Vertex_Color;
 
 layout(location = 0) out vec2 v_Uv;
 layout(location = 1) out vec4 v_Color;
@@ -22,10 +22,6 @@ vec3 linear_from_srgb(vec3 srgb) {
 
 void main() {
     v_Uv = Vertex_Uv;
-
-    // [u8; 4] SRGB as u32 -> [r, g, b, a]
-    vec4 color = vec4(Vertex_Color & 0xFFu, (Vertex_Color >> 8) & 0xFFu, (Vertex_Color >> 16) & 0xFFu, (Vertex_Color >> 24) & 0xFFu);
-    v_Color = vec4(linear_from_srgb(color.rgb), color.a / 255.0);
-
+    v_Color = vec4(linear_from_srgb(Vertex_Color.rgb), Vertex_Color.a / 255.0);
     gl_Position = vec4(Vertex_Position * scale + translation, 0.0, 1.0);
 }

@@ -343,8 +343,8 @@ fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> Pipel
                 operation: BlendOperation::Add,
             },
             alpha_blend: BlendDescriptor {
-                src_factor: BlendFactor::OneMinusDstAlpha,
-                dst_factor: BlendFactor::One,
+                src_factor: BlendFactor::One,
+                dst_factor: BlendFactor::OneMinusSrcAlpha,
                 operation: BlendOperation::Add,
             },
             write_mask: ColorWrite::ALL,
