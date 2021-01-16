@@ -1,15 +1,20 @@
-use crate::{EguiContext, EguiSettings, WindowSize};
+use crate::{EguiClipboard, EguiContext, EguiInput, EguiSettings, EguiShapes, WindowSize};
 use bevy::{
     app::Events,
     core::Time,
     ecs::{Res, ResMut},
     input::{keyboard::KeyCode, mouse::MouseButton, Input},
+    log,
     window::{CursorMoved, ReceivedCharacter, Windows},
 };
+use bevy_winit::WinitWindows;
+use clipboard::ClipboardProvider;
 
 #[allow(clippy::too_many_arguments)]
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
+    mut egui_input: ResMut<EguiInput>,
+    #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<EguiClipboard>,
     ev_cursor: Res<Events<CursorMoved>>,
     ev_received_character: Res<Events<ReceivedCharacter>>,
     mouse_button_input: Res<Input<MouseButton>>,
@@ -33,12 +38,12 @@ pub fn process_input(
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
             mouse_position.1 = window_size.height() / scale_factor - mouse_position.1;
             egui_context.mouse_position = mouse_position;
-            egui_context.raw_input.mouse_pos = Some(egui::pos2(mouse_position.0, mouse_position.1));
+            egui_input.raw_input.mouse_pos = Some(egui::pos2(mouse_position.0, mouse_position.1));
         }
     }
 
-    egui_context.raw_input.mouse_down = mouse_button_input.pressed(MouseButton::Left);
-    egui_context.raw_input.screen_rect = Some(egui::Rect::from_min_max(
+    egui_input.raw_input.mouse_down = mouse_button_input.pressed(MouseButton::Left);
+    egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
         egui::pos2(0.0, 0.0),
         egui::pos2(
             window_size.physical_width
@@ -49,7 +54,7 @@ pub fn process_input(
                 / egui_settings.scale_factor as f32,
         ),
     ));
-    egui_context.raw_input.pixels_per_point =
+    egui_input.raw_input.pixels_per_point =
         Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
     let shift = keyboard_input.pressed(KeyCode::LShift) || keyboard_input.pressed(KeyCode::RShift);
@@ -76,7 +81,7 @@ pub fn process_input(
     if !ctrl && !win {
         for event in egui_context.received_character.iter(&ev_received_character) {
             if event.id.is_primary() && !event.char.is_control() {
-                egui_context
+                egui_input
                     .raw_input
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
@@ -86,7 +91,7 @@ pub fn process_input(
 
     for pressed_key in keyboard_input.get_just_pressed() {
         if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            egui_context.raw_input.events.push(egui::Event::Key {
+            egui_input.raw_input.events.push(egui::Event::Key {
                 key,
                 pressed: true,
                 modifiers,
@@ -95,7 +100,7 @@ pub fn process_input(
     }
     for pressed_key in keyboard_input.get_just_released() {
         if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            egui_context.raw_input.events.push(egui::Event::Key {
+            egui_input.raw_input.events.push(egui::Event::Key {
                 key,
                 pressed: false,
                 modifiers,
@@ -103,13 +108,80 @@ pub fn process_input(
         }
     }
 
-    egui_context.raw_input.predicted_dt = time.delta_seconds();
-    egui_context.raw_input.modifiers = modifiers;
+    if command && keyboard_input.just_pressed(KeyCode::C) {
+        egui_input.raw_input.events.push(egui::Event::Copy);
+    }
+    if command && keyboard_input.just_pressed(KeyCode::X) {
+        egui_input.raw_input.events.push(egui::Event::Cut);
+    }
+
+    #[cfg(feature = "manage_clipboard")]
+    if command && keyboard_input.just_pressed(KeyCode::V) {
+        if let Some(ref mut clipboard) = egui_clipboard.clipboard {
+            match clipboard.get_contents() {
+                Ok(contents) => egui_input
+                    .raw_input
+                    .events
+                    .push(egui::Event::Text(contents)),
+                Err(err) => log::warn!("Failed to get clipboard contents: {:?}", err),
+            }
+        }
+    }
+
+    egui_input.raw_input.predicted_dt = time.delta_seconds();
+    egui_input.raw_input.modifiers = modifiers;
 }
 
-pub fn begin_frame(mut egui_context: ResMut<EguiContext>) {
-    let raw_input = egui_context.raw_input.take();
+pub fn begin_frame(mut egui_context: ResMut<EguiContext>, mut egui_input: ResMut<EguiInput>) {
+    let raw_input = egui_input.raw_input.take();
     egui_context.ctx.begin_frame(raw_input);
+}
+
+pub fn process_output(
+    egui_context: Res<EguiContext>,
+    mut egui_shapes: ResMut<EguiShapes>,
+    mut egui_clipboard: ResMut<EguiClipboard>,
+    windows: Res<Windows>,
+    winit_windows: Res<WinitWindows>,
+) {
+    let (output, shapes) = egui_context.ctx.end_frame();
+    egui_shapes.shapes = shapes;
+
+    #[cfg(feature = "manage_clipboard")]
+    if let Some(ref mut clipboard) = egui_clipboard.clipboard {
+        if !output.copied_text.is_empty() {
+            if let Err(err) = clipboard.set_contents(output.copied_text.clone()) {
+                log::warn!("Failed to set clipboard contents: {:?}", err);
+            }
+        }
+    }
+
+    if let Some(window) = windows.get_primary() {
+        if let Some(winit_window) = winit_windows.get_window(window.id()) {
+            winit_window.set_cursor_icon(egui_to_winit_cursor_icon(output.cursor_icon));
+        }
+    }
+
+    #[cfg(feature = "open_url")]
+    if let Some(url) = output.open_url {
+        if let Err(err) = webbrowser::open(&url) {
+            log::warn!("Failed to open '{}': {:?}", url, err);
+        }
+    }
+}
+
+fn egui_to_winit_cursor_icon(cursor_icon: egui::CursorIcon) -> winit::window::CursorIcon {
+    match cursor_icon {
+        egui::CursorIcon::Default => winit::window::CursorIcon::Default,
+        egui::CursorIcon::PointingHand => winit::window::CursorIcon::Hand,
+        egui::CursorIcon::ResizeHorizontal => winit::window::CursorIcon::EwResize,
+        egui::CursorIcon::ResizeNeSw => winit::window::CursorIcon::NeswResize,
+        egui::CursorIcon::ResizeNwSe => winit::window::CursorIcon::NwseResize,
+        egui::CursorIcon::ResizeVertical => winit::window::CursorIcon::NsResize,
+        egui::CursorIcon::Text => winit::window::CursorIcon::Text,
+        egui::CursorIcon::Grab => winit::window::CursorIcon::Grab,
+        egui::CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
+    }
 }
 
 fn bevy_to_egui_key(key_code: KeyCode) -> Option<egui::Key> {

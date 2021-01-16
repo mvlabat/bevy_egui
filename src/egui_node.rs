@@ -1,5 +1,5 @@
 use crate::{
-    EguiContext, EguiSettings, WindowSize, EGUI_PIPELINE_HANDLE,
+    EguiContext, EguiSettings, EguiShapes, WindowSize, EGUI_PIPELINE_HANDLE,
     EGUI_TEXTURE_RESOURCE_BINDING_NAME, EGUI_TRANSFORM_RESOURCE_BINDING_NAME,
 };
 use bevy::{
@@ -166,6 +166,7 @@ impl Node for EguiNode {
 
         let window_size = resources.get::<WindowSize>().unwrap();
         let egui_settings = resources.get::<EguiSettings>().unwrap();
+        let mut egui_shapes = resources.get_mut::<EguiShapes>().unwrap();
 
         let render_resource_bindings = resources.get::<RenderResourceBindings>().unwrap();
 
@@ -185,8 +186,8 @@ impl Node for EguiNode {
         self.remove_unused_textures(render_context, &egui_context);
         self.init_textures(render_context, &mut egui_context, &mut texture_assets);
 
-        // TODO: process output.
-        let (_output, shapes) = egui_context.ctx.end_frame();
+        let mut shapes = Vec::new();
+        std::mem::swap(&mut egui_shapes.shapes, &mut shapes);
         let egui_paint_jobs = egui_context.ctx.tessellate(shapes);
 
         let mut vertex_buffer = Vec::<u8>::new();

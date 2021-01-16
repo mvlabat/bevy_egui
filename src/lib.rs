@@ -58,7 +58,7 @@ mod transform_node;
 
 use crate::{
     egui_node::EguiNode,
-    systems::{begin_frame, process_input},
+    systems::{begin_frame, process_input, process_output},
     transform_node::EguiTransformNode,
 };
 use bevy::{
@@ -76,10 +76,12 @@ use bevy::{
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
         shader::{Shader, ShaderStage, ShaderStages},
+        stage as bevy_render_stage,
         texture::{Texture, TextureFormat},
     },
     window::{CursorMoved, ReceivedCharacter},
 };
+use clipboard::{ClipboardContext, ClipboardProvider};
 use std::collections::HashMap;
 
 /// A handle pointing to the egui [PipelineDescriptor].
@@ -118,12 +120,34 @@ impl Default for EguiSettings {
     }
 }
 
+/// A resource that stores the input passed to Egui.
+/// It gets reset during the [stage::UI_FRAME] stage.
+#[derive(Default)]
+pub struct EguiInput {
+    /// Egui's raw input.
+    pub raw_input: egui::RawInput,
+}
+
+/// A resource for accessing clipboard.
+/// Is available only if `clipboard` feature is enabled.
+#[cfg(feature = "clipboard")]
+pub struct EguiClipboard {
+    /// Is set if clipboard context is initialized successfully.
+    pub clipboard: Option<ClipboardContext>,
+}
+
+#[derive(Default)]
+/// A resource for storing Egui output.
+/// It gets populated  reset during the [stage::UI_FRAME_END] stage and reset during [EguiNode::update].
+pub struct EguiShapes {
+    /// Pairs of rectangles and paint commands.
+    pub shapes: Vec<(egui::Rect, egui::PaintCmd)>,
+}
+
 /// A resource that is used to store `bevy_egui` context.
 pub struct EguiContext {
     /// Egui context.
     pub ctx: egui::CtxRef,
-    /// TODO.
-    pub raw_input: egui::RawInput,
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
 
     mouse_position: (f32, f32),
@@ -135,7 +159,6 @@ impl EguiContext {
     fn new() -> Self {
         Self {
             ctx: Default::default(),
-            raw_input: Default::default(),
             egui_textures: Default::default(),
             mouse_position: (0.0, 0.0),
             cursor: Default::default(),
@@ -198,7 +221,7 @@ impl Default for WindowParams {
     }
 }
 
-/// TODO.
+#[doc(hidden)]
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WindowSize {
     physical_width: f32,
@@ -234,7 +257,7 @@ pub mod node {
     pub const EGUI_TRANSFORM: &str = "egui_transform";
 }
 
-/// TODO.
+/// The names of `bevy_egui` stages.
 pub mod stage {
     /// Runs after Bevy's EVENT stage.
     pub const INPUT: &str = "input";
@@ -242,6 +265,10 @@ pub mod stage {
     pub const POST_INPUT: &str = "post_input";
     /// Runs after POST_INPUT.
     pub const UI_FRAME: &str = "ui_frame";
+    /// Runs before Bevy's RENDER_RESOURCE.
+    pub const UI_FRAME_END: &str = "ui_frame_end";
+    /// Runs after UI_FRAME_END.
+    pub const POST_UI_FRAME_END: &str = "post_ui_frame_end";
 }
 
 impl Plugin for EguiPlugin {
@@ -249,14 +276,35 @@ impl Plugin for EguiPlugin {
         app.add_stage_after(bevy_stage::EVENT, stage::INPUT, SystemStage::parallel());
         app.add_stage_after(stage::INPUT, stage::POST_INPUT, SystemStage::parallel());
         app.add_stage_after(stage::POST_INPUT, stage::UI_FRAME, SystemStage::parallel());
+        app.add_stage_before(
+            bevy_render_stage::RENDER_RESOURCE,
+            stage::UI_FRAME_END,
+            SystemStage::parallel(),
+        );
+        app.add_stage_after(
+            stage::UI_FRAME_END,
+            stage::POST_UI_FRAME_END,
+            SystemStage::parallel(),
+        );
 
         app.add_system_to_stage(stage::INPUT, process_input.system());
         app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
+        app.add_system_to_stage(stage::UI_FRAME_END, process_output.system());
 
         let resources = app.resources_mut();
         resources.get_or_insert_with(EguiSettings::default);
-        resources.insert(WindowSize::new(0.0, 0.0, 0.0));
+        resources.get_or_insert_with(EguiInput::default);
+        resources.get_or_insert_with(EguiShapes::default);
+        #[cfg(feature = "manage_clipboard")]
+        resources.insert(EguiClipboard {
+            clipboard: ClipboardContext::new()
+                .map_err(|err| {
+                    log::warn!("Failed to initialize clipboard: {:?}", err);
+                })
+                .ok(),
+        });
         resources.insert(EguiContext::new());
+        resources.insert(WindowSize::new(0.0, 0.0, 0.0));
 
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
