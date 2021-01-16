@@ -5,7 +5,7 @@ const BEVY_TEXTURE_ID: u64 = 0;
 
 fn main() {
     App::build()
-        .add_resource(ClearColor(Color::rgb(0.8, 0.8, 0.8)))
+        .add_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .add_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)

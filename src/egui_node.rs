@@ -277,7 +277,6 @@ impl Node for EguiNode {
                     );
 
                     let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
-                    // let scale_factor = 1.0;
                     render_pass.set_scissor_rect(
                         (draw_command.clipping_zone.min.x * scale_factor) as u32,
                         (draw_command.clipping_zone.min.y * scale_factor) as u32,

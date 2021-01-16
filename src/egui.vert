@@ -17,11 +17,14 @@ vec3 linear_from_srgb(vec3 srgb) {
     bvec3 cutoff = lessThan(srgb, vec3(10.31475));
     vec3 lower = srgb / vec3(3294.6);
     vec3 higher = pow((srgb + vec3(14.025)) / vec3(269.025), vec3(2.4));
-    return mix(higher, lower, cutoff);
+    return mix(higher, lower, vec3(cutoff));
+}
+vec4 linear_from_srgba(vec4 srgba) {
+    return vec4(linear_from_srgb(srgba.rgb), srgba.a / 255.0);
 }
 
 void main() {
     v_Uv = Vertex_Uv;
-    v_Color = vec4(linear_from_srgb(Vertex_Color.rgb), Vertex_Color.a / 255.0);
+    v_Color = linear_from_srgba(Vertex_Color);
     gl_Position = vec4(Vertex_Position * scale + translation, 0.0, 1.0);
 }
