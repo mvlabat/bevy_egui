@@ -56,130 +56,136 @@ pub fn process_input(
     let ctrl =
         keyboard_input.pressed(KeyCode::LControl) || keyboard_input.pressed(KeyCode::RControl);
     let alt = keyboard_input.pressed(KeyCode::LAlt) || keyboard_input.pressed(KeyCode::RAlt);
+    let win = keyboard_input.pressed(KeyCode::LWin) || keyboard_input.pressed(KeyCode::RWin);
 
-    for event in egui_context.received_character.iter(&ev_received_character) {
-        if event.id.is_primary() && !event.char.is_control() {
-            egui_context
-                .raw_input
-                .events
-                .push(egui::Event::Text(event.char.to_string()));
-        }
-    }
+    let mac_cmd = if cfg!(target_os = "macos") { win } else { false };
+    let command = if cfg!(target_os = "macos") { win } else { ctrl };
 
     let modifiers = egui::Modifiers {
         alt,
         ctrl,
         shift,
-        mac_cmd: false, // TODO: figure out how to detect this.
-        command: ctrl,
+        mac_cmd,
+        command,
     };
 
-    if keyboard_input.pressed(KeyCode::Up) {
+    if !command {
+        for event in egui_context.received_character.iter(&ev_received_character) {
+            if event.id.is_primary() && !event.char.is_control() {
+                egui_context
+                    .raw_input
+                    .events
+                    .push(egui::Event::Text(event.char.to_string()));
+            }
+        }
+    }
+
+    if keyboard_input.just_pressed(KeyCode::Up) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::ArrowUp,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Down) {
+    if keyboard_input.just_pressed(KeyCode::Down) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::ArrowDown,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Right) {
+    if keyboard_input.just_pressed(KeyCode::Right) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::ArrowRight,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Left) {
+    if keyboard_input.just_pressed(KeyCode::Left) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::ArrowLeft,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Home) {
+    if keyboard_input.just_pressed(KeyCode::Home) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::Home,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::End) {
+    if keyboard_input.just_pressed(KeyCode::End) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::End,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Delete) {
+    if keyboard_input.just_pressed(KeyCode::Delete) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::Delete,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Back) {
+    if keyboard_input.just_pressed(KeyCode::Back) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::Backspace,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Return) {
+    if keyboard_input.just_pressed(KeyCode::Return) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::Enter,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Tab) {
+    if keyboard_input.just_pressed(KeyCode::Tab) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::Tab,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::A) {
+    if keyboard_input.just_pressed(KeyCode::A) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::A,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::K) {
+    if keyboard_input.just_pressed(KeyCode::K) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::K,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::K) {
+    if keyboard_input.just_pressed(KeyCode::K) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::K,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::U) {
+    if keyboard_input.just_pressed(KeyCode::U) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::U,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::W) {
+    if keyboard_input.just_pressed(KeyCode::W) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::W,
             pressed: true,
             modifiers,
         });
     }
-    if keyboard_input.pressed(KeyCode::Z) {
+    if keyboard_input.just_pressed(KeyCode::Z) {
         egui_context.raw_input.events.push(egui::Event::Key {
             key: egui::Key::Z,
             pressed: true,
