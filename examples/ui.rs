@@ -153,7 +153,7 @@ impl Default for Painting {
 impl Painting {
     pub fn ui_control(&mut self, ui: &mut egui::Ui) -> egui::Response {
         ui.horizontal(|ui| {
-            self.stroke.ui(ui, "Stroke");
+            egui::stroke_ui(ui, &mut self.stroke, "Stroke");
             ui.separator();
             if ui.button("Clear Painting").clicked {
                 self.lines.clear();
@@ -187,7 +187,7 @@ impl Painting {
         for line in &self.lines {
             if line.len() >= 2 {
                 let points: Vec<egui::Pos2> = line.iter().map(|p| rect.min + *p).collect();
-                painter.add(egui::PaintCmd::line(points, self.stroke));
+                painter.add(egui::Shape::line(points, self.stroke));
             }
         }
 

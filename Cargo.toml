@@ -12,19 +12,19 @@ exclude = ["assets/**/*", ".github/**/*"]
 
 [features]
 default = ["manage_clipboard", "open_url"]
-manage_clipboard = ["clipboard"]
+manage_clipboard = ["clipboard", "thread_local"]
 open_url = ["webbrowser"]
 
 [dependencies]
 bevy = { version = "0.4", default-features = false, features = ["render"] }
 bevy_winit = "0.4.0"
-egui = "0.7.0"
-thread_local = "1.1.0"
+egui = "0.8.0"
 webbrowser = { version = "0.5.5", optional = true }
 winit = { version = "0.24.0", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clipboard = { version = "0.5.0", optional = true }
+thread_local = { version = "1.1.0", optional = true }
 
 [[example]]
 name = "ui"

@@ -194,7 +194,7 @@ pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
     /// The field gets populated during the [stage::UI_FRAME_END] stage and reset during `EguiNode::update`.
-    pub shapes: Vec<(egui::Rect, egui::PaintCmd)>,
+    pub shapes: Vec<egui::paint::ClippedShape>,
 }
 
 /// A resource for storing Egui output.
