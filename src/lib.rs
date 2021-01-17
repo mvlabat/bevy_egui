@@ -16,10 +16,7 @@
 //!
 //! ```rust
 //! use bevy::prelude::*;
-//! use bevy_egui::{
-//!     egui::{hash, Vector2},
-//!     EguiContext, EguiPlugin,
-//! };
+//! use bevy_egui::{egui, EguiContext, EguiPlugin};
 //!
 //! fn main() {
 //!     App::build()
@@ -29,18 +26,11 @@
 //!         .run();
 //! }
 //!
-//! fn ui_example(_world: &mut World, resources: &mut Resources) {
-//!     let mut ui = resources.get_thread_local_mut::<EguiContext>().unwrap();
-//!
-//!     ui.draw_window(
-//!         hash!(),
-//!         Vector2::new(5.0, 5.0),
-//!         Vector2::new(100.0, 50.0),
-//!         None,
-//!         |ui| {
-//!             ui.label(None, "Hello world!");
-//!         },
-//!     );
+//! fn ui_example(mut egui_context: ResMut<EguiContext>) {
+//!     let ctx = &mut egui_context.ctx;
+//!     egui::Window::new("Hello").show(ctx, |ui| {
+//!         ui.label("world");
+//!     });
 //! }
 //! ```
 //!
