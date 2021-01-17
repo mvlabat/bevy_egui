@@ -1,8 +1,14 @@
 #![deny(missing_docs)]
 
-//! This crate provides a [egui](https://crates.io/crates/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+//! This crate provides a [egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
 //!
-//! `bevy_egui` depends solely on `egui` and `bevy` with only `render` feature required.
+//! **Features:**
+//! - Desktop and web ([bevy_webgl2](https://github.com/mrk-its/bevy_webgl2)) platforms support
+//! - Clipboard (web support is limited to the same window, see [rust-windowing/winit#1829](https://github.com/rust-windowing/winit/issues/1829))
+//! - Opening URLs
+//!
+//! `bevy_egui` can be compiled with using only `bevy` and `egui` as dependencies: `manage_clipboard` and `open_url` features,
+//! that require additional crates, can be disabled.
 //!
 //! ## Trying out
 //!
