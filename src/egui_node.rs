@@ -434,7 +434,8 @@ impl EguiNode {
             if !self.texture_resources.contains_key(handle)
                 || self.egui_texture.as_ref() == Some(handle)
             {
-                // todo: comment about egui_texture
+                // We update `egui_texture` ourselves below when comparing its version,
+                // so this is why we skip updates here. We also skip all other textures that we don't track.
                 continue;
             }
             log::debug!("{:?}", event);

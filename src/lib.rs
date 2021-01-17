@@ -56,11 +56,7 @@ mod egui_node;
 mod systems;
 mod transform_node;
 
-use crate::{
-    egui_node::EguiNode,
-    systems::{begin_frame, process_input, process_output},
-    transform_node::EguiTransformNode,
-};
+use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
     app::{stage as bevy_stage, AppBuilder, EventReader, Plugin},
     asset::{Assets, Handle, HandleUntyped},
@@ -81,11 +77,12 @@ use bevy::{
     },
     window::{CursorMoved, ReceivedCharacter},
 };
+#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use clipboard::{ClipboardContext, ClipboardProvider};
-use std::{
-    cell::{RefCell, RefMut},
-    collections::HashMap,
-};
+#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+use std::cell::{RefCell, RefMut};
+use std::collections::HashMap;
+#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
 /// A handle pointing to the egui [PipelineDescriptor].
@@ -126,29 +123,72 @@ impl Default for EguiSettings {
 
 /// A resource that stores the input passed to Egui.
 /// It gets reset during the [stage::UI_FRAME] stage.
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EguiInput {
     /// Egui's raw input.
     pub raw_input: egui::RawInput,
 }
 
 /// A resource for accessing clipboard.
-/// Is available only if `clipboard` feature is enabled.
-#[cfg(feature = "clipboard")]
+/// Is available only if `manage_clipboard` feature is enabled.
+#[cfg(feature = "manage_clipboard")]
 #[derive(Default)]
 pub struct EguiClipboard {
-    /// Is set if clipboard context is initialized successfully.
+    #[cfg(not(target_arch = "wasm32"))]
     clipboard: ThreadLocal<Option<RefCell<ClipboardContext>>>,
+    #[cfg(target_arch = "wasm32")]
+    clipboard: String,
 }
 
 impl EguiClipboard {
+    /// Sets clipboard contents.
+    pub fn set_contents(&mut self, contents: &str) {
+        self.set_contents_impl(contents);
+    }
+
+    /// Gets clipboard contents. Returns [None] if clipboard provider is unavailable or returns an error.
+    pub fn get_contents(&self) -> Option<String> {
+        self.get_contents_impl()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn set_contents_impl(&self, contents: &str) {
+        if let Some(mut clipboard) = self.get() {
+            if let Err(err) = clipboard.set_contents(contents.to_owned()) {
+                log::error!("Failed to set clipboard contents: {:?}", err);
+            }
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn set_contents_impl(&mut self, contents: &str) {
+        self.clipboard = contents.to_owned();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn get_contents_impl(&self) -> Option<String> {
+        if let Some(mut clipboard) = self.get() {
+            match clipboard.get_contents() {
+                Ok(contents) => return Some(contents),
+                Err(err) => log::info!("Failed to get clipboard contents: {:?}", err),
+            }
+        };
+        None
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn get_contents_impl(&self) -> Option<String> {
+        Some(self.clipboard.clone())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn get(&self) -> Option<RefMut<ClipboardContext>> {
         self.clipboard
             .get_or(|| {
                 ClipboardContext::new()
                     .map(RefCell::new)
                     .map_err(|err| {
-                        log::warn!("Failed to initialize clipboard: {:?}", err);
+                        log::info!("Failed to initialize clipboard: {:?}", err);
                     })
                     .ok()
             })
@@ -157,12 +197,20 @@ impl EguiClipboard {
     }
 }
 
-#[derive(Default)]
-/// A resource for storing Egui output.
-/// It gets populated  reset during the [stage::UI_FRAME_END] stage and reset during [EguiNode::update].
+#[derive(Clone, Default)]
+/// A resource for storing Egui shapes.
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
+    ///
+    /// The field gets populated during the [stage::UI_FRAME_END] stage and reset during `EguiNode::update`.
     pub shapes: Vec<(egui::Rect, egui::PaintCmd)>,
+}
+
+/// A resource for storing Egui output.
+#[derive(Clone, Default)]
+pub struct EguiOutput {
+    /// The field gets updated during the [stage::UI_FRAME_END] stage.
+    pub output: egui::Output,
 }
 
 /// A resource that is used to store `bevy_egui` context.
@@ -218,30 +266,6 @@ impl EguiContext {
     }
 }
 
-/// Params that are used for defining a window with [EguiContext::draw_window].
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct WindowParams {
-    /// Window label (empty by default).
-    pub label: String,
-    /// Defines whether a window is movable (`true` by default).
-    pub movable: bool,
-    /// Defines whether a window is closable (`false` by default).
-    pub close_button: bool,
-    /// Defines whether a window has a titlebar (`true` by default).
-    pub titlebar: bool,
-}
-
-impl Default for WindowParams {
-    fn default() -> WindowParams {
-        WindowParams {
-            label: "".to_string(),
-            movable: true,
-            close_button: false,
-            titlebar: true,
-        }
-    }
-}
-
 #[doc(hidden)]
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WindowSize {
@@ -280,15 +304,15 @@ pub mod node {
 
 /// The names of `bevy_egui` stages.
 pub mod stage {
-    /// Runs after Bevy's EVENT stage.
+    /// Runs after [bevy::app::stage::EVENT]. This is where `bevy_egui` translates Bevy's input events to Egui.
     pub const INPUT: &str = "input";
-    /// Runs after INPUT.
+    /// Runs after [INPUT].
     pub const POST_INPUT: &str = "post_input";
-    /// Runs after POST_INPUT.
+    /// Runs after [POST_INPUT]. All Egui widgets should be added during or after this stage and before [UI_FRAME_END].
     pub const UI_FRAME: &str = "ui_frame";
-    /// Runs before Bevy's RENDER_RESOURCE.
+    /// Runs before [bevy::render::stage::RENDER_RESOURCE]. This is where we read Egui's output.
     pub const UI_FRAME_END: &str = "ui_frame_end";
-    /// Runs after UI_FRAME_END.
+    /// Runs after [UI_FRAME_END].
     pub const POST_UI_FRAME_END: &str = "post_ui_frame_end";
 }
 
@@ -308,6 +332,8 @@ impl Plugin for EguiPlugin {
             SystemStage::parallel(),
         );
 
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32", web_sys_unstable_apis))]
+        app.add_startup_system(setup_clipboard_event_listeners.system());
         app.add_system_to_stage(stage::INPUT, process_input.system());
         app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
         app.add_system_to_stage(stage::UI_FRAME_END, process_output.system());
@@ -315,6 +341,7 @@ impl Plugin for EguiPlugin {
         let resources = app.resources_mut();
         resources.get_or_insert_with(EguiSettings::default);
         resources.get_or_insert_with(EguiInput::default);
+        resources.get_or_insert_with(EguiOutput::default);
         resources.get_or_insert_with(EguiShapes::default);
         resources.get_or_insert_with(EguiClipboard::default);
         resources.insert(EguiContext::new());

@@ -1,4 +1,6 @@
-use crate::{EguiClipboard, EguiContext, EguiInput, EguiSettings, EguiShapes, WindowSize};
+use crate::{
+    EguiClipboard, EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize,
+};
 use bevy::{
     app::Events,
     core::Time,
@@ -8,7 +10,6 @@ use bevy::{
     window::{CursorMoved, ReceivedCharacter, Windows},
 };
 use bevy_winit::WinitWindows;
-use clipboard::ClipboardProvider;
 
 #[allow(clippy::too_many_arguments)]
 pub fn process_input(
@@ -109,25 +110,22 @@ pub fn process_input(
     }
 
     #[cfg(feature = "manage_clipboard")]
-    if command && keyboard_input.just_pressed(KeyCode::C) {
-        egui_input.raw_input.events.push(egui::Event::Copy);
-    }
-    #[cfg(feature = "manage_clipboard")]
-    if command && keyboard_input.just_pressed(KeyCode::X) {
-        egui_input.raw_input.events.push(egui::Event::Cut);
-    }
-    #[cfg(feature = "manage_clipboard")]
-    if command && keyboard_input.just_pressed(KeyCode::V) {
-        if let Some(mut clipboard) = egui_clipboard.get() {
-            match clipboard.get_contents() {
-                Ok(contents) => egui_input
+    {
+        if command && keyboard_input.just_pressed(KeyCode::C) {
+            egui_input.raw_input.events.push(egui::Event::Copy);
+        }
+        if command && keyboard_input.just_pressed(KeyCode::X) {
+            egui_input.raw_input.events.push(egui::Event::Cut);
+        }
+        if command && keyboard_input.just_pressed(KeyCode::V) {
+            if let Some(contents) = egui_clipboard.get_contents() {
+                egui_input
                     .raw_input
                     .events
-                    .push(egui::Event::Text(contents)),
-                Err(err) => log::warn!("Failed to get clipboard contents: {:?}", err),
+                    .push(egui::Event::Text(contents))
             }
         }
-    }
+    };
 
     egui_input.raw_input.predicted_dt = time.delta_seconds();
     egui_input.raw_input.modifiers = modifiers;
@@ -140,21 +138,19 @@ pub fn begin_frame(mut egui_context: ResMut<EguiContext>, mut egui_input: ResMut
 
 pub fn process_output(
     egui_context: Res<EguiContext>,
+    mut egui_output: ResMut<EguiOutput>,
     mut egui_shapes: ResMut<EguiShapes>,
-    egui_clipboard: Res<EguiClipboard>,
+    mut egui_clipboard: ResMut<EguiClipboard>,
     windows: Res<Windows>,
     winit_windows: Res<WinitWindows>,
 ) {
     let (output, shapes) = egui_context.ctx.end_frame();
     egui_shapes.shapes = shapes;
+    egui_output.output = output.clone();
 
     #[cfg(feature = "manage_clipboard")]
-    if let Some(mut clipboard) = egui_clipboard.get() {
-        if !output.copied_text.is_empty() {
-            if let Err(err) = clipboard.set_contents(output.copied_text.clone()) {
-                log::warn!("Failed to set clipboard contents: {:?}", err);
-            }
-        }
+    if !output.copied_text.is_empty() {
+        egui_clipboard.set_contents(&output.copied_text);
     }
 
     if let Some(window) = windows.get_primary() {
@@ -166,7 +162,7 @@ pub fn process_output(
     #[cfg(feature = "open_url")]
     if let Some(url) = output.open_url {
         if let Err(err) = webbrowser::open(&url) {
-            log::warn!("Failed to open '{}': {:?}", url, err);
+            log::error!("Failed to open '{}': {:?}", url, err);
         }
     }
 }
