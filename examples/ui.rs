@@ -112,7 +112,7 @@ fn ui_example(_world: &mut World, resources: &mut Resources) {
         });
     });
 
-    egui::Window::new("Window").show(ctx, |ui| {
+    egui::Window::new("Window").scroll(true).show(ctx, |ui| {
         ui.label("Windows can be moved by dragging them.");
         ui.label("They are automatically sized based on contents.");
         ui.label("You can turn on resizing and scrolling if you like.");

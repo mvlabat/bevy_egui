@@ -5,7 +5,11 @@ use bevy::{
     app::Events,
     core::Time,
     ecs::{Res, ResMut},
-    input::{keyboard::KeyCode, mouse::MouseButton, Input},
+    input::{
+        keyboard::KeyCode,
+        mouse::{MouseButton, MouseScrollUnit, MouseWheel},
+        Input,
+    },
     log,
     window::{CursorMoved, ReceivedCharacter, Windows},
 };
@@ -17,6 +21,7 @@ pub fn process_input(
     mut egui_input: ResMut<EguiInput>,
     #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<EguiClipboard>,
     ev_cursor: Res<Events<CursorMoved>>,
+    ev_mouse_wheel: Res<Events<MouseWheel>>,
     ev_received_character: Res<Events<ReceivedCharacter>>,
     mouse_button_input: Res<Input<MouseButton>>,
     keyboard_input: Res<Input<KeyCode>>,
@@ -57,6 +62,15 @@ pub fn process_input(
     ));
     egui_input.raw_input.pixels_per_point =
         Some(window_size.scale_factor * egui_settings.scale_factor as f32);
+
+    for event in egui_context.mouse_wheel.iter(&ev_mouse_wheel) {
+        let mut delta = egui::vec2(event.x, event.y);
+        if let MouseScrollUnit::Line = event.unit {
+            // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
+            delta *= 24.0;
+        }
+        egui_input.raw_input.scroll_delta += delta;
+    }
 
     let shift = keyboard_input.pressed(KeyCode::LShift) || keyboard_input.pressed(KeyCode::RShift);
     let ctrl =

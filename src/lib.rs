@@ -61,6 +61,7 @@ use bevy::{
     app::{stage as bevy_stage, AppBuilder, EventReader, Plugin},
     asset::{Assets, Handle, HandleUntyped},
     ecs::{IntoSystem, SystemStage},
+    input::mouse::MouseWheel,
     log,
     reflect::TypeUuid,
     render::{
@@ -221,6 +222,7 @@ pub struct EguiContext {
 
     mouse_position: (f32, f32),
     cursor: EventReader<CursorMoved>,
+    mouse_wheel: EventReader<MouseWheel>,
     received_character: EventReader<ReceivedCharacter>,
 }
 
@@ -231,6 +233,7 @@ impl EguiContext {
             egui_textures: Default::default(),
             mouse_position: (0.0, 0.0),
             cursor: Default::default(),
+            mouse_wheel: Default::default(),
             received_character: Default::default(),
         }
     }
@@ -332,7 +335,11 @@ impl Plugin for EguiPlugin {
             SystemStage::parallel(),
         );
 
-        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32", web_sys_unstable_apis))]
+        #[cfg(all(
+            feature = "manage_clipboard",
+            target_arch = "wasm32",
+            web_sys_unstable_apis
+        ))]
         app.add_startup_system(setup_clipboard_event_listeners.system());
         app.add_system_to_stage(stage::INPUT, process_input.system());
         app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
