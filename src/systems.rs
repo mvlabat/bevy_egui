@@ -14,7 +14,7 @@ use clipboard::ClipboardProvider;
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiInput>,
-    #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<EguiClipboard>,
+    #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<EguiClipboard>,
     ev_cursor: Res<Events<CursorMoved>>,
     ev_received_character: Res<Events<ReceivedCharacter>>,
     mouse_button_input: Res<Input<MouseButton>>,
@@ -117,7 +117,7 @@ pub fn process_input(
 
     #[cfg(feature = "manage_clipboard")]
     if command && keyboard_input.just_pressed(KeyCode::V) {
-        if let Some(ref mut clipboard) = egui_clipboard.clipboard {
+        if let Some(mut clipboard) = egui_clipboard.get() {
             match clipboard.get_contents() {
                 Ok(contents) => egui_input
                     .raw_input
@@ -140,7 +140,7 @@ pub fn begin_frame(mut egui_context: ResMut<EguiContext>, mut egui_input: ResMut
 pub fn process_output(
     egui_context: Res<EguiContext>,
     mut egui_shapes: ResMut<EguiShapes>,
-    mut egui_clipboard: ResMut<EguiClipboard>,
+    egui_clipboard: Res<EguiClipboard>,
     windows: Res<Windows>,
     winit_windows: Res<WinitWindows>,
 ) {
@@ -148,7 +148,7 @@ pub fn process_output(
     egui_shapes.shapes = shapes;
 
     #[cfg(feature = "manage_clipboard")]
-    if let Some(ref mut clipboard) = egui_clipboard.clipboard {
+    if let Some(mut clipboard) = egui_clipboard.get() {
         if !output.copied_text.is_empty() {
             if let Err(err) = clipboard.set_contents(output.copied_text.clone()) {
                 log::warn!("Failed to set clipboard contents: {:?}", err);

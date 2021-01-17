@@ -82,7 +82,11 @@ use bevy::{
     window::{CursorMoved, ReceivedCharacter},
 };
 use clipboard::{ClipboardContext, ClipboardProvider};
-use std::collections::HashMap;
+use std::{
+    cell::{RefCell, RefMut},
+    collections::HashMap,
+};
+use thread_local::ThreadLocal;
 
 /// A handle pointing to the egui [PipelineDescriptor].
 pub const EGUI_PIPELINE_HANDLE: HandleUntyped =
@@ -131,9 +135,26 @@ pub struct EguiInput {
 /// A resource for accessing clipboard.
 /// Is available only if `clipboard` feature is enabled.
 #[cfg(feature = "clipboard")]
+#[derive(Default)]
 pub struct EguiClipboard {
     /// Is set if clipboard context is initialized successfully.
-    pub clipboard: Option<ClipboardContext>,
+    clipboard: ThreadLocal<Option<RefCell<ClipboardContext>>>,
+}
+
+impl EguiClipboard {
+    fn get(&self) -> Option<RefMut<ClipboardContext>> {
+        self.clipboard
+            .get_or(|| {
+                ClipboardContext::new()
+                    .map(RefCell::new)
+                    .map_err(|err| {
+                        log::warn!("Failed to initialize clipboard: {:?}", err);
+                    })
+                    .ok()
+            })
+            .as_ref()
+            .map(|cell| cell.borrow_mut())
+    }
 }
 
 #[derive(Default)]
@@ -295,14 +316,7 @@ impl Plugin for EguiPlugin {
         resources.get_or_insert_with(EguiSettings::default);
         resources.get_or_insert_with(EguiInput::default);
         resources.get_or_insert_with(EguiShapes::default);
-        #[cfg(feature = "manage_clipboard")]
-        resources.insert(EguiClipboard {
-            clipboard: ClipboardContext::new()
-                .map_err(|err| {
-                    log::warn!("Failed to initialize clipboard: {:?}", err);
-                })
-                .ok(),
-        });
+        resources.get_or_insert_with(EguiClipboard::default);
         resources.insert(EguiContext::new());
         resources.insert(WindowSize::new(0.0, 0.0, 0.0));
 
