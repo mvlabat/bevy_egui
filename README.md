@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/d/bevy_egui.svg)](https://crates.io/crates/bevy_egui)
 [![Rust](https://github.com/mvlabat/bevy_egui/workflows/CI/badge.svg)](https://github.com/mvlabat/bevy_egui/actions)
 
-This crate provides a [egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+This crate provides a [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
 
 **Features:**
 - Desktop and web ([bevy_webgl2](https://github.com/mrk-its/bevy_webgl2)) platforms support
