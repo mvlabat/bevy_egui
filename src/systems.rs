@@ -108,13 +108,14 @@ pub fn process_input(
         }
     }
 
+    #[cfg(feature = "manage_clipboard")]
     if command && keyboard_input.just_pressed(KeyCode::C) {
         egui_input.raw_input.events.push(egui::Event::Copy);
     }
+    #[cfg(feature = "manage_clipboard")]
     if command && keyboard_input.just_pressed(KeyCode::X) {
         egui_input.raw_input.events.push(egui::Event::Cut);
     }
-
     #[cfg(feature = "manage_clipboard")]
     if command && keyboard_input.just_pressed(KeyCode::V) {
         if let Some(mut clipboard) = egui_clipboard.get() {
