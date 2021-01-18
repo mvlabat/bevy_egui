@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Disable default for docs.rs to fix the build.
+- Disable default features for docs.rs to fix the build.
 
 ## [0.1.1] - 18-Jan-2020
 
