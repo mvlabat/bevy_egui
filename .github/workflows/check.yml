@@ -105,3 +105,28 @@ jobs:
         with:
           command: clippy
           args: --no-default-features --target=wasm32-unknown-unknown --features=${{ matrix.features }} -- -D warnings
+
+  doc:
+    name: Check documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-doc-cargo
+      - uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --all
