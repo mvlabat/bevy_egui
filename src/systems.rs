@@ -152,8 +152,7 @@ pub fn process_output(
     egui_context: Res<EguiContext>,
     mut egui_output: ResMut<EguiOutput>,
     mut egui_shapes: ResMut<EguiShapes>,
-    #[cfg(feature = "manage_clipboard")]
-    mut egui_clipboard: ResMut<crate::EguiClipboard>,
+    #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     windows: Res<Windows>,
     winit_windows: Res<WinitWindows>,
 ) {

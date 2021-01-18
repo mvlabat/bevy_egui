@@ -175,6 +175,7 @@ impl EguiClipboard {
     }
 
     #[cfg(target_arch = "wasm32")]
+    #[allow(clippy::unnecessary_wraps)]
     fn get_contents_impl(&self) -> Option<String> {
         Some(self.clipboard.clone())
     }
