@@ -1,6 +1,4 @@
-use crate::{
-    EguiClipboard, EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize,
-};
+use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize};
 use bevy::{
     app::Events,
     core::Time,
@@ -19,7 +17,7 @@ use bevy_winit::WinitWindows;
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiInput>,
-    #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<EguiClipboard>,
+    #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<crate::EguiClipboard>,
     ev_cursor: Res<Events<CursorMoved>>,
     ev_mouse_wheel: Res<Events<MouseWheel>>,
     ev_received_character: Res<Events<ReceivedCharacter>>,
@@ -154,7 +152,8 @@ pub fn process_output(
     egui_context: Res<EguiContext>,
     mut egui_output: ResMut<EguiOutput>,
     mut egui_shapes: ResMut<EguiShapes>,
-    mut egui_clipboard: ResMut<EguiClipboard>,
+    #[cfg(feature = "manage_clipboard")]
+    mut egui_clipboard: ResMut<crate::EguiClipboard>,
     windows: Res<Windows>,
     winit_windows: Res<WinitWindows>,
 ) {
@@ -170,7 +169,11 @@ pub fn process_output(
     if let Some(window) = windows.get_primary() {
         if let Some(winit_window) = winit_windows.get_window(window.id()) {
             winit_window.set_cursor_icon(egui_to_winit_cursor_icon(output.cursor_icon));
+        } else {
+            log::error!("No winit window found for the primary window");
         }
+    } else {
+        log::warn!("No primary window detected");
     }
 
     #[cfg(feature = "open_url")]
