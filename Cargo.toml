@@ -1,6 +1,6 @@
 [package]
 name = "bevy_egui"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
@@ -32,4 +32,4 @@ path = "examples/ui.rs"
 required-features = ["bevy/x11", "bevy/png", "bevy/bevy_wgpu"]
 
 [package.metadata.docs.rs]
-all-features = true
+no-default-features = true # clipboard crate fails the build currently https://github.com/rust-lang/docs.rs/issues/695
