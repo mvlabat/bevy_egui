@@ -1,6 +1,6 @@
 [package]
 name = "bevy_egui"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
@@ -20,7 +20,7 @@ bevy = { version = "0.4", default-features = false, features = ["render"] }
 bevy_winit = "0.4.0"
 egui = "0.8.0"
 webbrowser = { version = "0.5.5", optional = true }
-winit = { version = "0.24.0", default-features = false }
+winit = { version = "0.24.0", features = ["x11"], default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clipboard = { version = "0.5.0", optional = true }
@@ -30,3 +30,6 @@ thread_local = { version = "1.1.0", optional = true }
 name = "ui"
 path = "examples/ui.rs"
 required-features = ["bevy/x11", "bevy/png", "bevy/bevy_wgpu"]
+
+[package.metadata.docs.rs]
+all-features = true

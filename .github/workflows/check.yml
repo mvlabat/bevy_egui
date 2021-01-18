@@ -29,7 +29,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        features: [
+            'bevy/x11,bevy/png,bevy/bevy_wgpu',
+            'bevy/x11,bevy/png,bevy/bevy_wgpu,manage_clipboard',
+            'bevy/x11,bevy/png,bevy/bevy_wgpu,open_url',
+            'bevy/x11,bevy/png,bevy/bevy_wgpu,manage_clipboard,open_url',
+        ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -48,7 +54,79 @@ jobs:
           restore-keys: |
             cache-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-${{ runner.os }}-cargo
+      - name: Work around MacOS + Cargo + Github Actions cache bug # Stolen from https://github.com/denoland/deno/commit/265c25754b56c60f72dd2a67cbb4c12696c7b3bb
+        if: runner.os == 'macOS'
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
+      - name: Simple example
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --example simple --no-default-features --features=${{ matrix.features }} -- -D warnings
+      - name: UI example
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --example ui --no-default-features --features=${{ matrix.features }} -- -D warnings
+
+  clippy_wasm32:
+    name: Clippy check (wasm32)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features: [
+            '',
+            'manage_clipboard',
+            'open_url',
+            'manage_clipboard,open_url',
+        ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: clippy
+          target: wasm32-unknown-unknown
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-wasm32-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-wasm32-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-wasm32-cargo
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --example ui --features=bevy/x11,bevy/png,bevy/bevy_wgpu -- -D warnings
+          args: --no-default-features --target=wasm32-unknown-unknown --features=${{ matrix.features }} -- -D warnings
+
+  doc:
+    name: Check documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-doc-cargo
+      - uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --all

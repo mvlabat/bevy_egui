@@ -137,6 +137,7 @@ pub struct EguiClipboard {
     clipboard: String,
 }
 
+#[cfg(feature = "manage_clipboard")]
 impl EguiClipboard {
     /// Sets clipboard contents.
     pub fn set_contents(&mut self, contents: &str) {
@@ -174,6 +175,7 @@ impl EguiClipboard {
     }
 
     #[cfg(target_arch = "wasm32")]
+    #[allow(clippy::unnecessary_wraps)]
     fn get_contents_impl(&self) -> Option<String> {
         Some(self.clipboard.clone())
     }
@@ -331,12 +333,6 @@ impl Plugin for EguiPlugin {
             SystemStage::parallel(),
         );
 
-        #[cfg(all(
-            feature = "manage_clipboard",
-            target_arch = "wasm32",
-            web_sys_unstable_apis
-        ))]
-        app.add_startup_system(setup_clipboard_event_listeners.system());
         app.add_system_to_stage(stage::INPUT, process_input.system());
         app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
         app.add_system_to_stage(stage::UI_FRAME_END, process_output.system());
@@ -346,6 +342,7 @@ impl Plugin for EguiPlugin {
         resources.get_or_insert_with(EguiInput::default);
         resources.get_or_insert_with(EguiOutput::default);
         resources.get_or_insert_with(EguiShapes::default);
+        #[cfg(feature = "manage_clipboard")]
         resources.get_or_insert_with(EguiClipboard::default);
         resources.insert(EguiContext::new());
         resources.insert(WindowSize::new(0.0, 0.0, 0.0));
