@@ -3,7 +3,7 @@ use crate::{
     EGUI_TEXTURE_RESOURCE_BINDING_NAME, EGUI_TRANSFORM_RESOURCE_BINDING_NAME,
 };
 use bevy::{
-    app::{EventReader, Events},
+    app::{Events, ManualEventReader},
     asset::{AssetEvent, Assets, Handle},
     core::AsBytes,
     ecs::{Resources, World},
@@ -48,7 +48,6 @@ pub struct EguiNode {
     egui_texture_version: Option<u64>,
     texture_bind_group_descriptor: Option<BindGroupDescriptor>,
     texture_resources: HashMap<Handle<Texture>, TextureResource>,
-    event_reader: EventReader<AssetEvent<Texture>>,
 
     vertex_buffer: Option<BufferId>,
     index_buffer: Option<BufferId>,
@@ -133,7 +132,6 @@ impl EguiNode {
             egui_texture_version: None,
             texture_bind_group_descriptor: None,
             texture_resources: Default::default(),
-            event_reader: Default::default(),
             vertex_buffer: None,
             index_buffer: None,
             color_resolve_target_indices,
@@ -425,7 +423,8 @@ impl EguiNode {
         texture_assets: &mut Assets<Texture>,
     ) {
         let mut changed_assets: HashMap<Handle<Texture>, &Texture> = HashMap::new();
-        for event in self.event_reader.iter(asset_events) {
+        let mut asset_event_reader = ManualEventReader::<AssetEvent<Texture>>::default();
+        for event in asset_event_reader.iter(asset_events) {
             let handle = match event {
                 AssetEvent::Created { ref handle }
                 | AssetEvent::Modified { ref handle }
