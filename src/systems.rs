@@ -1,6 +1,6 @@
 use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize};
 use bevy::{
-    app::Events,
+    app::EventReader,
     core::Time,
     ecs::{Res, ResMut},
     input::{
@@ -18,9 +18,9 @@ pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiInput>,
     #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<crate::EguiClipboard>,
-    ev_cursor: Res<Events<CursorMoved>>,
-    ev_mouse_wheel: Res<Events<MouseWheel>>,
-    ev_received_character: Res<Events<ReceivedCharacter>>,
+    mut ev_cursor: EventReader<CursorMoved>,
+    mut ev_mouse_wheel: EventReader<MouseWheel>,
+    mut ev_received_character: EventReader<ReceivedCharacter>,
     mouse_button_input: Res<Input<MouseButton>>,
     keyboard_input: Res<Input<KeyCode>>,
     mut window_size: ResMut<WindowSize>,
@@ -36,7 +36,7 @@ pub fn process_input(
         );
     }
 
-    if let Some(cursor_moved) = egui_context.cursor.latest(&ev_cursor) {
+    if let Some(cursor_moved) = ev_cursor.iter().last() {
         if cursor_moved.id.is_primary() {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
@@ -61,7 +61,7 @@ pub fn process_input(
     egui_input.raw_input.pixels_per_point =
         Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
-    for event in egui_context.mouse_wheel.iter(&ev_mouse_wheel) {
+    for event in ev_mouse_wheel.iter() {
         let mut delta = egui::vec2(event.x, event.y);
         if let MouseScrollUnit::Line = event.unit {
             // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
@@ -92,7 +92,7 @@ pub fn process_input(
     };
 
     if !ctrl && !win {
-        for event in egui_context.received_character.iter(&ev_received_character) {
+        for event in ev_received_character.iter() {
             if event.id.is_primary() && !event.char.is_control() {
                 egui_input
                     .raw_input

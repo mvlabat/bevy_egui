@@ -54,10 +54,9 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{stage as bevy_stage, AppBuilder, EventReader, Plugin},
+    app::{stage as bevy_stage, AppBuilder, Plugin},
     asset::{Assets, Handle, HandleUntyped},
     ecs::{IntoSystem, SystemStage},
-    input::mouse::MouseWheel,
     log,
     reflect::TypeUuid,
     render::{
@@ -72,7 +71,6 @@ use bevy::{
         stage as bevy_render_stage,
         texture::{Texture, TextureFormat},
     },
-    window::{CursorMoved, ReceivedCharacter},
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -219,9 +217,6 @@ pub struct EguiContext {
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
 
     mouse_position: (f32, f32),
-    cursor: EventReader<CursorMoved>,
-    mouse_wheel: EventReader<MouseWheel>,
-    received_character: EventReader<ReceivedCharacter>,
 }
 
 impl EguiContext {
@@ -230,9 +225,6 @@ impl EguiContext {
             ctx: Default::default(),
             egui_textures: Default::default(),
             mouse_position: (0.0, 0.0),
-            cursor: Default::default(),
-            mouse_wheel: Default::default(),
-            received_character: Default::default(),
         }
     }
 
