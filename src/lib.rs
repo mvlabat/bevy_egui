@@ -58,10 +58,9 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{stage as bevy_stage, AppBuilder, EventReader, Plugin},
+    app::{stage as bevy_stage, AppBuilder, Plugin},
     asset::{Assets, Handle, HandleUntyped},
     ecs::{IntoSystem, SystemStage},
-    input::mouse::MouseWheel,
     log,
     reflect::TypeUuid,
     render::{
@@ -221,12 +220,7 @@ pub struct EguiContext {
     /// Egui context.
     pub ctx: egui::CtxRef,
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
-
     mouse_position: Option<(f32, f32)>,
-    cursor_left: EventReader<CursorLeft>,
-    cursor_moved: EventReader<CursorMoved>,
-    mouse_wheel: EventReader<MouseWheel>,
-    received_character: EventReader<ReceivedCharacter>,
 }
 
 impl EguiContext {
@@ -235,10 +229,6 @@ impl EguiContext {
             ctx: Default::default(),
             egui_textures: Default::default(),
             mouse_position: Some((0.0, 0.0)),
-            cursor_left: Default::default(),
-            cursor_moved: Default::default(),
-            mouse_wheel: Default::default(),
-            received_character: Default::default(),
         }
     }
 
