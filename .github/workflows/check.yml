@@ -130,3 +130,28 @@ jobs:
         with:
           command: doc
           args: --all
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-test-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-test-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-test-cargo
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all
