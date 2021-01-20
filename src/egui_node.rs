@@ -614,9 +614,7 @@ impl EguiNode {
         texture: &Texture,
     ) {
         let width = texture.size.width as usize;
-        let aligned_width = render_context
-            .resources()
-            .get_aligned_texture_size(width);
+        let aligned_width = render_context.resources().get_aligned_texture_size(width);
         let format_size = texture.format.pixel_size();
         let mut aligned_data = vec![
             0;
@@ -631,8 +629,7 @@ impl EguiNode {
             .enumerate()
             .for_each(|(index, row)| {
                 let offset = index * aligned_width * format_size;
-                aligned_data[offset..(offset + width * format_size)]
-                    .copy_from_slice(row);
+                aligned_data[offset..(offset + width * format_size)].copy_from_slice(row);
             });
         let texture_buffer = render_context.resources().create_buffer_with_data(
             BufferInfo {
