@@ -20,7 +20,7 @@
 //!
 //! Here's a minimal usage example:
 //!
-//! ```rust
+//! ```no_run
 //! use bevy::prelude::*;
 //! use bevy_egui::{egui, EguiContext, EguiPlugin};
 //!
