@@ -5,7 +5,7 @@ use bevy::{
     render::{
         render_graph::{CommandQueue, Node, ResourceSlots, SystemNode},
         renderer::{
-            BufferId, BufferInfo, BufferUsage, RenderContext, RenderResourceBinding,
+            BufferId, BufferInfo, BufferMapMode, BufferUsage, RenderContext, RenderResourceBinding,
             RenderResourceBindings, RenderResourceContext,
         },
     },
@@ -83,7 +83,7 @@ fn transform_node_system(
     let transform_data_size = std::mem::size_of::<[[f32; 2]; 2]>();
 
     let staging_buffer = if let Some(staging_buffer) = state.staging_buffer {
-        render_resource_context.map_buffer(staging_buffer);
+        render_resource_context.map_buffer(staging_buffer, BufferMapMode::Write);
         staging_buffer
     } else {
         let buffer = render_resource_context.create_buffer(BufferInfo {
