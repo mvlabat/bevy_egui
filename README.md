@@ -59,3 +59,7 @@ For a more advanced example, see [examples/ui.rs](examples/ui.rs).
 ```bash
 cargo run --example ui --features="bevy/x11 bevy/png bevy/bevy_wgpu"
 ```
+
+## See also
+
+- [`bevy_megaui`](https://github.com/mvlabat/bevy_megaui)
