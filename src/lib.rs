@@ -65,10 +65,10 @@ use bevy::{
     reflect::TypeUuid,
     render::{
         pipeline::{
-            BlendDescriptor, BlendFactor, BlendOperation, ColorStateDescriptor, ColorWrite,
-            CompareFunction, CullMode, DepthStencilStateDescriptor, FrontFace, IndexFormat,
-            PipelineDescriptor, RasterizationStateDescriptor, StencilStateDescriptor,
-            StencilStateFaceDescriptor,
+            BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrite,
+            CompareFunction, CullMode, DepthBiasState, DepthStencilState, FrontFace,
+            IndexFormat, MultisampleState, PipelineDescriptor, PrimitiveState,
+            StencilFaceState, StencilState,
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
         shader::{Shader, ShaderStage, ShaderStages},
@@ -401,41 +401,48 @@ impl Plugin for EguiPlugin {
 
 fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> PipelineDescriptor {
     PipelineDescriptor {
-        rasterization_state: Some(RasterizationStateDescriptor {
+        primitive: PrimitiveState {
             front_face: FrontFace::Cw,
             cull_mode: CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        depth_stencil_state: Some(DepthStencilStateDescriptor {
+            strip_index_format: Some(IndexFormat::Uint32),
+            ..PrimitiveState::default()
+        },
+        depth_stencil: Some(DepthStencilState {
             format: TextureFormat::Depth32Float,
             depth_write_enabled: true,
             depth_compare: CompareFunction::LessEqual,
-            stencil: StencilStateDescriptor {
-                front: StencilStateFaceDescriptor::IGNORE,
-                back: StencilStateFaceDescriptor::IGNORE,
+            stencil: StencilState {
+                front: StencilFaceState::IGNORE,
+                back: StencilFaceState::IGNORE,
                 read_mask: 0,
                 write_mask: 0,
             },
+            bias: DepthBiasState {
+                constant: 0,
+                slope_scale: 0.0,
+                clamp: 0.0,
+            },
+            clamp_depth: false,
         }),
-        color_states: vec![ColorStateDescriptor {
+        color_target_states: vec![ColorTargetState {
             format: TextureFormat::default(),
-            color_blend: BlendDescriptor {
+            color_blend: BlendState {
                 src_factor: BlendFactor::One,
                 dst_factor: BlendFactor::OneMinusSrcAlpha,
                 operation: BlendOperation::Add,
             },
-            alpha_blend: BlendDescriptor {
+            alpha_blend: BlendState {
                 src_factor: BlendFactor::One,
                 dst_factor: BlendFactor::OneMinusSrcAlpha,
                 operation: BlendOperation::Add,
             },
             write_mask: ColorWrite::ALL,
         }],
-        index_format: IndexFormat::Uint32,
-        sample_count,
+        multisample: MultisampleState {
+            count: sample_count,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
         ..PipelineDescriptor::new(ShaderStages {
             vertex: shaders.add(Shader::from_glsl(
                 ShaderStage::Vertex,

@@ -15,8 +15,8 @@ use bevy::{
         },
         pipeline::{
             BindGroupDescriptor, IndexFormat, InputStepMode, PipelineCompiler, PipelineDescriptor,
-            PipelineLayout, PipelineSpecialization, VertexAttributeDescriptor,
-            VertexBufferDescriptor, VertexFormat,
+            PipelineLayout, PipelineSpecialization, VertexAttribute, VertexBufferLayout,
+            VertexFormat,
         },
         render_graph::{base::Msaa, Node, ResourceSlotInfo, ResourceSlots},
         renderer::{
@@ -235,7 +235,7 @@ impl Node for EguiNode {
             &mut |render_pass| {
                 render_pass.set_pipeline(self.pipeline_descriptor.as_ref().unwrap());
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.unwrap(), 0);
-                render_pass.set_index_buffer(self.index_buffer.unwrap(), 0);
+                render_pass.set_index_buffer(self.index_buffer.unwrap(), 0, IndexFormat::Uint32);
                 render_pass.set_bind_group(
                     0,
                     self.transform_bind_group_descriptor.as_ref().unwrap().id,
@@ -342,19 +342,19 @@ impl EguiNode {
             let mut pipeline_compiler = resources.get_mut::<PipelineCompiler>().unwrap();
 
             let attributes = vec![
-                VertexAttributeDescriptor {
+                VertexAttribute {
                     name: Cow::from("Vertex_Position"),
                     offset: 0,
                     format: VertexFormat::Float2,
                     shader_location: 0,
                 },
-                VertexAttributeDescriptor {
+                VertexAttribute {
                     name: Cow::from("Vertex_Uv"),
                     offset: VertexFormat::Float2.get_size(),
                     format: VertexFormat::Float2,
                     shader_location: 1,
                 },
-                VertexAttributeDescriptor {
+                VertexAttribute {
                     name: Cow::from("Vertex_Color"),
                     offset: VertexFormat::Float2.get_size() + VertexFormat::Float2.get_size(),
                     format: VertexFormat::Float4,
@@ -367,7 +367,7 @@ impl EguiNode {
                 &mut shaders,
                 &EGUI_PIPELINE_HANDLE.typed(),
                 &PipelineSpecialization {
-                    vertex_buffer_descriptor: VertexBufferDescriptor {
+                    vertex_buffer_layout: VertexBufferLayout {
                         name: Cow::from("EguiVertex"),
                         stride: attributes
                             .iter()
@@ -375,7 +375,7 @@ impl EguiNode {
                         step_mode: InputStepMode::Vertex,
                         attributes,
                     },
-                    index_format: IndexFormat::Uint32,
+                    strip_index_format: Some(IndexFormat::Uint32),
                     sample_count: msaa.samples,
                     ..PipelineSpecialization::default()
                 },
