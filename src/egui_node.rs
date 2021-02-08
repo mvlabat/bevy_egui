@@ -195,7 +195,7 @@ impl Node for EguiNode {
         let mut draw_commands = Vec::new();
         let mut index_offset = 0;
 
-        for (rect, triangles) in &egui_paint_jobs {
+        for egui::ClippedMesh(rect, triangles) in &egui_paint_jobs {
             let texture_handle = egui_context
                 .egui_textures
                 .get(&triangles.texture_id)

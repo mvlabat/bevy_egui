@@ -57,16 +57,14 @@ fn ui_example(_world: &mut World, resources: &mut Resources) {
         });
 
         ui.add(egui::Slider::f32(&mut ui_state.value, 0.0..=10.0).text("value"));
-        if ui.button("Increment").clicked {
+        if ui.button("Increment").clicked() {
             ui_state.value += 1.0;
         }
 
-        // ui.separator();
-
         ui.with_layout(egui::Layout::left_to_right(), |ui| {
-            load = ui.button("Load").clicked;
-            invert = ui.button("Invert").clicked;
-            remove = ui.button("Remove").clicked;
+            load = ui.button("Load").clicked();
+            invert = ui.button("Invert").clicked();
+            remove = ui.button("Remove").clicked();
         });
 
         ui.add(egui::widgets::Image::new(
@@ -83,7 +81,7 @@ fn ui_example(_world: &mut World, resources: &mut Resources) {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu(ui, "File", |ui| {
-                if ui.button("Quit").clicked {
+                if ui.button("Quit").clicked() {
                     std::process::exit(0);
                 }
             });
@@ -155,14 +153,14 @@ impl Painting {
         ui.horizontal(|ui| {
             egui::stroke_ui(ui, &mut self.stroke, "Stroke");
             ui.separator();
-            if ui.button("Clear Painting").clicked {
+            if ui.button("Clear Painting").clicked() {
                 self.lines.clear();
             }
         })
-        .1
+        .response
     }
 
-    pub fn ui_content(&mut self, ui: &mut egui::Ui) -> egui::Response {
+    pub fn ui_content(&mut self, ui: &mut egui::Ui) {
         let (response, painter) =
             ui.allocate_painter(ui.available_size_before_wrap_finite(), egui::Sense::drag());
         let rect = response.rect;
@@ -173,12 +171,10 @@ impl Painting {
 
         let current_line = self.lines.last_mut().unwrap();
 
-        if response.active {
-            if let Some(mouse_pos) = ui.input().mouse.pos {
-                let canvas_pos = mouse_pos - rect.min;
-                if current_line.last() != Some(&canvas_pos) {
-                    current_line.push(canvas_pos);
-                }
+        if let Some(pointer_pos) = response.interact_pointer_pos() {
+            let canvas_pos = pointer_pos - rect.min;
+            if current_line.last() != Some(&canvas_pos) {
+                current_line.push(canvas_pos);
             }
         } else if !current_line.is_empty() {
             self.lines.push(vec![]);
@@ -190,7 +186,5 @@ impl Painting {
                 painter.add(egui::Shape::line(points, self.stroke));
             }
         }
-
-        response
     }
 }

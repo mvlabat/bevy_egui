@@ -76,7 +76,7 @@ use bevy::{
         stage as bevy_render_stage,
         texture::{Texture, TextureFormat},
     },
-    window::{CursorMoved, ReceivedCharacter},
+    window::{CursorLeft, CursorMoved, ReceivedCharacter},
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -222,8 +222,9 @@ pub struct EguiContext {
     pub ctx: egui::CtxRef,
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
 
-    mouse_position: (f32, f32),
-    cursor: EventReader<CursorMoved>,
+    mouse_position: Option<(f32, f32)>,
+    cursor_left: EventReader<CursorLeft>,
+    cursor_moved: EventReader<CursorMoved>,
     mouse_wheel: EventReader<MouseWheel>,
     received_character: EventReader<ReceivedCharacter>,
 }
@@ -233,8 +234,9 @@ impl EguiContext {
         Self {
             ctx: Default::default(),
             egui_textures: Default::default(),
-            mouse_position: (0.0, 0.0),
-            cursor: Default::default(),
+            mouse_position: Some((0.0, 0.0)),
+            cursor_left: Default::default(),
+            cursor_moved: Default::default(),
             mouse_wheel: Default::default(),
             received_character: Default::default(),
         }

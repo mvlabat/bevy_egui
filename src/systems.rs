@@ -9,7 +9,7 @@ use bevy::{
         Input,
     },
     log,
-    window::{CursorMoved, ReceivedCharacter, Windows},
+    window::{CursorLeft, CursorMoved, ReceivedCharacter, Windows},
 };
 use bevy_winit::WinitWindows;
 
@@ -18,7 +18,8 @@ pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiInput>,
     #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<crate::EguiClipboard>,
-    ev_cursor: Res<Events<CursorMoved>>,
+    ev_cursor_left: Res<Events<CursorLeft>>,
+    ev_cursor_moved: Res<Events<CursorMoved>>,
     ev_mouse_wheel: Res<Events<MouseWheel>>,
     ev_received_character: Res<Events<ReceivedCharacter>>,
     mouse_button_input: Res<Input<MouseButton>>,
@@ -36,17 +37,6 @@ pub fn process_input(
         );
     }
 
-    if let Some(cursor_moved) = egui_context.cursor.latest(&ev_cursor) {
-        if cursor_moved.id.is_primary() {
-            let scale_factor = egui_settings.scale_factor as f32;
-            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-            mouse_position.1 = window_size.height() / scale_factor - mouse_position.1;
-            egui_context.mouse_position = mouse_position;
-            egui_input.raw_input.mouse_pos = Some(egui::pos2(mouse_position.0, mouse_position.1));
-        }
-    }
-
-    egui_input.raw_input.mouse_down = mouse_button_input.pressed(MouseButton::Left);
     egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
         egui::pos2(0.0, 0.0),
         egui::pos2(
@@ -90,6 +80,53 @@ pub fn process_input(
         mac_cmd,
         command,
     };
+
+    for cursor_entered in egui_context.cursor_left.iter(&ev_cursor_left) {
+        if cursor_entered.id.is_primary() {
+            egui_input.raw_input.events.push(egui::Event::PointerGone);
+            egui_context.mouse_position = None;
+        }
+    }
+    if let Some(cursor_moved) = egui_context.cursor_moved.latest(&ev_cursor_moved) {
+        if cursor_moved.id.is_primary() {
+            let scale_factor = egui_settings.scale_factor as f32;
+            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
+            mouse_position.1 = window_size.height() / scale_factor - mouse_position.1;
+            egui_context.mouse_position = Some(mouse_position);
+            egui_input
+                .raw_input
+                .events
+                .push(egui::Event::PointerMoved(egui::pos2(
+                    mouse_position.0,
+                    mouse_position.1,
+                )));
+        }
+    }
+
+    if let Some((x, y)) = egui_context.mouse_position {
+        let pos = egui::pos2(x, y);
+        process_mouse_button_event(
+            &mut egui_input.raw_input.events,
+            pos,
+            modifiers,
+            &mouse_button_input,
+            MouseButton::Left,
+        );
+        process_mouse_button_event(
+            &mut egui_input.raw_input.events,
+            pos,
+            modifiers,
+            &mouse_button_input,
+            MouseButton::Right,
+        );
+        process_mouse_button_event(
+            &mut egui_input.raw_input.events,
+            pos,
+            modifiers,
+            &mouse_button_input,
+            MouseButton::Middle,
+        );
+    }
 
     if !ctrl && !win {
         for event in egui_context.received_character.iter(&ev_received_character) {
@@ -253,4 +290,33 @@ fn bevy_to_egui_key(key_code: KeyCode) -> Option<egui::Key> {
         _ => return None,
     };
     Some(key)
+}
+
+fn process_mouse_button_event(
+    egui_events: &mut Vec<egui::Event>,
+    pos: egui::Pos2,
+    modifiers: egui::Modifiers,
+    mouse_button_input: &Input<MouseButton>,
+    mouse_button: MouseButton,
+) {
+    let button = match mouse_button {
+        MouseButton::Left => egui::PointerButton::Primary,
+        MouseButton::Right => egui::PointerButton::Secondary,
+        MouseButton::Middle => egui::PointerButton::Middle,
+        _ => panic!("Unsupported mouse button"),
+    };
+
+    let pressed = if mouse_button_input.just_pressed(mouse_button) {
+        true
+    } else if mouse_button_input.just_released(mouse_button) {
+        false
+    } else {
+        return;
+    };
+    egui_events.push(egui::Event::PointerButton {
+        pos,
+        button,
+        pressed,
+        modifiers,
+    });
 }
