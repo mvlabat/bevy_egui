@@ -7,6 +7,7 @@ fn main() {
     App::build()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .insert_resource(Msaa { samples: 4 })
+        .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .add_startup_system(load_assets.system())
@@ -23,11 +24,8 @@ struct UiState {
     inverted: bool,
 }
 
-fn load_assets(_world: &mut World, resources: &mut Resources) {
-    let mut egui_context = resources.get_mut::<EguiContext>().unwrap();
-    let asset_server = resources.get::<AssetServer>().unwrap();
-
-    let texture_handle = asset_server.load("icon.png");
+fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
+    let texture_handle = assets.load("icon.png");
     egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
 }
 
@@ -37,12 +35,12 @@ fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<
     }
 }
 
-fn ui_example(_world: &mut World, resources: &mut Resources) {
-    resources.get_or_insert_with(UiState::default);
-
-    let mut egui_ctx = resources.get_mut::<EguiContext>().unwrap();
+fn ui_example(
+    mut egui_ctx: ResMut<EguiContext>,
+    mut ui_state: ResMut<UiState>,
+    assets: Res<AssetServer>,
+) {
     let ctx = &mut egui_ctx.ctx;
-    let mut ui_state = resources.get_mut::<UiState>().unwrap();
 
     let mut load = false;
     let mut remove = false;
@@ -121,11 +119,10 @@ fn ui_example(_world: &mut World, resources: &mut Resources) {
         ui_state.inverted = !ui_state.inverted;
     }
     if load || invert {
-        let asset_server = resources.get::<AssetServer>().unwrap();
         let texture_handle = if ui_state.inverted {
-            asset_server.load("icon_inverted.png")
+            assets.load("icon_inverted.png")
         } else {
-            asset_server.load("icon.png")
+            assets.load("icon.png")
         };
         egui_ctx.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
     }
