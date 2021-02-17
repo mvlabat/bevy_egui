@@ -57,10 +57,6 @@ mod systems;
 mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
-use bevy::render::pipeline::{
-    BlendState, ColorTargetState, CullMode, FrontFace, PrimitiveState, StencilFaceState,
-    StencilState,
-};
 use bevy::{
     app::{stage as bevy_stage, AppBuilder, Plugin},
     asset::{Assets, Handle, HandleUntyped},
@@ -69,8 +65,9 @@ use bevy::{
     reflect::TypeUuid,
     render::{
         pipeline::{
-            BlendFactor, BlendOperation, ColorWrite, CompareFunction, DepthBiasState,
-            DepthStencilState, MultisampleState, PipelineDescriptor,
+            BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrite, CompareFunction,
+            CullMode, DepthBiasState, DepthStencilState, FrontFace, MultisampleState,
+            PipelineDescriptor, PrimitiveState, StencilFaceState, StencilState,
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
         shader::{Shader, ShaderStage, ShaderStages},
@@ -357,6 +354,10 @@ impl Plugin for EguiPlugin {
         render_graph.add_node(node::EGUI_PASS, EguiNode::new(&msaa));
         render_graph
             .add_node_edge(base::node::MAIN_PASS, node::EGUI_PASS)
+            .unwrap();
+        render_graph
+            // hardcodede until https://github.com/bevyengine/bevy/pull/1464 is merged
+            .add_node_edge("ui_pass", node::EGUI_PASS)
             .unwrap();
 
         render_graph
