@@ -58,7 +58,7 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{stage as bevy_stage, AppBuilder, Plugin},
+    app::{AppBuilder, CoreStage, Plugin},
     asset::{Assets, Handle, HandleUntyped},
     ecs::{IntoSystem, SystemStage},
     log,
@@ -71,8 +71,8 @@ use bevy::{
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
         shader::{Shader, ShaderStage, ShaderStages},
-        stage as bevy_render_stage,
         texture::{Texture, TextureFormat},
+        RenderStage,
     },
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -313,11 +313,11 @@ pub mod stage {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_stage_after(bevy_stage::EVENT, stage::INPUT, SystemStage::parallel());
+        app.add_stage_after(CoreStage::Event, stage::INPUT, SystemStage::parallel());
         app.add_stage_after(stage::INPUT, stage::POST_INPUT, SystemStage::parallel());
         app.add_stage_after(stage::POST_INPUT, stage::UI_FRAME, SystemStage::parallel());
         app.add_stage_before(
-            bevy_render_stage::RENDER_RESOURCE,
+            RenderStage::RenderResource,
             stage::UI_FRAME_END,
             SystemStage::parallel(),
         );
