@@ -58,9 +58,9 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{stage as bevy_stage, AppBuilder, Plugin},
+    app::{CoreStage as bevy_stage, AppBuilder, Plugin},
     asset::{Assets, Handle, HandleUntyped},
-    ecs::{IntoSystem, SystemStage},
+    ecs::{IntoSystem, StageLabel, SystemStage},
     log,
     reflect::TypeUuid,
     render::{
@@ -72,7 +72,7 @@ use bevy::{
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
         shader::{Shader, ShaderStage, ShaderStages},
-        stage as bevy_render_stage,
+        RenderStage as bevy_render_stage,
         texture::{Texture, TextureFormat},
     },
 };
@@ -300,38 +300,39 @@ pub mod node {
 }
 
 /// The names of `bevy_egui` stages.
-pub mod stage {
-    /// Runs after [bevy::app::stage::EVENT]. This is where `bevy_egui` translates Bevy's input events to Egui.
-    pub const INPUT: &str = "input";
-    /// Runs after [INPUT].
-    pub const POST_INPUT: &str = "post_input";
-    /// Runs after [POST_INPUT]. All Egui widgets should be added during or after this stage and before [UI_FRAME_END].
-    pub const UI_FRAME: &str = "ui_frame";
-    /// Runs before [bevy::render::stage::RENDER_RESOURCE]. This is where we read Egui's output.
-    pub const UI_FRAME_END: &str = "ui_frame_end";
-    /// Runs after [UI_FRAME_END].
-    pub const POST_UI_FRAME_END: &str = "post_ui_frame_end";
+#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
+pub enum EguiStage {
+    /// Runs after [bevy::app::CoreStage::Event]. This is where `bevy_egui` translates Bevy's input events to Egui.
+    Input,
+    /// Runs after [Input].
+    PostInput,
+    /// Runs after [PostInput]. All Egui widgets should be added during or after this stage and before [UiFrameEnd].
+    UiFrame,
+    /// Runs before [bevy::render::RenderStage::RenderResource]. This is where we read Egui's output.
+    UiFrameEnd,
+    /// Runs after [UiFrameEnd].
+    PostUiFrameEnd,
 }
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_stage_after(bevy_stage::EVENT, stage::INPUT, SystemStage::parallel());
-        app.add_stage_after(stage::INPUT, stage::POST_INPUT, SystemStage::parallel());
-        app.add_stage_after(stage::POST_INPUT, stage::UI_FRAME, SystemStage::parallel());
+        app.add_stage_after(bevy_stage::Event, EguiStage::Input, SystemStage::parallel());
+        app.add_stage_after(EguiStage::Input, EguiStage::PostInput, SystemStage::parallel());
+        app.add_stage_after(EguiStage::PostInput, EguiStage::UiFrame, SystemStage::parallel());
         app.add_stage_before(
-            bevy_render_stage::RENDER_RESOURCE,
-            stage::UI_FRAME_END,
+            bevy_render_stage::RenderResource,
+            EguiStage::UiFrameEnd,
             SystemStage::parallel(),
         );
         app.add_stage_after(
-            stage::UI_FRAME_END,
-            stage::POST_UI_FRAME_END,
+            EguiStage::UiFrameEnd,
+            EguiStage::PostUiFrameEnd,
             SystemStage::parallel(),
         );
 
-        app.add_system_to_stage(stage::INPUT, process_input.system());
-        app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
-        app.add_system_to_stage(stage::UI_FRAME_END, process_output.system());
+        app.add_system_to_stage(EguiStage::Input, process_input.system());
+        app.add_system_to_stage(EguiStage::UiFrame, begin_frame.system());
+        app.add_system_to_stage(EguiStage::UiFrameEnd, process_output.system());
 
         let resources = app.resources_mut();
         resources.get_or_insert_with(EguiSettings::default);
