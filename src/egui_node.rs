@@ -2,7 +2,6 @@ use crate::{
     EguiContext, EguiSettings, EguiShapes, WindowSize, EGUI_PIPELINE_HANDLE,
     EGUI_TEXTURE_RESOURCE_BINDING_NAME, EGUI_TRANSFORM_RESOURCE_BINDING_NAME,
 };
-use bevy::render::pipeline::{VertexAttribute, VertexBufferLayout};
 use bevy::{
     app::{Events, ManualEventReader},
     asset::{AssetEvent, Assets, Handle},
@@ -16,7 +15,8 @@ use bevy::{
         },
         pipeline::{
             BindGroupDescriptor, IndexFormat, InputStepMode, PipelineCompiler, PipelineDescriptor,
-            PipelineLayout, PipelineSpecialization, VertexFormat,
+            PipelineLayout, PipelineSpecialization, VertexAttribute, VertexBufferLayout,
+            VertexFormat,
         },
         render_graph::{base::Msaa, Node, ResourceSlotInfo, ResourceSlots},
         renderer::{
