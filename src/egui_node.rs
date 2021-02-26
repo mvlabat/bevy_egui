@@ -6,8 +6,8 @@ use bevy::{
     app::{Events, ManualEventReader},
     asset::{AssetEvent, Assets, Handle},
     core::AsBytes,
-    ecs::{Resources, World},
     log,
+    prelude::*,
     render::{
         pass::{
             ClearColor, LoadOp, Operations, PassDescriptor,
@@ -153,27 +153,28 @@ impl Node for EguiNode {
 
     fn update(
         &mut self,
-        _world: &World,
-        resources: &Resources,
+        world: &World,
         render_context: &mut dyn RenderContext,
         input: &ResourceSlots,
         _output: &mut ResourceSlots,
     ) {
-        self.process_attachments(input, resources);
-        self.init_pipeline(render_context, resources);
+        self.process_attachments(input, world);
+        self.init_pipeline(render_context, world);
 
-        let window_size = resources.get::<WindowSize>().unwrap();
-        let egui_settings = resources.get::<EguiSettings>().unwrap();
-        let mut egui_shapes = resources.get_mut::<EguiShapes>().unwrap();
+        let window_size = world.get_resource::<WindowSize>().unwrap();
+        let egui_settings = world.get_resource::<EguiSettings>().unwrap();
+        let mut egui_shapes = world.get_resource_mut::<EguiShapes>().unwrap();
 
-        let render_resource_bindings = resources.get::<RenderResourceBindings>().unwrap();
+        let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
 
         self.init_transform_bind_group(render_context, &render_resource_bindings);
 
-        let mut texture_assets = resources.get_mut::<Assets<Texture>>().unwrap();
-        let asset_events = resources.get_mut::<Events<AssetEvent<Texture>>>().unwrap();
+        let mut texture_assets = world.get_resource_mut::<Assets<Texture>>().unwrap();
+        let asset_events = world
+            .get_resource_mut::<Events<AssetEvent<Texture>>>()
+            .unwrap();
 
-        let mut egui_context = resources.get_mut::<EguiContext>().unwrap();
+        let mut egui_context = world.get_resource_mut::<EguiContext>().unwrap();
 
         self.process_asset_events(
             render_context,
@@ -182,7 +183,7 @@ impl Node for EguiNode {
             &mut texture_assets,
         );
         self.remove_unused_textures(render_context, &egui_context);
-        self.init_textures(render_context, &mut egui_context, &mut texture_assets);
+        // self.init_textures(render_context, &mut egui_context, &mut texture_assets);
 
         let mut shapes = Vec::new();
         std::mem::swap(&mut egui_shapes.shapes, &mut shapes);
@@ -295,7 +296,7 @@ impl Node for EguiNode {
 }
 
 impl EguiNode {
-    fn process_attachments(&mut self, input: &ResourceSlots, resources: &Resources) {
+    fn process_attachments(&mut self, input: &ResourceSlots, world: &World) {
         if let Some(input_index) = self.depth_stencil_attachment_input_index {
             self.pass_descriptor
                 .depth_stencil_attachment
@@ -312,7 +313,7 @@ impl EguiNode {
             .enumerate()
         {
             if self.default_clear_color_inputs.contains(&i) {
-                if let Some(default_clear_color) = resources.get::<ClearColor>() {
+                if let Some(default_clear_color) = world.get_resource::<ClearColor>() {
                     color_attachment.ops.load = LoadOp::Clear(default_clear_color.0);
                 }
             }
@@ -328,18 +329,20 @@ impl EguiNode {
         }
     }
 
-    fn init_pipeline(&mut self, render_context: &mut dyn RenderContext, resources: &Resources) {
+    fn init_pipeline(&mut self, render_context: &mut dyn RenderContext, world: &World) {
         if self.pipeline_descriptor.is_some() {
             return;
         }
 
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
-        let msaa = resources.get::<Msaa>().unwrap();
+        let mut pipelines = world
+            .get_resource_mut::<Assets<PipelineDescriptor>>()
+            .unwrap();
+        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
+        let msaa = world.get_resource::<Msaa>().unwrap();
 
         let pipeline_descriptor_handle = {
             let render_resource_context = render_context.resources();
-            let mut pipeline_compiler = resources.get_mut::<PipelineCompiler>().unwrap();
+            let mut pipeline_compiler = world.get_resource_mut::<PipelineCompiler>().unwrap();
 
             let attributes = vec![
                 VertexAttribute {

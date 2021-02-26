@@ -1,7 +1,7 @@
 use crate::{EguiSettings, WindowSize, EGUI_TRANSFORM_RESOURCE_BINDING_NAME};
 use bevy::{
     core::AsBytes,
-    ecs::{Commands, IntoSystem, Local, Res, ResMut, Resources, System, World},
+    prelude::*,
     render::{
         render_graph::{CommandQueue, Node, ResourceSlots, SystemNode},
         renderer::{
@@ -28,7 +28,6 @@ impl Node for EguiTransformNode {
     fn update(
         &mut self,
         _world: &World,
-        _resources: &Resources,
         render_context: &mut dyn RenderContext,
         _input: &ResourceSlots,
         _output: &mut ResourceSlots,
@@ -38,18 +37,16 @@ impl Node for EguiTransformNode {
 }
 
 impl SystemNode for EguiTransformNode {
-    fn get_system(&self, commands: &mut Commands) -> Box<dyn System<In = (), Out = ()>> {
-        let system = transform_node_system.system();
-        commands.insert_local_resource(
-            system.id(),
-            TransformNodeState {
+    fn get_system(&self) -> Box<dyn System<In = (), Out = ()>> {
+        let system = transform_node_system.system().config(|c| {
+            c.0 = Some(TransformNodeState {
                 command_queue: self.command_queue.clone(),
                 transform_buffer: None,
                 staging_buffer: None,
                 prev_window_size: WindowSize::new(0.0, 0.0, 0.0),
                 prev_scale_factor: 0.0,
-            },
-        );
+            });
+        });
         Box::new(system)
     }
 }

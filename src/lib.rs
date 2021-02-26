@@ -60,8 +60,8 @@ use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
     app::{AppBuilder, CoreStage, Plugin},
     asset::{Assets, Handle, HandleUntyped},
-    ecs::{IntoSystem, SystemStage},
     log,
+    prelude::*,
     reflect::TypeUuid,
     render::{
         pipeline::{
@@ -331,25 +331,29 @@ impl Plugin for EguiPlugin {
         app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
         app.add_system_to_stage(stage::UI_FRAME_END, process_output.system());
 
-        let resources = app.resources_mut();
-        resources.get_or_insert_with(EguiSettings::default);
-        resources.get_or_insert_with(EguiInput::default);
-        resources.get_or_insert_with(EguiOutput::default);
-        resources.get_or_insert_with(EguiShapes::default);
+        let world = app.world_mut();
+        world.get_resource_or_insert_with(EguiSettings::default);
+        world.get_resource_or_insert_with(EguiInput::default);
+        world.get_resource_or_insert_with(EguiOutput::default);
+        world.get_resource_or_insert_with(EguiShapes::default);
         #[cfg(feature = "manage_clipboard")]
-        resources.get_or_insert_with(EguiClipboard::default);
-        resources.insert(EguiContext::new());
-        resources.insert(WindowSize::new(0.0, 0.0, 0.0));
+        world.get_resource_or_insert_with(EguiClipboard::default);
+        world.insert_resource(EguiContext::new());
+        world.insert_resource(WindowSize::new(0.0, 0.0, 0.0));
 
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
-        let msaa = resources.get::<Msaa>().unwrap();
+        let world = world.cell();
+
+        let mut pipelines = world
+            .get_resource_mut::<Assets<PipelineDescriptor>>()
+            .unwrap();
+        let msaa = world.get_resource::<Msaa>().unwrap();
+        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
 
         pipelines.set_untracked(
             EGUI_PIPELINE_HANDLE,
             build_egui_pipeline(&mut shaders, msaa.samples),
         );
-        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
+        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
 
         render_graph.add_node(node::EGUI_PASS, EguiNode::new(&msaa));
         render_graph

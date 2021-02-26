@@ -2,26 +2,33 @@ use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, Window
 use bevy::{
     app::EventReader,
     core::Time,
-    ecs::{Res, ResMut},
+    ecs::system::SystemParam,
     input::{
         keyboard::KeyCode,
         mouse::{MouseButton, MouseScrollUnit, MouseWheel},
         Input,
     },
     log,
+    prelude::*,
     window::{CursorLeft, CursorMoved, ReceivedCharacter, Windows},
 };
 use bevy_winit::WinitWindows;
+
+#[derive(SystemParam)]
+struct InputEvents<'a> {
+    #[cfg(feature = "manage_clipboard")]
+    egui_clipboard: Res<'a, crate::EguiClipboard>,
+    ev_cursor_left: EventReader<'a, CursorLeft>,
+    ev_cursor: EventReader<'a, CursorMoved>,
+    ev_mouse_wheel: EventReader<'a, MouseWheel>,
+    ev_received_character: EventReader<'a, ReceivedCharacter>,
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiInput>,
-    #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<crate::EguiClipboard>,
-    mut ev_cursor_left: EventReader<CursorLeft>,
-    mut ev_cursor: EventReader<CursorMoved>,
-    mut ev_mouse_wheel: EventReader<MouseWheel>,
-    mut ev_received_character: EventReader<ReceivedCharacter>,
+    mut input_events: InputEvents,
     mouse_button_input: Res<Input<MouseButton>>,
     keyboard_input: Res<Input<KeyCode>>,
     mut window_size: ResMut<WindowSize>,
@@ -51,7 +58,7 @@ pub fn process_input(
     egui_input.raw_input.pixels_per_point =
         Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
-    for event in ev_mouse_wheel.iter() {
+    for event in input_events.ev_mouse_wheel.iter() {
         let mut delta = egui::vec2(event.x, event.y);
         if let MouseScrollUnit::Line = event.unit {
             // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
@@ -81,13 +88,13 @@ pub fn process_input(
         command,
     };
 
-    for cursor_entered in ev_cursor_left.iter() {
+    for cursor_entered in input_events.ev_cursor_left.iter() {
         if cursor_entered.id.is_primary() {
             egui_input.raw_input.events.push(egui::Event::PointerGone);
             egui_context.mouse_position = None;
         }
     }
-    if let Some(cursor_moved) = ev_cursor.iter().next_back() {
+    if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
         if cursor_moved.id.is_primary() {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
@@ -129,7 +136,7 @@ pub fn process_input(
     }
 
     if !ctrl && !win {
-        for event in ev_received_character.iter() {
+        for event in input_events.ev_received_character.iter() {
             if event.id.is_primary() && !event.char.is_control() {
                 egui_input
                     .raw_input
@@ -167,7 +174,7 @@ pub fn process_input(
             egui_input.raw_input.events.push(egui::Event::Cut);
         }
         if command && keyboard_input.just_pressed(KeyCode::V) {
-            if let Some(contents) = egui_clipboard.get_contents() {
+            if let Some(contents) = input_events.egui_clipboard.get_contents() {
                 egui_input
                     .raw_input
                     .events
