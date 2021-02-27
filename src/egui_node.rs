@@ -18,15 +18,17 @@ use bevy::{
             PipelineLayout, PipelineSpecialization, VertexAttribute, VertexBufferLayout,
             VertexFormat,
         },
-        render_graph::{base::Msaa, Node, ResourceSlotInfo, ResourceSlots},
+        render_graph::{base::Msaa, CommandQueue, Node, ResourceSlotInfo, ResourceSlots},
         renderer::{
             BindGroup, BufferId, BufferInfo, BufferUsage, RenderContext, RenderResourceBinding,
-            RenderResourceBindings, RenderResourceType, SamplerId, TextureId,
+            RenderResourceBindings, RenderResourceContext, RenderResourceType, SamplerId,
+            TextureId,
         },
         shader::Shader,
         texture::{Extent3d, Texture, TextureDescriptor, TextureDimension, TextureFormat},
     },
 };
+use egui::paint::ClippedShape;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -51,6 +53,9 @@ pub struct EguiNode {
 
     vertex_buffer: Option<BufferId>,
     index_buffer: Option<BufferId>,
+
+    shapes: Vec<ClippedShape>,
+    render_commands: CommandQueue,
 }
 
 #[derive(Debug)]
@@ -135,6 +140,8 @@ impl EguiNode {
             vertex_buffer: None,
             index_buffer: None,
             color_resolve_target_indices,
+            shapes: Vec::new(),
+            render_commands: Default::default(),
         }
     }
 }
@@ -151,6 +158,36 @@ impl Node for EguiNode {
         &self.inputs
     }
 
+    fn prepare(&mut self, world: &mut World) {
+        self.init_pipeline(world);
+
+        let world = world.cell();
+
+        let mut texture_assets = world.get_resource_mut::<Assets<Texture>>().unwrap();
+        let asset_events = world.get_resource::<Events<AssetEvent<Texture>>>().unwrap();
+        let mut render_resource_context = world
+            .get_resource_mut::<Box<dyn RenderResourceContext>>()
+            .unwrap();
+        let render_resource_context = &mut **render_resource_context;
+        let mut egui_context = world.get_resource_mut::<EguiContext>().unwrap();
+
+        self.process_asset_events(
+            render_resource_context,
+            &mut egui_context,
+            &asset_events,
+            &mut texture_assets,
+        );
+        self.remove_unused_textures(render_resource_context, &egui_context);
+        self.init_textures(
+            render_resource_context,
+            &mut egui_context,
+            &mut texture_assets,
+        );
+
+        let mut egui_shapes = world.get_resource_mut::<EguiShapes>().unwrap();
+        self.shapes = std::mem::take(&mut egui_shapes.shapes);
+    }
+
     fn update(
         &mut self,
         world: &World,
@@ -158,35 +195,20 @@ impl Node for EguiNode {
         input: &ResourceSlots,
         _output: &mut ResourceSlots,
     ) {
+        self.render_commands.execute(render_context);
+
         self.process_attachments(input, world);
-        self.init_pipeline(render_context, world);
 
         let window_size = world.get_resource::<WindowSize>().unwrap();
         let egui_settings = world.get_resource::<EguiSettings>().unwrap();
-        let mut egui_shapes = world.get_resource_mut::<EguiShapes>().unwrap();
 
         let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
 
         self.init_transform_bind_group(render_context, &render_resource_bindings);
 
-        let mut texture_assets = world.get_resource_mut::<Assets<Texture>>().unwrap();
-        let asset_events = world
-            .get_resource_mut::<Events<AssetEvent<Texture>>>()
-            .unwrap();
+        let egui_context = world.get_resource::<EguiContext>().unwrap();
 
-        let mut egui_context = world.get_resource_mut::<EguiContext>().unwrap();
-
-        self.process_asset_events(
-            render_context,
-            &mut egui_context,
-            &asset_events,
-            &mut texture_assets,
-        );
-        self.remove_unused_textures(render_context, &egui_context);
-        // self.init_textures(render_context, &mut egui_context, &mut texture_assets);
-
-        let mut shapes = Vec::new();
-        std::mem::swap(&mut egui_shapes.shapes, &mut shapes);
+        let shapes = std::mem::take(&mut self.shapes);
         let egui_paint_jobs = egui_context.ctx.tessellate(shapes);
 
         let mut vertex_buffer = Vec::<u8>::new();
@@ -329,7 +351,13 @@ impl EguiNode {
         }
     }
 
-    fn init_pipeline(&mut self, render_context: &mut dyn RenderContext, world: &World) {
+    fn init_pipeline(&mut self, world: &mut World) {
+        let world = world.cell();
+
+        let render_resource_context = world
+            .get_resource::<Box<dyn RenderResourceContext>>()
+            .unwrap();
+
         if self.pipeline_descriptor.is_some() {
             return;
         }
@@ -341,7 +369,6 @@ impl EguiNode {
         let msaa = world.get_resource::<Msaa>().unwrap();
 
         let pipeline_descriptor_handle = {
-            let render_resource_context = render_context.resources();
             let mut pipeline_compiler = world.get_resource_mut::<PipelineCompiler>().unwrap();
 
             let attributes = vec![
@@ -365,7 +392,7 @@ impl EguiNode {
                 },
             ];
             pipeline_compiler.compile_pipeline(
-                render_resource_context,
+                &**render_resource_context,
                 &mut pipelines,
                 &mut shaders,
                 &EGUI_PIPELINE_HANDLE.typed(),
@@ -419,7 +446,7 @@ impl EguiNode {
 
     fn process_asset_events(
         &mut self,
-        render_context: &mut dyn RenderContext,
+        render_resource_context: &mut dyn RenderResourceContext,
         egui_context: &mut EguiContext,
         asset_events: &Events<AssetEvent<Texture>>,
         texture_assets: &mut Assets<Texture>,
@@ -453,14 +480,14 @@ impl EguiNode {
                 }
                 AssetEvent::Removed { ref handle } => {
                     egui_context.remove_texture(handle);
-                    self.remove_texture(render_context, handle);
+                    self.remove_texture(render_resource_context, handle);
                     // If an asset was modified and removed in the same update, ignore the modification.
                     changed_assets.remove(&handle);
                 }
             }
         }
         for (texture_handle, texture) in changed_assets {
-            self.update_texture(render_context, texture, texture_handle);
+            self.update_texture(render_resource_context, texture, texture_handle);
         }
 
         let egui_texture = egui_context.ctx.texture();
@@ -469,14 +496,14 @@ impl EguiNode {
             if let Some(egui_texture_handle) = self.egui_texture.clone() {
                 let texture_asset = texture_assets.get_mut(&egui_texture_handle).unwrap();
                 *texture_asset = as_bevy_texture(&egui_texture);
-                self.update_texture(render_context, &texture_asset, egui_texture_handle);
+                self.update_texture(render_resource_context, &texture_asset, egui_texture_handle);
             }
         }
     }
 
     fn remove_unused_textures(
         &mut self,
-        render_context: &mut dyn RenderContext,
+        render_resource_context: &mut dyn RenderResourceContext,
         egui_context: &EguiContext,
     ) {
         let texture_handles = egui_context.egui_textures.values().collect::<HashSet<_>>();
@@ -490,13 +517,13 @@ impl EguiNode {
             }
         }
         for texture_to_remove in textures_to_remove {
-            self.remove_texture(render_context, &texture_to_remove);
+            self.remove_texture(render_resource_context, &texture_to_remove);
         }
     }
 
     fn init_textures(
         &mut self,
-        render_context: &mut dyn RenderContext,
+        render_resource_context: &mut dyn RenderResourceContext,
         egui_context: &mut EguiContext,
         texture_assets: &mut Assets<Texture>,
     ) {
@@ -512,13 +539,17 @@ impl EguiNode {
         }
 
         for texture in egui_context.egui_textures.values() {
-            self.create_texture(render_context, texture_assets, texture.clone_weak());
+            self.create_texture(
+                render_resource_context,
+                texture_assets,
+                texture.clone_weak(),
+            );
         }
     }
 
     fn update_texture(
         &mut self,
-        render_context: &mut dyn RenderContext,
+        render_resource_context: &mut dyn RenderResourceContext,
         texture_asset: &Texture,
         texture_handle: Handle<Texture>,
     ) {
@@ -536,21 +567,26 @@ impl EguiNode {
                 texture_handle
             );
             // If a texture descriptor is updated, we'll re-create the texture in `init_textures`.
-            self.remove_texture(render_context, &texture_handle);
+            self.remove_texture(render_resource_context, &texture_handle);
             return;
         }
-        Self::copy_texture(render_context, &texture_resource, texture_asset);
+        Self::copy_texture(
+            &mut self.render_commands,
+            render_resource_context,
+            &texture_resource,
+            texture_asset,
+        );
     }
 
     fn create_texture(
         &mut self,
-        render_context: &mut dyn RenderContext,
+        render_resource_context: &mut dyn RenderResourceContext,
         texture_assets: &Assets<Texture>,
         texture_handle: Handle<Texture>,
     ) {
         if let Some(texture_resource) = self.texture_resources.get(&texture_handle) {
             // bevy_webgl2 seems to clean bind groups each frame.
-            render_context.resources().create_bind_group(
+            render_resource_context.create_bind_group(
                 self.texture_bind_group_descriptor.as_ref().unwrap().id,
                 &texture_resource.bind_group,
             );
@@ -564,8 +600,6 @@ impl EguiNode {
         };
 
         log::debug!("Creating a texture: ${:?}", texture_handle);
-
-        let render_resource_context = render_context.resources();
 
         let texture_descriptor: TextureDescriptor = texture_asset.into();
         let texture = render_resource_context.create_texture(texture_descriptor);
@@ -587,7 +621,12 @@ impl EguiNode {
             sampler,
             bind_group: texture_bind_group,
         };
-        Self::copy_texture(render_context, &texture_resource, texture_asset);
+        Self::copy_texture(
+            &mut self.render_commands,
+            render_resource_context,
+            &texture_resource,
+            texture_asset,
+        );
         log::debug!("Texture created: {:?}", texture_resource);
         self.texture_resources
             .insert(texture_handle, texture_resource);
@@ -595,7 +634,7 @@ impl EguiNode {
 
     fn remove_texture(
         &mut self,
-        render_context: &mut dyn RenderContext,
+        render_resource_context: &mut dyn RenderResourceContext,
         texture_handle: &Handle<Texture>,
     ) {
         let texture_resource = match self.texture_resources.remove(texture_handle) {
@@ -604,18 +643,18 @@ impl EguiNode {
         };
         log::debug!("Removing a texture: ${:?}", texture_handle);
 
-        let render_resource_context = render_context.resources();
         render_resource_context.remove_texture(texture_resource.texture);
         render_resource_context.remove_sampler(texture_resource.sampler);
     }
 
     fn copy_texture(
-        render_context: &mut dyn RenderContext,
+        render_commands: &mut CommandQueue,
+        render_resource_context: &mut dyn RenderResourceContext,
         texture_resource: &TextureResource,
         texture: &Texture,
     ) {
         let width = texture.size.width as usize;
-        let aligned_width = render_context.resources().get_aligned_texture_size(width);
+        let aligned_width = render_resource_context.get_aligned_texture_size(width);
         let format_size = texture.format.pixel_size();
         let mut aligned_data = vec![
             0;
@@ -632,7 +671,7 @@ impl EguiNode {
                 let offset = index * aligned_width * format_size;
                 aligned_data[offset..(offset + width * format_size)].copy_from_slice(row);
             });
-        let texture_buffer = render_context.resources().create_buffer_with_data(
+        let texture_buffer = render_resource_context.create_buffer_with_data(
             BufferInfo {
                 buffer_usage: BufferUsage::COPY_SRC,
                 ..Default::default()
@@ -640,7 +679,7 @@ impl EguiNode {
             &aligned_data,
         );
 
-        render_context.copy_buffer_to_texture(
+        render_commands.copy_buffer_to_texture(
             texture_buffer,
             0,
             (format_size * aligned_width) as u32,
@@ -649,7 +688,7 @@ impl EguiNode {
             0,
             texture_resource.descriptor.size,
         );
-        render_context.resources().remove_buffer(texture_buffer);
+        render_commands.free_buffer(texture_buffer);
     }
 
     fn update_buffers(

@@ -15,7 +15,7 @@ use bevy::{
 use bevy_winit::WinitWindows;
 
 #[derive(SystemParam)]
-struct InputEvents<'a> {
+pub struct InputEvents<'a> {
     #[cfg(feature = "manage_clipboard")]
     egui_clipboard: Res<'a, crate::EguiClipboard>,
     ev_cursor_left: EventReader<'a, CursorLeft>,
