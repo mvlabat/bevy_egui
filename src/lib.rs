@@ -359,10 +359,12 @@ impl Plugin for EguiPlugin {
         render_graph
             .add_node_edge(base::node::MAIN_PASS, node::EGUI_PASS)
             .unwrap();
-        render_graph
-            // hardcodede until https://github.com/bevyengine/bevy/pull/1464 is merged
-            .add_node_edge("ui_pass", node::EGUI_PASS)
-            .unwrap();
+
+        if let Ok(ui_pass) = render_graph.get_node_id(bevy::ui::node::UI_PASS) {
+            render_graph
+                .add_node_edge(ui_pass, node::EGUI_PASS)
+                .unwrap();
+        }
 
         render_graph
             .add_slot_edge(
