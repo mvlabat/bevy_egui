@@ -12,7 +12,7 @@ use bevy::{
     prelude::*,
     window::{CursorLeft, CursorMoved, ReceivedCharacter, Windows},
 };
-use bevy_winit::WinitWindows;
+use bevy::winit::WinitWindows;
 
 #[derive(SystemParam)]
 pub struct InputEvents<'a> {
