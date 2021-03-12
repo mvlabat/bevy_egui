@@ -306,9 +306,16 @@ pub enum EguiStage {
 }
 
 #[derive(SystemLabel, Clone, Hash, Debug, Eq, PartialEq)]
-enum EguiSystem {
+/// The names of egui systems.
+pub enum EguiSystem {
+    /// Reads keyboard, mouse etc. input and write it into the [`EguiInput`] resource
+    ///
+    /// To modify the input, specify
+    /// `system.after(EguiSystem::ProcessInput).before(EguiSystem::BeginFrame)`.
     ProcessInput,
+    /// Begins the `egui` frame
     BeginFrame,
+    /// Processes the [`EguiOutput`] resource
     ProcessOutput,
 }
 
