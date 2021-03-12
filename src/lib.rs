@@ -121,7 +121,7 @@ impl Default for EguiSettings {
 }
 
 /// A resource that stores the input passed to Egui.
-/// It gets reset during the [stage::UI_FRAME] stage.
+/// It gets reset during the [EguiSystem::ProcessInput] system
 #[derive(Clone, Debug, Default)]
 pub struct EguiInput {
     /// Egui's raw input.
@@ -203,14 +203,14 @@ impl EguiClipboard {
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [stage::UI_FRAME_END] stage and reset during `EguiNode::update`.
+    /// The field gets populated during the [EguiStage::UiFrameEnd] stage and reset during `EguiNode::update`.
     pub shapes: Vec<egui::paint::ClippedShape>,
 }
 
 /// A resource for storing Egui output.
 #[derive(Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [stage::UI_FRAME_END] stage.
+    /// The field gets updated during the [EguiStage::UiFrameEnd] stage.
     pub output: egui::Output,
 }
 
@@ -301,7 +301,7 @@ pub mod node {
 #[derive(StageLabel, Clone, Hash, Debug, Eq, PartialEq)]
 /// The names of `bevy_egui` stages.
 pub enum EguiStage {
-    /// Runs before [bevy::render::stage::RENDER_RESOURCE]. This is where we read Egui's output.
+    /// Runs before [bevy::render::RenderStage::RenderResource]. This is where we read Egui's output.
     UiFrameEnd,
 }
 
