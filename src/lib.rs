@@ -485,3 +485,11 @@ fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> Pipel
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_readme_deps() {
+        version_sync::assert_markdown_deps_updated!("README.md");
+    }
+}

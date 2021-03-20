@@ -1,12 +1,15 @@
 [package]
 name = "bevy_egui"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
 edition = "2018"
 repository = "https://github.com/mvlabat/bevy_egui"
 exclude = ["assets/**/*", ".github/**/*"]
+
+[package.metadata.docs.rs]
+no-default-features = true # clipboard crate fails the build currently https://github.com/rust-lang/docs.rs/issues/695
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,7 +20,7 @@ open_url = ["webbrowser"]
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = ["render", "bevy_winit"] }
-egui = "0.9.0"
+egui = "0.10.0"
 webbrowser = { version = "0.5.5", optional = true }
 winit = { version = "0.24.0", features = ["x11"], default-features = false }
 
@@ -25,15 +28,15 @@ winit = { version = "0.24.0", features = ["x11"], default-features = false }
 clipboard = { version = "0.5.0", optional = true }
 thread_local = { version = "1.1.0", optional = true }
 
+[dev-dependencies]
+version-sync = "0.9.2"
+
 [[example]]
 name = "ui"
 path = "examples/ui.rs"
-required-features = ["bevy/x11", "bevy/bevy_wgpu", "bevy/png"]
+required-features = ["bevy/x11", "bevy/png", "bevy/bevy_wgpu"]
 
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
 required-features = ["bevy/x11", "bevy/bevy_wgpu"]
-
-[package.metadata.docs.rs]
-no-default-features = true # clipboard crate fails the build currently https://github.com/rust-lang/docs.rs/issues/695
