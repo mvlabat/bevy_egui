@@ -75,6 +75,7 @@ use bevy::{
         texture::{Texture, TextureFormat},
         RenderStage,
     },
+    window::WindowId,
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -106,17 +107,22 @@ pub struct EguiSettings {
     /// use bevy_egui::EguiSettings;
     ///
     /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    ///     if let Some(window) = windows.get_primary() {
+    ///     if let Some(window) = windows.get(egui_settings.window) {
     ///         egui_settings.scale_factor = 1.0 / window.scale_factor();
     ///     }
     /// }
     /// ```
     pub scale_factor: f64,
+    /// The window egui should draw to
+    pub window: Option<WindowId>,
 }
 
 impl Default for EguiSettings {
     fn default() -> Self {
-        Self { scale_factor: 1.0 }
+        Self {
+            scale_factor: 1.0,
+            window: Some(WindowId::primary()),
+        }
     }
 }
 
@@ -368,58 +374,78 @@ impl Plugin for EguiPlugin {
             EGUI_PIPELINE_HANDLE,
             build_egui_pipeline(&mut shaders, msaa.samples),
         );
-        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
+        // let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
+        // setup_pipeline(&mut render_graph, &msaa, Default::default());
+    }
+}
 
-        render_graph.add_node(node::EGUI_PASS, EguiNode::new(&msaa));
-        render_graph
-            .add_node_edge(base::node::MAIN_PASS, node::EGUI_PASS)
-            .unwrap();
-
-        if let Ok(ui_pass) = render_graph.get_node_id(bevy::ui::node::UI_PASS) {
-            render_graph
-                .add_node_edge(ui_pass, node::EGUI_PASS)
-                .unwrap();
+/// egui's render graph config
+#[allow(missing_docs)]
+pub struct RenderGraphConfig {
+    pub egui_pass: &'static str,
+    pub main_pass: &'static str,
+    pub swap_chain_node: &'static str,
+    pub depth_texture: &'static str,
+    pub sampled_color_attachment: &'static str,
+    pub transform_node: &'static str,
+}
+impl Default for RenderGraphConfig {
+    fn default() -> Self {
+        RenderGraphConfig {
+            egui_pass: node::EGUI_PASS,
+            main_pass: base::node::MAIN_PASS,
+            swap_chain_node: base::node::PRIMARY_SWAP_CHAIN,
+            depth_texture: base::node::MAIN_DEPTH_TEXTURE,
+            sampled_color_attachment: base::node::MAIN_SAMPLED_COLOR_ATTACHMENT,
+            transform_node: node::EGUI_TRANSFORM,
         }
-
+    }
+}
+/// setup egui render pipeline
+pub fn setup_pipeline(render_graph: &mut RenderGraph, msaa: &Msaa, config: RenderGraphConfig) {
+    render_graph.add_node(config.egui_pass, EguiNode::new(&msaa));
+    render_graph
+        .add_node_edge(config.main_pass, config.egui_pass)
+        .unwrap();
+    if let Ok(ui_pass) = render_graph.get_node_id(bevy::ui::node::UI_PASS) {
         render_graph
-            .add_slot_edge(
-                base::node::PRIMARY_SWAP_CHAIN,
-                WindowSwapChainNode::OUT_TEXTURE,
-                node::EGUI_PASS,
-                if msaa.samples > 1 {
-                    "color_resolve_target"
-                } else {
-                    "color_attachment"
-                },
-            )
-            .unwrap();
-
-        render_graph
-            .add_slot_edge(
-                base::node::MAIN_DEPTH_TEXTURE,
-                WindowTextureNode::OUT_TEXTURE,
-                node::EGUI_PASS,
-                "depth",
-            )
-            .unwrap();
-
-        if msaa.samples > 1 {
-            render_graph
-                .add_slot_edge(
-                    base::node::MAIN_SAMPLED_COLOR_ATTACHMENT,
-                    WindowSwapChainNode::OUT_TEXTURE,
-                    node::EGUI_PASS,
-                    "color_attachment",
-                )
-                .unwrap();
-        }
-
-        // Transform.
-        render_graph.add_system_node(node::EGUI_TRANSFORM, EguiTransformNode::new());
-        render_graph
-            .add_node_edge(node::EGUI_TRANSFORM, node::EGUI_PASS)
+            .add_node_edge(ui_pass, config.egui_pass)
             .unwrap();
     }
+    render_graph
+        .add_slot_edge(
+            config.swap_chain_node,
+            WindowSwapChainNode::OUT_TEXTURE,
+            config.egui_pass,
+            if msaa.samples > 1 {
+                "color_resolve_target"
+            } else {
+                "color_attachment"
+            },
+        )
+        .unwrap();
+    render_graph
+        .add_slot_edge(
+            config.depth_texture,
+            WindowTextureNode::OUT_TEXTURE,
+            config.egui_pass,
+            "depth",
+        )
+        .unwrap();
+    if msaa.samples > 1 {
+        render_graph
+            .add_slot_edge(
+                config.sampled_color_attachment,
+                WindowSwapChainNode::OUT_TEXTURE,
+                config.egui_pass,
+                "color_attachment",
+            )
+            .unwrap();
+    }
+    render_graph.add_system_node(config.transform_node, EguiTransformNode::new());
+    render_graph
+        .add_node_edge(config.transform_node, config.egui_pass)
+        .unwrap();
 }
 
 fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> PipelineDescriptor {

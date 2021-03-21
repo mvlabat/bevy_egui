@@ -36,7 +36,11 @@ pub fn process_input(
     egui_settings: ResMut<EguiSettings>,
     time: Res<Time>,
 ) {
-    if let Some(window) = windows.get_primary() {
+    let window_id = match egui_settings.window {
+        Some(window) => window,
+        None => return,
+    };
+    if let Some(window) = windows.get(window_id) {
         *window_size = WindowSize::new(
             window.physical_width() as f32,
             window.physical_height() as f32,
@@ -89,13 +93,13 @@ pub fn process_input(
     };
 
     for cursor_entered in input_events.ev_cursor_left.iter() {
-        if cursor_entered.id.is_primary() {
+        if cursor_entered.id == window_id {
             egui_input.raw_input.events.push(egui::Event::PointerGone);
             egui_context.mouse_position = None;
         }
     }
     if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
-        if cursor_moved.id.is_primary() {
+        if cursor_moved.id == window_id {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
             mouse_position.1 = window_size.height() / scale_factor - mouse_position.1;
@@ -137,7 +141,7 @@ pub fn process_input(
 
     if !ctrl && !win {
         for event in input_events.ev_received_character.iter() {
-            if event.id.is_primary() && !event.char.is_control() {
+            if event.id == window_id && !event.char.is_control() {
                 egui_input
                     .raw_input
                     .events
@@ -194,6 +198,7 @@ pub fn begin_frame(mut egui_context: ResMut<EguiContext>, mut egui_input: ResMut
 
 pub fn process_output(
     egui_context: Res<EguiContext>,
+    egui_settings: Res<EguiSettings>,
     mut egui_output: ResMut<EguiOutput>,
     mut egui_shapes: ResMut<EguiShapes>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
@@ -209,7 +214,7 @@ pub fn process_output(
         egui_clipboard.set_contents(&output.copied_text);
     }
 
-    if let Some(window) = windows.get_primary() {
+    if let Some(window) = egui_settings.window.and_then(|window| windows.get(window)) {
         if let Some(winit_window) = winit_windows.get_window(window.id()) {
             if let Some(icon) = egui_to_winit_cursor_icon(output.cursor_icon) {
                 winit_window.set_cursor_icon(icon);
@@ -218,7 +223,7 @@ pub fn process_output(
             log::error!("No winit window found for the primary window");
         }
     } else {
-        log::warn!("No primary window detected");
+        log::warn!("No window with requested id detected");
     }
 
     #[cfg(feature = "open_url")]

@@ -202,6 +202,10 @@ impl Node for EguiNode {
         let window_size = world.get_resource::<WindowSize>().unwrap();
         let egui_settings = world.get_resource::<EguiSettings>().unwrap();
 
+        if window_size.physical_height == 0.0 {
+            return;
+        }
+
         let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
 
         self.init_transform_bind_group(render_context, &render_resource_bindings);
