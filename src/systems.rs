@@ -9,8 +9,9 @@ use bevy::{
         Input,
     },
     log,
-    prelude::{Res, ResMut},
-    window::{CursorLeft, CursorMoved, ReceivedCharacter, Windows},
+    prelude::{Local, Res, ResMut},
+    utils::HashMap,
+    window::{CursorLeft, CursorMoved, ReceivedCharacter, WindowFocused, WindowId, Windows},
     winit::WinitWindows,
 };
 
@@ -22,45 +23,56 @@ pub struct InputEvents<'a> {
     ev_cursor: EventReader<'a, CursorMoved>,
     ev_mouse_wheel: EventReader<'a, MouseWheel>,
     ev_received_character: EventReader<'a, ReceivedCharacter>,
+    ev_window_focus: EventReader<'a, WindowFocused>,
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn process_input(
+    mut focused_window: Local<WindowId>,
     mut egui_context: ResMut<EguiContext>,
-    mut egui_input: ResMut<EguiInput>,
+    mut egui_input: ResMut<HashMap<WindowId, EguiInput>>,
     mut input_events: InputEvents,
     mouse_button_input: Res<Input<MouseButton>>,
     keyboard_input: Res<Input<KeyCode>>,
-    mut window_size: ResMut<WindowSize>,
+    mut window_sizes: ResMut<HashMap<WindowId, WindowSize>>,
     windows: ResMut<Windows>,
     egui_settings: ResMut<EguiSettings>,
     time: Res<Time>,
 ) {
-    let window_id = match egui_settings.window {
-        Some(window) => window,
-        None => return,
-    };
-    if let Some(window) = windows.get(window_id) {
-        *window_size = WindowSize::new(
+    for focus_event in input_events.ev_window_focus.iter().rev() {
+        if focus_event.focused {
+            *focused_window = focus_event.id;
+            break;
+        }
+    }
+
+    for window in windows.iter() {
+        let egui_input = egui_input.entry(window.id()).or_default();
+
+        let window_size = WindowSize::new(
             window.physical_width() as f32,
             window.physical_height() as f32,
             window.scale_factor() as f32,
         );
-    }
 
-    egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
-        egui::pos2(0.0, 0.0),
-        egui::pos2(
-            window_size.physical_width
-                / window_size.scale_factor
-                / egui_settings.scale_factor as f32,
-            window_size.physical_height
-                / window_size.scale_factor
-                / egui_settings.scale_factor as f32,
-        ),
-    ));
-    egui_input.raw_input.pixels_per_point =
-        Some(window_size.scale_factor * egui_settings.scale_factor as f32);
+        egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(
+                window_size.physical_width
+                    / window_size.scale_factor
+                    / egui_settings.scale_factor as f32,
+                window_size.physical_height
+                    / window_size.scale_factor
+                    / egui_settings.scale_factor as f32,
+            ),
+        ));
+
+        egui_input.raw_input.pixels_per_point =
+            Some(window_size.scale_factor * egui_settings.scale_factor as f32);
+
+        window_sizes.insert(window.id(), window_size);
+        egui_context.ctx.entry(window.id()).or_default();
+    }
 
     for event in input_events.ev_mouse_wheel.iter() {
         let mut delta = egui::vec2(event.x, event.y);
@@ -68,7 +80,10 @@ pub fn process_input(
             // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
             delta *= 24.0;
         }
-        egui_input.raw_input.scroll_delta += delta;
+
+        for egui_input in egui_input.values_mut() {
+            egui_input.raw_input.scroll_delta += delta;
+        }
     }
 
     let shift = keyboard_input.pressed(KeyCode::LShift) || keyboard_input.pressed(KeyCode::RShift);
@@ -93,45 +108,52 @@ pub fn process_input(
     };
 
     for cursor_entered in input_events.ev_cursor_left.iter() {
-        if cursor_entered.id == window_id {
-            egui_input.raw_input.events.push(egui::Event::PointerGone);
-            egui_context.mouse_position = None;
-        }
+        egui_input
+            .get_mut(&cursor_entered.id)
+            .unwrap()
+            .raw_input
+            .events
+            .push(egui::Event::PointerGone);
+        egui_context.mouse_position = None;
     }
     if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
-        if cursor_moved.id == window_id {
-            let scale_factor = egui_settings.scale_factor as f32;
-            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-            mouse_position.1 = window_size.height() / scale_factor - mouse_position.1;
-            egui_context.mouse_position = Some(mouse_position);
-            egui_input
-                .raw_input
-                .events
-                .push(egui::Event::PointerMoved(egui::pos2(
-                    mouse_position.0,
-                    mouse_position.1,
-                )));
-        }
+        let scale_factor = egui_settings.scale_factor as f32;
+        let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
+        mouse_position.1 =
+            window_sizes[&cursor_moved.id].height() / scale_factor - mouse_position.1;
+        egui_context.mouse_position = Some(mouse_position);
+        egui_input
+            .get_mut(&cursor_moved.id)
+            .unwrap()
+            .raw_input
+            .events
+            .push(egui::Event::PointerMoved(egui::pos2(
+                mouse_position.0,
+                mouse_position.1,
+            )));
     }
 
     if let Some((x, y)) = egui_context.mouse_position {
+        let focused_egui_input = egui_input.get_mut(&*focused_window).unwrap();
+        let events = &mut focused_egui_input.raw_input.events;
+
         let pos = egui::pos2(x, y);
         process_mouse_button_event(
-            &mut egui_input.raw_input.events,
+            events,
             pos,
             modifiers,
             &mouse_button_input,
             MouseButton::Left,
         );
         process_mouse_button_event(
-            &mut egui_input.raw_input.events,
+            events,
             pos,
             modifiers,
             &mouse_button_input,
             MouseButton::Right,
         );
         process_mouse_button_event(
-            &mut egui_input.raw_input.events,
+            events,
             pos,
             modifiers,
             &mouse_button_input,
@@ -141,8 +163,10 @@ pub fn process_input(
 
     if !ctrl && !win {
         for event in input_events.ev_received_character.iter() {
-            if event.id == window_id && !event.char.is_control() {
+            if !event.char.is_control() {
                 egui_input
+                    .get_mut(&event.id)
+                    .unwrap()
                     .raw_input
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
@@ -152,84 +176,115 @@ pub fn process_input(
 
     for pressed_key in keyboard_input.get_just_pressed() {
         if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            egui_input.raw_input.events.push(egui::Event::Key {
-                key,
-                pressed: true,
-                modifiers,
-            })
+            egui_input
+                .get_mut(&*focused_window)
+                .unwrap()
+                .raw_input
+                .events
+                .push(egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                })
         }
     }
     for pressed_key in keyboard_input.get_just_released() {
         if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            egui_input.raw_input.events.push(egui::Event::Key {
-                key,
-                pressed: false,
-                modifiers,
-            })
+            egui_input
+                .get_mut(&*focused_window)
+                .unwrap()
+                .raw_input
+                .events
+                .push(egui::Event::Key {
+                    key,
+                    pressed: false,
+                    modifiers,
+                })
         }
     }
 
     #[cfg(feature = "manage_clipboard")]
     {
+        let mut copy = false;
+        let mut cut = false;
+        let mut paste = None;
         if command && keyboard_input.just_pressed(KeyCode::C) {
-            egui_input.raw_input.events.push(egui::Event::Copy);
+            copy = true;
         }
         if command && keyboard_input.just_pressed(KeyCode::X) {
-            egui_input.raw_input.events.push(egui::Event::Cut);
+            cut = true;
         }
         if command && keyboard_input.just_pressed(KeyCode::V) {
             if let Some(contents) = input_events.egui_clipboard.get_contents() {
-                egui_input
-                    .raw_input
-                    .events
-                    .push(egui::Event::Text(contents))
+                paste = Some(contents);
+            }
+        }
+        for egui_input in egui_input.values_mut() {
+            if copy {
+                egui_input.raw_input.events.push(egui::Event::Copy);
+            }
+            if cut {
+                egui_input.raw_input.events.push(egui::Event::Cut);
+            }
+            if let Some(content) = paste.clone() {
+                egui_input.raw_input.events.push(egui::Event::Text(content))
             }
         }
     };
 
-    egui_input.raw_input.predicted_dt = time.delta_seconds();
-    egui_input.raw_input.modifiers = modifiers;
+    for egui_input in egui_input.values_mut() {
+        egui_input.raw_input.predicted_dt = time.delta_seconds();
+    }
+
+    let focused_input = egui_input.get_mut(&*focused_window).unwrap();
+    focused_input.raw_input.modifiers = modifiers;
 }
 
-pub fn begin_frame(mut egui_context: ResMut<EguiContext>, mut egui_input: ResMut<EguiInput>) {
-    let raw_input = egui_input.raw_input.take();
-    egui_context.ctx.begin_frame(raw_input);
+pub fn begin_frame(
+    mut egui_context: ResMut<EguiContext>,
+    mut egui_input: ResMut<HashMap<WindowId, EguiInput>>,
+) {
+    let ids: Vec<_> = egui_context.ctx.keys().copied().collect();
+    for id in ids {
+        let raw_input = egui_input.get_mut(&id).unwrap().raw_input.take();
+        egui_context
+            .ctx
+            .get_mut(&id)
+            .unwrap()
+            .begin_frame(raw_input);
+    }
 }
 
 pub fn process_output(
     egui_context: Res<EguiContext>,
-    egui_settings: Res<EguiSettings>,
-    mut egui_output: ResMut<EguiOutput>,
-    mut egui_shapes: ResMut<EguiShapes>,
+    mut egui_output: ResMut<HashMap<WindowId, EguiOutput>>,
+    mut egui_shapes: ResMut<HashMap<WindowId, EguiShapes>>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
-    windows: Res<Windows>,
     winit_windows: Res<WinitWindows>,
 ) {
-    let (output, shapes) = egui_context.ctx.end_frame();
-    egui_shapes.shapes = shapes;
-    egui_output.output = output.clone();
+    for id in egui_context.ctx.keys().copied() {
+        let (output, shapes) = egui_context.ctx_for_window(id).end_frame();
+        egui_shapes.entry(id).or_default().shapes = shapes;
+        egui_output.entry(id).or_default().output = output.clone();
 
-    #[cfg(feature = "manage_clipboard")]
-    if !output.copied_text.is_empty() {
-        egui_clipboard.set_contents(&output.copied_text);
-    }
+        #[cfg(feature = "manage_clipboard")]
+        if !output.copied_text.is_empty() {
+            egui_clipboard.set_contents(&output.copied_text);
+        }
 
-    if let Some(window) = egui_settings.window.and_then(|window| windows.get(window)) {
-        if let Some(winit_window) = winit_windows.get_window(window.id()) {
+        if let Some(winit_window) = winit_windows.get_window(id) {
             if let Some(icon) = egui_to_winit_cursor_icon(output.cursor_icon) {
                 winit_window.set_cursor_icon(icon);
             }
         } else {
             log::error!("No winit window found for the primary window");
         }
-    } else {
-        log::warn!("No window with requested id detected");
-    }
 
-    #[cfg(feature = "open_url")]
-    if let Some(url) = output.open_url {
-        if let Err(err) = webbrowser::open(&url.url) {
-            log::error!("Failed to open '{}': {:?}", &url.url, err);
+        #[cfg(feature = "open_url")]
+        if let Some(url) = output.open_url {
+            if let Err(err) = webbrowser::open(&url.url) {
+                log::error!("Failed to open '{}': {:?}", &url.url, err);
+            }
         }
     }
 }

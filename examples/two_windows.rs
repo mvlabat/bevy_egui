@@ -11,7 +11,7 @@ use bevy::{
     },
     window::{CreateWindow, WindowDescriptor, WindowId},
 };
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
+use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 /// This example creates a second window and draws a mesh from two different cameras.
 fn main() {
@@ -19,17 +19,18 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .add_state(AppState::CreateWindow)
         .add_plugins(DefaultPlugins)
-        .insert_resource(EguiSettings {
-            window: None,
-            ..Default::default()
-        })
         .add_plugin(EguiPlugin)
         .add_system_set(
             SystemSet::on_update(AppState::CreateWindow).with_system(setup_window.system()),
         )
         .add_system_set(SystemSet::on_update(AppState::Setup).with_system(setup.system()))
-        .add_system_set(SystemSet::on_update(AppState::Done).with_system(ui_example.system()))
+        .add_system_set(SystemSet::on_update(AppState::Done).with_system(ui_second_window.system()))
+        .add_system(ui_first_window.system())
         .run();
+}
+
+struct SecondWindow {
+    id: WindowId,
 }
 
 // NOTE: this "state based" approach to multiple windows is a short term workaround.
@@ -191,12 +192,13 @@ fn setup_pipeline(
         render_graph,
         msaa,
         bevy_egui::RenderGraphConfig {
-            egui_pass: "egui_pass",
+            window_id,
+            egui_pass: "egui_pass2",
             main_pass: second_window::PASS,
             swap_chain_node: second_window::SWAP_CHAIN,
             depth_texture: second_window::DEPTH_TEXTURE,
             sampled_color_attachment: second_window::SAMPLED_COLOR_ATTACHMENT,
-            transform_node: "egui_transform",
+            transform_node: "egui_transform2",
         },
     );
 }
@@ -208,7 +210,6 @@ fn setup(
     mut active_cameras: ResMut<ActiveCameras>,
     mut render_graph: ResMut<RenderGraph>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut egui_settings: ResMut<EguiSettings>,
     msaa: Res<Msaa>,
 ) {
     // get the non-default window id
@@ -220,8 +221,6 @@ fn setup(
         Some(x) => x,
         None => return,
     };
-
-    egui_settings.window = Some(window_id);
 
     setup_pipeline(&mut render_graph, &mut active_cameras, &msaa, window_id);
 
@@ -253,12 +252,19 @@ fn setup(
         ..Default::default()
     });
 
+    commands.insert_resource(SecondWindow { id: window_id });
+
     app_state.set(AppState::Done).unwrap();
 }
 
-fn ui_example(mut egui_context: ResMut<EguiContext>) {
-    let ctx = &mut egui_context.ctx;
-    egui::Window::new("Hello").show(ctx, |ui| {
-        ui.label("world");
+fn ui_first_window(egui_context: Res<EguiContext>) {
+    egui::Window::new("First Window").show(egui_context.ctx(), |ui| {
+        ui.label("Some UI");
+    });
+}
+
+fn ui_second_window(egui_context: Res<EguiContext>, second_window: Res<SecondWindow>) {
+    egui::Window::new("Second Window").show(egui_context.ctx_for_window(second_window.id), |ui| {
+        ui.label("Some more UI");
     });
 }

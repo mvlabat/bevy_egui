@@ -9,9 +9,8 @@ fn main() {
         .run();
 }
 
-fn ui_example(mut egui_context: ResMut<EguiContext>) {
-    let ctx = &mut egui_context.ctx;
-    egui::Window::new("Hello").show(ctx, |ui| {
+fn ui_example(egui_context: Res<EguiContext>) {
+    egui::Window::new("Hello").show(egui_context.ctx(), |ui| {
         ui.label("world");
     });
 }

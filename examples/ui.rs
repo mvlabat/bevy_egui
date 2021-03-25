@@ -30,7 +30,7 @@ fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) 
 }
 
 fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    if let Some(window) = windows.get(egui_settings.window) {
+    if let Some(window) = windows.get_primary() {
         egui_settings.scale_factor = 1.0 / window.scale_factor();
     }
 }
@@ -40,13 +40,11 @@ fn ui_example(
     mut ui_state: ResMut<UiState>,
     assets: Res<AssetServer>,
 ) {
-    let ctx = &mut egui_ctx.ctx;
-
     let mut load = false;
     let mut remove = false;
     let mut invert = false;
 
-    egui::SidePanel::left("side_panel", 200.0).show(ctx, |ui| {
+    egui::SidePanel::left("side_panel", 200.0).show(egui_ctx.ctx(), |ui| {
         ui.heading("Side Panel");
 
         ui.horizontal(|ui| {
@@ -76,7 +74,7 @@ fn ui_example(
         });
     });
 
-    egui::TopPanel::top("top_panel").show(ctx, |ui| {
+    egui::TopPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu(ui, "File", |ui| {
@@ -87,7 +85,7 @@ fn ui_example(
         });
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
         ui.heading("Egui Template");
         ui.hyperlink("https://github.com/emilk/egui_template");
         ui.add(egui::github_link_file_line!(
@@ -109,12 +107,14 @@ fn ui_example(
         });
     });
 
-    egui::Window::new("Window").scroll(true).show(ctx, |ui| {
-        ui.label("Windows can be moved by dragging them.");
-        ui.label("They are automatically sized based on contents.");
-        ui.label("You can turn on resizing and scrolling if you like.");
-        ui.label("You would normally chose either panels OR windows.");
-    });
+    egui::Window::new("Window")
+        .scroll(true)
+        .show(egui_ctx.ctx(), |ui| {
+            ui.label("Windows can be moved by dragging them.");
+            ui.label("They are automatically sized based on contents.");
+            ui.label("You can turn on resizing and scrolling if you like.");
+            ui.label("You would normally chose either panels OR windows.");
+        });
 
     if invert {
         ui_state.inverted = !ui_state.inverted;

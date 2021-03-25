@@ -32,9 +32,8 @@
 //!         .run();
 //! }
 //!
-//! fn ui_example(mut egui_context: ResMut<EguiContext>) {
-//!     let ctx = &mut egui_context.ctx;
-//!     egui::Window::new("Hello").show(ctx, |ui| {
+//! fn ui_example(egui_context: Res<EguiContext>) {
+//!     egui::Window::new("Hello").show(egui_context.ctx(), |ui| {
 //!         ui.label("world");
 //!     });
 //! }
@@ -43,11 +42,12 @@
 //! For a more advanced example, see [examples/ui.rs](examples/ui.rs).
 //!
 //! ```bash
-//! cargo run --example ui --features="bevy/x11 bevy/png bevy/bevy_wgpu"
+//! cargo run --example ui
 //! ```
 //!
 //! ## See also
 //!
+//! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 //! - [`bevy_megaui`](https://github.com/mvlabat/bevy_megaui)
 
 pub use egui;
@@ -75,13 +75,13 @@ use bevy::{
         texture::{Texture, TextureFormat},
         RenderStage,
     },
+    utils::HashMap,
     window::WindowId,
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use clipboard::{ClipboardContext, ClipboardProvider};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
-use std::collections::HashMap;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -107,26 +107,23 @@ pub struct EguiSettings {
     /// use bevy_egui::EguiSettings;
     ///
     /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    ///     if let Some(window) = windows.get(egui_settings.window) {
+    ///     if let Some(window) = windows.get_primary() {
     ///         egui_settings.scale_factor = 1.0 / window.scale_factor();
     ///     }
     /// }
     /// ```
     pub scale_factor: f64,
-    /// The window egui should draw to
-    pub window: Option<WindowId>,
 }
 
 impl Default for EguiSettings {
     fn default() -> Self {
-        Self {
-            scale_factor: 1.0,
-            window: Some(WindowId::primary()),
-        }
+        Self { scale_factor: 1.0 }
     }
 }
 
 /// A resource that stores the input passed to Egui.
+///
+/// The actual resource is a [`HashMap<WindowId, EguiInput>`].
 /// It gets reset during the [EguiSystem::ProcessInput] system.
 #[derive(Clone, Debug, Default)]
 pub struct EguiInput {
@@ -206,6 +203,8 @@ impl EguiClipboard {
 
 #[derive(Clone, Default)]
 /// A resource for storing Egui shapes.
+///
+/// The actual resource is a [`HashMap<WindowId, EguiShapes>`].
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
@@ -214,6 +213,8 @@ pub struct EguiShapes {
 }
 
 /// A resource for storing Egui output.
+///
+/// The actual resource is a [`HashMap<WindowId, EguiOutput>`].
 #[derive(Clone, Default)]
 pub struct EguiOutput {
     /// The field gets updated during the [EguiStage::UiFrameEnd] stage.
@@ -222,8 +223,7 @@ pub struct EguiOutput {
 
 /// A resource that is used to store `bevy_egui` context.
 pub struct EguiContext {
-    /// Egui context.
-    pub ctx: egui::CtxRef,
+    ctx: HashMap<WindowId, egui::CtxRef>,
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
     mouse_position: Option<(f32, f32)>,
 }
@@ -231,10 +231,27 @@ pub struct EguiContext {
 impl EguiContext {
     fn new() -> Self {
         Self {
-            ctx: Default::default(),
+            ctx: HashMap::default(),
             egui_textures: Default::default(),
             mouse_position: Some((0.0, 0.0)),
         }
+    }
+
+    /// Egui context of the primary window.
+    #[track_caller]
+    pub fn ctx(&self) -> &egui::CtxRef {
+        &self.ctx[&WindowId::primary()]
+    }
+    /// Egui context for a specific window.
+    /// If you want to display UI on a non-primary window,
+    /// make sure to set up the render graph by calling [`setup_pipeline`].
+    #[track_caller]
+    pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
+        &self
+            .ctx
+            .get(&window)
+            .ok_or_else(|| format!("window with id {} not found", window))
+            .unwrap()
     }
 
     /// Can accept either a strong or a weak handle.
@@ -268,6 +285,7 @@ impl EguiContext {
     }
 }
 
+/// The actual resource is a [`HashMap<WindowId, EguiShapes>`].
 #[doc(hidden)]
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WindowSize {
@@ -307,7 +325,7 @@ pub mod node {
 #[derive(StageLabel, Clone, Hash, Debug, Eq, PartialEq)]
 /// The names of `bevy_egui` stages.
 pub enum EguiStage {
-    /// Runs before [bevy::render::RenderStage::RenderResource]. This is where we read Egui's output.
+    /// Runs before [`bevy::render::RenderStage::RenderResource`]. This is where we read Egui's output.
     UiFrameEnd,
 }
 
@@ -354,13 +372,13 @@ impl Plugin for EguiPlugin {
 
         let world = app.world_mut();
         world.get_resource_or_insert_with(EguiSettings::default);
-        world.get_resource_or_insert_with(EguiInput::default);
-        world.get_resource_or_insert_with(EguiOutput::default);
-        world.get_resource_or_insert_with(EguiShapes::default);
+        world.get_resource_or_insert_with(HashMap::<WindowId, EguiInput>::default);
+        world.get_resource_or_insert_with(HashMap::<WindowId, EguiOutput>::default);
+        world.get_resource_or_insert_with(HashMap::<WindowId, WindowSize>::default);
+        world.get_resource_or_insert_with(HashMap::<WindowId, EguiShapes>::default);
         #[cfg(feature = "manage_clipboard")]
         world.get_resource_or_insert_with(EguiClipboard::default);
         world.insert_resource(EguiContext::new());
-        world.insert_resource(WindowSize::new(0.0, 0.0, 0.0));
 
         let world = world.cell();
 
@@ -374,14 +392,16 @@ impl Plugin for EguiPlugin {
             EGUI_PIPELINE_HANDLE,
             build_egui_pipeline(&mut shaders, msaa.samples),
         );
-        // let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
-        // setup_pipeline(&mut render_graph, &msaa, Default::default());
+
+        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
+        setup_pipeline(&mut render_graph, &msaa, RenderGraphConfig::default());
     }
 }
 
-/// egui's render graph config
+/// Egui's render graph config.
 #[allow(missing_docs)]
 pub struct RenderGraphConfig {
+    pub window_id: WindowId,
     pub egui_pass: &'static str,
     pub main_pass: &'static str,
     pub swap_chain_node: &'static str,
@@ -392,6 +412,7 @@ pub struct RenderGraphConfig {
 impl Default for RenderGraphConfig {
     fn default() -> Self {
         RenderGraphConfig {
+            window_id: WindowId::primary(),
             egui_pass: node::EGUI_PASS,
             main_pass: base::node::MAIN_PASS,
             swap_chain_node: base::node::PRIMARY_SWAP_CHAIN,
@@ -401,9 +422,12 @@ impl Default for RenderGraphConfig {
         }
     }
 }
-/// setup egui render pipeline
+/// Set up egui render pipeline.
+///
+/// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
+/// so you'll only need to manually call this if you want to use multiple windows.
 pub fn setup_pipeline(render_graph: &mut RenderGraph, msaa: &Msaa, config: RenderGraphConfig) {
-    render_graph.add_node(config.egui_pass, EguiNode::new(&msaa));
+    render_graph.add_node(config.egui_pass, EguiNode::new(&msaa, config.window_id));
     render_graph
         .add_node_edge(config.main_pass, config.egui_pass)
         .unwrap();
@@ -442,7 +466,10 @@ pub fn setup_pipeline(render_graph: &mut RenderGraph, msaa: &Msaa, config: Rende
             )
             .unwrap();
     }
-    render_graph.add_system_node(config.transform_node, EguiTransformNode::new());
+    render_graph.add_system_node(
+        config.transform_node,
+        EguiTransformNode::new(config.window_id),
+    );
     render_graph
         .add_node_edge(config.transform_node, config.egui_pass)
         .unwrap();
