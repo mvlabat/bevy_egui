@@ -7,6 +7,7 @@ license = "MIT"
 edition = "2018"
 repository = "https://github.com/mvlabat/bevy_egui"
 exclude = ["assets/**/*", ".github/**/*"]
+resolver = "2"
 
 [package.metadata.docs.rs]
 no-default-features = true # clipboard crate fails the build currently https://github.com/rust-lang/docs.rs/issues/695
@@ -31,12 +32,5 @@ thread_local = { version = "1.1.0", optional = true }
 [dev-dependencies]
 version-sync = "0.9.2"
 
-[[example]]
-name = "ui"
-path = "examples/ui.rs"
-required-features = ["bevy/x11", "bevy/png", "bevy/bevy_wgpu"]
-
-[[example]]
-name = "simple"
-path = "examples/simple.rs"
-required-features = ["bevy/x11", "bevy/bevy_wgpu"]
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = ["bevy_wgpu", "x11", "png"] }
