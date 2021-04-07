@@ -121,7 +121,7 @@ impl Default for EguiSettings {
 }
 
 /// A resource that stores the input passed to Egui.
-/// It gets reset during the [EguiSystem::ProcessInput] system
+/// It gets reset during the [EguiSystem::ProcessInput] system.
 #[derive(Clone, Debug, Default)]
 pub struct EguiInput {
     /// Egui's raw input.
