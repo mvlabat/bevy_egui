@@ -7,7 +7,7 @@ use bevy::{
     asset::{AssetEvent, Assets, Handle},
     core::AsBytes,
     log,
-    prelude::*,
+    prelude::World,
     render::{
         pass::{
             ClearColor, LoadOp, Operations, PassDescriptor,

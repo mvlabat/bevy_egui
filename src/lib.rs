@@ -62,7 +62,7 @@ use bevy::{
     asset::{Assets, Handle, HandleUntyped},
     input::InputSystem,
     log,
-    prelude::*,
+    prelude::{IntoSystem, ParallelSystemDescriptorCoercion, StageLabel, SystemLabel, SystemStage},
     reflect::TypeUuid,
     render::{
         pipeline::{

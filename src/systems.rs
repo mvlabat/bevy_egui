@@ -9,7 +9,7 @@ use bevy::{
         Input,
     },
     log,
-    prelude::*,
+    prelude::{Res, ResMut},
     window::{CursorLeft, CursorMoved, ReceivedCharacter, Windows},
     winit::WinitWindows,
 };

@@ -1,7 +1,8 @@
 use crate::{EguiSettings, WindowSize, EGUI_TRANSFORM_RESOURCE_BINDING_NAME};
 use bevy::{
     core::AsBytes,
-    prelude::*,
+    ecs::world::World,
+    prelude::{IntoSystem, Local, Res, ResMut, System},
     render::{
         render_graph::{CommandQueue, Node, ResourceSlots, SystemNode},
         renderer::{
