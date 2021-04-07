@@ -31,10 +31,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         features: [
-            'bevy/x11,bevy/png,bevy/bevy_wgpu',
-            'bevy/x11,bevy/png,bevy/bevy_wgpu,manage_clipboard',
-            'bevy/x11,bevy/png,bevy/bevy_wgpu,open_url',
-            'bevy/x11,bevy/png,bevy/bevy_wgpu,manage_clipboard,open_url',
+            '',
+            'manage_clipboard',
+            'open_url',
+            'manage_clipboard,open_url',
         ]
     steps:
       - uses: actions/checkout@v2
