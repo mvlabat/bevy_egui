@@ -30,7 +30,7 @@ Here's a minimal usage example:
 ```toml
 # Cargo.toml
 [dependencies]
-bevy = "0.4"
+bevy = "0.5"
 bevy_egui = "0.3"
 ```
 
@@ -64,3 +64,10 @@ cargo run --example ui
 
 - [`jakobhellermann/bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 - [`mvlabat/bevy_megaui`](https://github.com/mvlabat/bevy_megaui)
+
+## Bevy support table
+
+|bevy|bevy_egui|
+|---|---|
+|0.5|0.4|
+|0.4|0.1-0.3|
