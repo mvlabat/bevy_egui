@@ -54,7 +54,7 @@ fn ui_example(
             ui.text_edit_singleline(&mut ui_state.label);
         });
 
-        ui.add(egui::Slider::f32(&mut ui_state.value, 0.0..=10.0).text("value"));
+        ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
         if ui.button("Increment").clicked() {
             ui_state.value += 1.0;
         }
