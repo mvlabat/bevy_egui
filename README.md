@@ -22,7 +22,7 @@ that require additional crates, can be disabled.
 
 An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
 
-**Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.4.1` version.
+**Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.5.0` version.
 
 ## Usage
 
