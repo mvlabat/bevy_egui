@@ -22,7 +22,7 @@ that require additional crates, can be disabled.
 
 An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
 
-**Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.4.1` version.
+**Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.5.0` version.
 
 ## Usage
 
@@ -30,7 +30,7 @@ Here's a minimal usage example:
 ```toml
 # Cargo.toml
 [dependencies]
-bevy = "0.4"
+bevy = "0.5"
 bevy_egui = "0.3"
 ```
 
@@ -57,10 +57,17 @@ fn ui_example(mut egui_context: ResMut<EguiContext>) {
 For a more advanced example, see [examples/ui.rs](examples/ui.rs).
 
 ```bash
-cargo run --example ui --features="bevy/x11 bevy/png bevy/bevy_wgpu"
+cargo run --example ui
 ```
 
 ## See also
 
 - [`jakobhellermann/bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 - [`mvlabat/bevy_megaui`](https://github.com/mvlabat/bevy_megaui)
+
+## Bevy support table
+
+|bevy|bevy_egui|
+|---|---|
+|0.5|0.4|
+|0.4|0.1-0.3|

@@ -1,27 +1,34 @@
 use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize};
 use bevy::{
-    app::Events,
+    app::EventReader,
     core::Time,
-    ecs::{Res, ResMut},
+    ecs::system::SystemParam,
     input::{
         keyboard::KeyCode,
         mouse::{MouseButton, MouseScrollUnit, MouseWheel},
         Input,
     },
     log,
+    prelude::{Res, ResMut},
     window::{CursorLeft, CursorMoved, ReceivedCharacter, Windows},
+    winit::WinitWindows,
 };
-use bevy_winit::WinitWindows;
+
+#[derive(SystemParam)]
+pub struct InputEvents<'a> {
+    #[cfg(feature = "manage_clipboard")]
+    egui_clipboard: Res<'a, crate::EguiClipboard>,
+    ev_cursor_left: EventReader<'a, CursorLeft>,
+    ev_cursor: EventReader<'a, CursorMoved>,
+    ev_mouse_wheel: EventReader<'a, MouseWheel>,
+    ev_received_character: EventReader<'a, ReceivedCharacter>,
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiInput>,
-    #[cfg(feature = "manage_clipboard")] egui_clipboard: Res<crate::EguiClipboard>,
-    ev_cursor_left: Res<Events<CursorLeft>>,
-    ev_cursor_moved: Res<Events<CursorMoved>>,
-    ev_mouse_wheel: Res<Events<MouseWheel>>,
-    ev_received_character: Res<Events<ReceivedCharacter>>,
+    mut input_events: InputEvents,
     mouse_button_input: Res<Input<MouseButton>>,
     keyboard_input: Res<Input<KeyCode>>,
     mut window_size: ResMut<WindowSize>,
@@ -51,7 +58,7 @@ pub fn process_input(
     egui_input.raw_input.pixels_per_point =
         Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
-    for event in egui_context.mouse_wheel.iter(&ev_mouse_wheel) {
+    for event in input_events.ev_mouse_wheel.iter() {
         let mut delta = egui::vec2(event.x, event.y);
         if let MouseScrollUnit::Line = event.unit {
             // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
@@ -81,13 +88,13 @@ pub fn process_input(
         command,
     };
 
-    for cursor_entered in egui_context.cursor_left.iter(&ev_cursor_left) {
+    for cursor_entered in input_events.ev_cursor_left.iter() {
         if cursor_entered.id.is_primary() {
             egui_input.raw_input.events.push(egui::Event::PointerGone);
             egui_context.mouse_position = None;
         }
     }
-    if let Some(cursor_moved) = egui_context.cursor_moved.latest(&ev_cursor_moved) {
+    if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
         if cursor_moved.id.is_primary() {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
@@ -129,7 +136,7 @@ pub fn process_input(
     }
 
     if !ctrl && !win {
-        for event in egui_context.received_character.iter(&ev_received_character) {
+        for event in input_events.ev_received_character.iter() {
             if event.id.is_primary() && !event.char.is_control() {
                 egui_input
                     .raw_input
@@ -167,7 +174,7 @@ pub fn process_input(
             egui_input.raw_input.events.push(egui::Event::Cut);
         }
         if command && keyboard_input.just_pressed(KeyCode::V) {
-            if let Some(contents) = egui_clipboard.get_contents() {
+            if let Some(contents) = input_events.egui_clipboard.get_contents() {
                 egui_input
                     .raw_input
                     .events
@@ -204,7 +211,9 @@ pub fn process_output(
 
     if let Some(window) = windows.get_primary() {
         if let Some(winit_window) = winit_windows.get_window(window.id()) {
-            winit_window.set_cursor_icon(egui_to_winit_cursor_icon(output.cursor_icon));
+            if let Some(icon) = egui_to_winit_cursor_icon(output.cursor_icon) {
+                winit_window.set_cursor_icon(icon);
+            }
         } else {
             log::error!("No winit window found for the primary window");
         }
@@ -214,23 +223,39 @@ pub fn process_output(
 
     #[cfg(feature = "open_url")]
     if let Some(url) = output.open_url {
-        if let Err(err) = webbrowser::open(&url) {
-            log::error!("Failed to open '{}': {:?}", url, err);
+        if let Err(err) = webbrowser::open(&url.url) {
+            log::error!("Failed to open '{}': {:?}", &url.url, err);
         }
     }
 }
 
-fn egui_to_winit_cursor_icon(cursor_icon: egui::CursorIcon) -> winit::window::CursorIcon {
+fn egui_to_winit_cursor_icon(cursor_icon: egui::CursorIcon) -> Option<winit::window::CursorIcon> {
     match cursor_icon {
-        egui::CursorIcon::Default => winit::window::CursorIcon::Default,
-        egui::CursorIcon::PointingHand => winit::window::CursorIcon::Hand,
-        egui::CursorIcon::ResizeHorizontal => winit::window::CursorIcon::EwResize,
-        egui::CursorIcon::ResizeNeSw => winit::window::CursorIcon::NeswResize,
-        egui::CursorIcon::ResizeNwSe => winit::window::CursorIcon::NwseResize,
-        egui::CursorIcon::ResizeVertical => winit::window::CursorIcon::NsResize,
-        egui::CursorIcon::Text => winit::window::CursorIcon::Text,
-        egui::CursorIcon::Grab => winit::window::CursorIcon::Grab,
-        egui::CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
+        egui::CursorIcon::Default => Some(winit::window::CursorIcon::Default),
+        egui::CursorIcon::PointingHand => Some(winit::window::CursorIcon::Hand),
+        egui::CursorIcon::ResizeHorizontal => Some(winit::window::CursorIcon::EwResize),
+        egui::CursorIcon::ResizeNeSw => Some(winit::window::CursorIcon::NeswResize),
+        egui::CursorIcon::ResizeNwSe => Some(winit::window::CursorIcon::NwseResize),
+        egui::CursorIcon::ResizeVertical => Some(winit::window::CursorIcon::NsResize),
+        egui::CursorIcon::Text => Some(winit::window::CursorIcon::Text),
+        egui::CursorIcon::Grab => Some(winit::window::CursorIcon::Grab),
+        egui::CursorIcon::Grabbing => Some(winit::window::CursorIcon::Grabbing),
+        egui::CursorIcon::ContextMenu => Some(winit::window::CursorIcon::ContextMenu),
+        egui::CursorIcon::Help => Some(winit::window::CursorIcon::Help),
+        egui::CursorIcon::Progress => Some(winit::window::CursorIcon::Progress),
+        egui::CursorIcon::Wait => Some(winit::window::CursorIcon::Wait),
+        egui::CursorIcon::Cell => Some(winit::window::CursorIcon::Cell),
+        egui::CursorIcon::Crosshair => Some(winit::window::CursorIcon::Crosshair),
+        egui::CursorIcon::VerticalText => Some(winit::window::CursorIcon::VerticalText),
+        egui::CursorIcon::Alias => Some(winit::window::CursorIcon::Alias),
+        egui::CursorIcon::Copy => Some(winit::window::CursorIcon::Copy),
+        egui::CursorIcon::Move => Some(winit::window::CursorIcon::Move),
+        egui::CursorIcon::NoDrop => Some(winit::window::CursorIcon::NoDrop),
+        egui::CursorIcon::NotAllowed => Some(winit::window::CursorIcon::NotAllowed),
+        egui::CursorIcon::AllScroll => Some(winit::window::CursorIcon::AllScroll),
+        egui::CursorIcon::ZoomIn => Some(winit::window::CursorIcon::ZoomIn),
+        egui::CursorIcon::ZoomOut => Some(winit::window::CursorIcon::ZoomOut),
+        egui::CursorIcon::None => None,
     }
 }
 

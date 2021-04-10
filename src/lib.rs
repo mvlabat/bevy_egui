@@ -14,7 +14,7 @@
 //!
 //! An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
 //!
-//! **Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.4.1` version.
+//! **Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.5.0` version.
 //!
 //! ## Usage
 //!
@@ -58,25 +58,23 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{stage as bevy_stage, AppBuilder, EventReader, Plugin},
+    app::{AppBuilder, CoreStage, Plugin},
     asset::{Assets, Handle, HandleUntyped},
-    ecs::{IntoSystem, SystemStage},
-    input::mouse::MouseWheel,
+    input::InputSystem,
     log,
+    prelude::{IntoSystem, ParallelSystemDescriptorCoercion, StageLabel, SystemLabel, SystemStage},
     reflect::TypeUuid,
     render::{
         pipeline::{
-            BlendDescriptor, BlendFactor, BlendOperation, ColorStateDescriptor, ColorWrite,
-            CompareFunction, CullMode, DepthStencilStateDescriptor, FrontFace, IndexFormat,
-            PipelineDescriptor, RasterizationStateDescriptor, StencilStateDescriptor,
-            StencilStateFaceDescriptor,
+            BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrite, CompareFunction,
+            CullMode, DepthBiasState, DepthStencilState, FrontFace, MultisampleState,
+            PipelineDescriptor, PrimitiveState, StencilFaceState, StencilState,
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
         shader::{Shader, ShaderStage, ShaderStages},
-        stage as bevy_render_stage,
         texture::{Texture, TextureFormat},
+        RenderStage,
     },
-    window::{CursorLeft, CursorMoved, ReceivedCharacter},
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -123,7 +121,7 @@ impl Default for EguiSettings {
 }
 
 /// A resource that stores the input passed to Egui.
-/// It gets reset during the [stage::UI_FRAME] stage.
+/// It gets reset during the [EguiSystem::ProcessInput] system.
 #[derive(Clone, Debug, Default)]
 pub struct EguiInput {
     /// Egui's raw input.
@@ -205,14 +203,14 @@ impl EguiClipboard {
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [stage::UI_FRAME_END] stage and reset during `EguiNode::update`.
+    /// The field gets populated during the [EguiStage::UiFrameEnd] stage and reset during `EguiNode::update`.
     pub shapes: Vec<egui::paint::ClippedShape>,
 }
 
 /// A resource for storing Egui output.
 #[derive(Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [stage::UI_FRAME_END] stage.
+    /// The field gets updated during the [EguiStage::UiFrameEnd] stage.
     pub output: egui::Output,
 }
 
@@ -221,12 +219,7 @@ pub struct EguiContext {
     /// Egui context.
     pub ctx: egui::CtxRef,
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
-
     mouse_position: Option<(f32, f32)>,
-    cursor_left: EventReader<CursorLeft>,
-    cursor_moved: EventReader<CursorMoved>,
-    mouse_wheel: EventReader<MouseWheel>,
-    received_character: EventReader<ReceivedCharacter>,
 }
 
 impl EguiContext {
@@ -235,10 +228,6 @@ impl EguiContext {
             ctx: Default::default(),
             egui_textures: Default::default(),
             mouse_position: Some((0.0, 0.0)),
-            cursor_left: Default::default(),
-            cursor_moved: Default::default(),
-            mouse_wheel: Default::default(),
-            received_character: Default::default(),
         }
     }
 
@@ -309,64 +298,88 @@ pub mod node {
     pub const EGUI_TRANSFORM: &str = "egui_transform";
 }
 
+#[derive(StageLabel, Clone, Hash, Debug, Eq, PartialEq)]
 /// The names of `bevy_egui` stages.
-pub mod stage {
-    /// Runs after [bevy::app::stage::EVENT]. This is where `bevy_egui` translates Bevy's input events to Egui.
-    pub const INPUT: &str = "input";
-    /// Runs after [INPUT].
-    pub const POST_INPUT: &str = "post_input";
-    /// Runs after [POST_INPUT]. All Egui widgets should be added during or after this stage and before [UI_FRAME_END].
-    pub const UI_FRAME: &str = "ui_frame";
-    /// Runs before [bevy::render::stage::RENDER_RESOURCE]. This is where we read Egui's output.
-    pub const UI_FRAME_END: &str = "ui_frame_end";
-    /// Runs after [UI_FRAME_END].
-    pub const POST_UI_FRAME_END: &str = "post_ui_frame_end";
+pub enum EguiStage {
+    /// Runs before [bevy::render::RenderStage::RenderResource]. This is where we read Egui's output.
+    UiFrameEnd,
+}
+
+#[derive(SystemLabel, Clone, Hash, Debug, Eq, PartialEq)]
+/// The names of egui systems.
+pub enum EguiSystem {
+    /// Reads keyboard, mouse etc. input and write it into the [`EguiInput`] resource
+    ///
+    /// To modify the input, specify
+    /// `system.after(EguiSystem::ProcessInput).before(EguiSystem::BeginFrame)`.
+    ProcessInput,
+    /// Begins the `egui` frame
+    BeginFrame,
+    /// Processes the [`EguiOutput`] resource
+    ProcessOutput,
 }
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_stage_after(bevy_stage::EVENT, stage::INPUT, SystemStage::parallel());
-        app.add_stage_after(stage::INPUT, stage::POST_INPUT, SystemStage::parallel());
-        app.add_stage_after(stage::POST_INPUT, stage::UI_FRAME, SystemStage::parallel());
         app.add_stage_before(
-            bevy_render_stage::RENDER_RESOURCE,
-            stage::UI_FRAME_END,
-            SystemStage::parallel(),
-        );
-        app.add_stage_after(
-            stage::UI_FRAME_END,
-            stage::POST_UI_FRAME_END,
+            RenderStage::RenderResource,
+            EguiStage::UiFrameEnd,
             SystemStage::parallel(),
         );
 
-        app.add_system_to_stage(stage::INPUT, process_input.system());
-        app.add_system_to_stage(stage::UI_FRAME, begin_frame.system());
-        app.add_system_to_stage(stage::UI_FRAME_END, process_output.system());
+        app.add_system_to_stage(
+            CoreStage::PreUpdate,
+            process_input
+                .system()
+                .label(EguiSystem::ProcessInput)
+                .after(InputSystem),
+        );
+        app.add_system_to_stage(
+            CoreStage::PreUpdate,
+            begin_frame
+                .system()
+                .label(EguiSystem::BeginFrame)
+                .after(EguiSystem::ProcessInput),
+        );
+        app.add_system_to_stage(
+            EguiStage::UiFrameEnd,
+            process_output.system().label(EguiSystem::ProcessOutput),
+        );
 
-        let resources = app.resources_mut();
-        resources.get_or_insert_with(EguiSettings::default);
-        resources.get_or_insert_with(EguiInput::default);
-        resources.get_or_insert_with(EguiOutput::default);
-        resources.get_or_insert_with(EguiShapes::default);
+        let world = app.world_mut();
+        world.get_resource_or_insert_with(EguiSettings::default);
+        world.get_resource_or_insert_with(EguiInput::default);
+        world.get_resource_or_insert_with(EguiOutput::default);
+        world.get_resource_or_insert_with(EguiShapes::default);
         #[cfg(feature = "manage_clipboard")]
-        resources.get_or_insert_with(EguiClipboard::default);
-        resources.insert(EguiContext::new());
-        resources.insert(WindowSize::new(0.0, 0.0, 0.0));
+        world.get_resource_or_insert_with(EguiClipboard::default);
+        world.insert_resource(EguiContext::new());
+        world.insert_resource(WindowSize::new(0.0, 0.0, 0.0));
 
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
-        let msaa = resources.get::<Msaa>().unwrap();
+        let world = world.cell();
+
+        let mut pipelines = world
+            .get_resource_mut::<Assets<PipelineDescriptor>>()
+            .unwrap();
+        let msaa = world.get_resource::<Msaa>().unwrap();
+        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
 
         pipelines.set_untracked(
             EGUI_PIPELINE_HANDLE,
             build_egui_pipeline(&mut shaders, msaa.samples),
         );
-        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
+        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
 
         render_graph.add_node(node::EGUI_PASS, EguiNode::new(&msaa));
         render_graph
             .add_node_edge(base::node::MAIN_PASS, node::EGUI_PASS)
             .unwrap();
+
+        if let Ok(ui_pass) = render_graph.get_node_id(bevy::ui::node::UI_PASS) {
+            render_graph
+                .add_node_edge(ui_pass, node::EGUI_PASS)
+                .unwrap();
+        }
 
         render_graph
             .add_slot_edge(
@@ -411,41 +424,47 @@ impl Plugin for EguiPlugin {
 
 fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> PipelineDescriptor {
     PipelineDescriptor {
-        rasterization_state: Some(RasterizationStateDescriptor {
+        primitive: PrimitiveState {
             front_face: FrontFace::Cw,
             cull_mode: CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        depth_stencil_state: Some(DepthStencilStateDescriptor {
+            ..Default::default()
+        },
+        depth_stencil: Some(DepthStencilState {
             format: TextureFormat::Depth32Float,
             depth_write_enabled: true,
             depth_compare: CompareFunction::LessEqual,
-            stencil: StencilStateDescriptor {
-                front: StencilStateFaceDescriptor::IGNORE,
-                back: StencilStateFaceDescriptor::IGNORE,
+            stencil: StencilState {
+                front: StencilFaceState::IGNORE,
+                back: StencilFaceState::IGNORE,
                 read_mask: 0,
                 write_mask: 0,
             },
+            bias: DepthBiasState {
+                constant: 0,
+                slope_scale: 0.0,
+                clamp: 0.0,
+            },
+            clamp_depth: false,
         }),
-        color_states: vec![ColorStateDescriptor {
+        color_target_states: vec![ColorTargetState {
             format: TextureFormat::default(),
-            color_blend: BlendDescriptor {
+            color_blend: BlendState {
                 src_factor: BlendFactor::One,
                 dst_factor: BlendFactor::OneMinusSrcAlpha,
                 operation: BlendOperation::Add,
             },
-            alpha_blend: BlendDescriptor {
+            alpha_blend: BlendState {
                 src_factor: BlendFactor::One,
                 dst_factor: BlendFactor::OneMinusSrcAlpha,
                 operation: BlendOperation::Add,
             },
             write_mask: ColorWrite::ALL,
         }],
-        index_format: IndexFormat::Uint32,
-        sample_count,
+        multisample: MultisampleState {
+            count: sample_count,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
         ..PipelineDescriptor::new(ShaderStages {
             vertex: shaders.add(Shader::from_glsl(
                 ShaderStage::Vertex,
