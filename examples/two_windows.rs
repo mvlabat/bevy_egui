@@ -19,6 +19,7 @@ const BEVY_TEXTURE_ID: u64 = 0;
 fn main() {
     App::build()
         .insert_resource(Msaa { samples: 4 })
+        .init_resource::<SharedUiState>()
         .add_state(AppState::CreateWindow)
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
@@ -267,16 +268,29 @@ fn setup(
 
 #[derive(Default)]
 struct UiState {
-    label: String,
+    input: String,
 }
 
-fn ui_first_window(egui_context: Res<EguiContext>, mut ui_state: Local<UiState>) {
+#[derive(Default)]
+struct SharedUiState {
+    shared_input: String,
+}
+
+fn ui_first_window(
+    egui_context: Res<EguiContext>,
+    mut ui_state: Local<UiState>,
+    mut shared_ui_state: ResMut<SharedUiState>,
+) {
     egui::Window::new("First Window")
         .scroll(true)
         .show(egui_context.ctx(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
-                ui.text_edit_singleline(&mut ui_state.label);
+                ui.text_edit_singleline(&mut ui_state.input);
+            });
+            ui.horizontal(|ui| {
+                ui.label("Shared input: ");
+                ui.text_edit_singleline(&mut shared_ui_state.shared_input);
             });
 
             ui.add(egui::widgets::Image::new(
@@ -290,13 +304,18 @@ fn ui_second_window(
     egui_context: Res<EguiContext>,
     second_window: Res<SecondWindow>,
     mut ui_state: Local<UiState>,
+    mut shared_ui_state: ResMut<SharedUiState>,
 ) {
     egui::Window::new("Second Window").scroll(true).show(
         egui_context.ctx_for_window(second_window.id),
         |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something else: ");
-                ui.text_edit_singleline(&mut ui_state.label);
+                ui.text_edit_singleline(&mut ui_state.input);
+            });
+            ui.horizontal(|ui| {
+                ui.label("Shared input: ");
+                ui.text_edit_singleline(&mut shared_ui_state.shared_input);
             });
 
             ui.add(egui::widgets::Image::new(
