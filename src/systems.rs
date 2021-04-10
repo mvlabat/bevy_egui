@@ -273,17 +273,21 @@ pub fn process_output(
         }
 
         if let Some(winit_window) = winit_windows.get_window(id) {
-            if let Some(icon) = egui_to_winit_cursor_icon(output.cursor_icon) {
-                winit_window.set_cursor_icon(icon);
-            }
-        } else {
-            log::error!("No winit window found for the primary window");
+            winit_window.set_cursor_icon(
+                egui_to_winit_cursor_icon(output.cursor_icon)
+                    .unwrap_or(winit::window::CursorIcon::Default),
+            );
         }
 
+        // TODO: see if we can support `new_tab`.
         #[cfg(feature = "open_url")]
-        if let Some(url) = output.open_url {
-            if let Err(err) = webbrowser::open(&url.url) {
-                log::error!("Failed to open '{}': {:?}", &url.url, err);
+        if let Some(egui::output::OpenUrl {
+            url,
+            new_tab: _new_tab,
+        }) = output.open_url
+        {
+            if let Err(err) = webbrowser::open(&url) {
+                log::error!("Failed to open '{}': {:?}", url, err);
             }
         }
     }
