@@ -17,8 +17,6 @@ use bevy::{
 
 #[derive(SystemParam)]
 pub struct InputEvents<'a> {
-    #[cfg(feature = "manage_clipboard")]
-    egui_clipboard: Res<'a, crate::EguiClipboard>,
     ev_cursor_left: EventReader<'a, CursorLeft>,
     ev_cursor: EventReader<'a, CursorMoved>,
     ev_mouse_wheel: EventReader<'a, MouseWheel>,
@@ -26,28 +24,39 @@ pub struct InputEvents<'a> {
     ev_window_focus: EventReader<'a, WindowFocused>,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(SystemParam)]
+pub struct InputResources<'a> {
+    #[cfg(feature = "manage_clipboard")]
+    egui_clipboard: Res<'a, crate::EguiClipboard>,
+    mouse_button_input: Res<'a, Input<MouseButton>>,
+    keyboard_input: Res<'a, Input<KeyCode>>,
+    egui_input: ResMut<'a, HashMap<WindowId, EguiInput>>,
+}
+
+#[derive(SystemParam)]
+pub struct WindowResources<'a> {
+    focused_window: Local<'a, WindowId>,
+    windows: ResMut<'a, Windows>,
+    window_sizes: ResMut<'a, HashMap<WindowId, WindowSize>>,
+}
+
 pub fn process_input(
-    mut focused_window: Local<WindowId>,
     mut egui_context: ResMut<EguiContext>,
-    mut egui_input: ResMut<HashMap<WindowId, EguiInput>>,
     mut input_events: InputEvents,
-    mouse_button_input: Res<Input<MouseButton>>,
-    keyboard_input: Res<Input<KeyCode>>,
-    mut window_sizes: ResMut<HashMap<WindowId, WindowSize>>,
-    windows: ResMut<Windows>,
+    mut input_resources: InputResources,
+    mut window_resources: WindowResources,
     egui_settings: ResMut<EguiSettings>,
     time: Res<Time>,
 ) {
     for focus_event in input_events.ev_window_focus.iter().rev() {
         if focus_event.focused {
-            *focused_window = focus_event.id;
+            *window_resources.focused_window = focus_event.id;
             break;
         }
     }
 
-    for window in windows.iter() {
-        let egui_input = egui_input.entry(window.id()).or_default();
+    for window in window_resources.windows.iter() {
+        let egui_input = input_resources.egui_input.entry(window.id()).or_default();
 
         let window_size = WindowSize::new(
             window.physical_width() as f32,
@@ -70,7 +79,9 @@ pub fn process_input(
         egui_input.raw_input.pixels_per_point =
             Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
-        window_sizes.insert(window.id(), window_size);
+        window_resources
+            .window_sizes
+            .insert(window.id(), window_size);
         egui_context.ctx.entry(window.id()).or_default();
     }
 
@@ -81,16 +92,19 @@ pub fn process_input(
             delta *= 24.0;
         }
 
-        for egui_input in egui_input.values_mut() {
+        for egui_input in input_resources.egui_input.values_mut() {
             egui_input.raw_input.scroll_delta += delta;
         }
     }
 
-    let shift = keyboard_input.pressed(KeyCode::LShift) || keyboard_input.pressed(KeyCode::RShift);
-    let ctrl =
-        keyboard_input.pressed(KeyCode::LControl) || keyboard_input.pressed(KeyCode::RControl);
-    let alt = keyboard_input.pressed(KeyCode::LAlt) || keyboard_input.pressed(KeyCode::RAlt);
-    let win = keyboard_input.pressed(KeyCode::LWin) || keyboard_input.pressed(KeyCode::RWin);
+    let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
+        || input_resources.keyboard_input.pressed(KeyCode::RShift);
+    let ctrl = input_resources.keyboard_input.pressed(KeyCode::LControl)
+        || input_resources.keyboard_input.pressed(KeyCode::RControl);
+    let alt = input_resources.keyboard_input.pressed(KeyCode::LAlt)
+        || input_resources.keyboard_input.pressed(KeyCode::RAlt);
+    let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
+        || input_resources.keyboard_input.pressed(KeyCode::RWin);
 
     let mac_cmd = if cfg!(target_os = "macos") {
         win
@@ -108,7 +122,8 @@ pub fn process_input(
     };
 
     for cursor_entered in input_events.ev_cursor_left.iter() {
-        egui_input
+        input_resources
+            .egui_input
             .get_mut(&cursor_entered.id)
             .unwrap()
             .raw_input
@@ -119,10 +134,11 @@ pub fn process_input(
     if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
         let scale_factor = egui_settings.scale_factor as f32;
         let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-        mouse_position.1 =
-            window_sizes[&cursor_moved.id].height() / scale_factor - mouse_position.1;
+        mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height() / scale_factor
+            - mouse_position.1;
         egui_context.mouse_position = Some(mouse_position);
-        egui_input
+        input_resources
+            .egui_input
             .get_mut(&cursor_moved.id)
             .unwrap()
             .raw_input
@@ -134,7 +150,10 @@ pub fn process_input(
     }
 
     if let Some((x, y)) = egui_context.mouse_position {
-        let focused_egui_input = egui_input.get_mut(&*focused_window).unwrap();
+        let focused_egui_input = input_resources
+            .egui_input
+            .get_mut(&*window_resources.focused_window)
+            .unwrap();
         let events = &mut focused_egui_input.raw_input.events;
 
         let pos = egui::pos2(x, y);
@@ -142,21 +161,21 @@ pub fn process_input(
             events,
             pos,
             modifiers,
-            &mouse_button_input,
+            &input_resources.mouse_button_input,
             MouseButton::Left,
         );
         process_mouse_button_event(
             events,
             pos,
             modifiers,
-            &mouse_button_input,
+            &input_resources.mouse_button_input,
             MouseButton::Right,
         );
         process_mouse_button_event(
             events,
             pos,
             modifiers,
-            &mouse_button_input,
+            &input_resources.mouse_button_input,
             MouseButton::Middle,
         );
     }
@@ -164,7 +183,8 @@ pub fn process_input(
     if !ctrl && !win {
         for event in input_events.ev_received_character.iter() {
             if !event.char.is_control() {
-                egui_input
+                input_resources
+                    .egui_input
                     .get_mut(&event.id)
                     .unwrap()
                     .raw_input
@@ -174,10 +194,11 @@ pub fn process_input(
         }
     }
 
-    for pressed_key in keyboard_input.get_just_pressed() {
+    for pressed_key in input_resources.keyboard_input.get_just_pressed() {
         if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            egui_input
-                .get_mut(&*focused_window)
+            input_resources
+                .egui_input
+                .get_mut(&*window_resources.focused_window)
                 .unwrap()
                 .raw_input
                 .events
@@ -188,10 +209,11 @@ pub fn process_input(
                 })
         }
     }
-    for pressed_key in keyboard_input.get_just_released() {
+    for pressed_key in input_resources.keyboard_input.get_just_released() {
         if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            egui_input
-                .get_mut(&*focused_window)
+            input_resources
+                .egui_input
+                .get_mut(&*window_resources.focused_window)
                 .unwrap()
                 .raw_input
                 .events
@@ -203,25 +225,28 @@ pub fn process_input(
         }
     }
 
-    for egui_input in egui_input.values_mut() {
+    for egui_input in input_resources.egui_input.values_mut() {
         egui_input.raw_input.predicted_dt = time.delta_seconds();
     }
 
-    let focused_input = egui_input.get_mut(&*focused_window).unwrap();
+    let focused_input = input_resources
+        .egui_input
+        .get_mut(&*window_resources.focused_window)
+        .unwrap();
 
     #[cfg(feature = "manage_clipboard")]
     {
         let mut copy = false;
         let mut cut = false;
         let mut paste = None;
-        if command && keyboard_input.just_pressed(KeyCode::C) {
+        if command && input_resources.keyboard_input.just_pressed(KeyCode::C) {
             copy = true;
         }
-        if command && keyboard_input.just_pressed(KeyCode::X) {
+        if command && input_resources.keyboard_input.just_pressed(KeyCode::X) {
             cut = true;
         }
-        if command && keyboard_input.just_pressed(KeyCode::V) {
-            if let Some(contents) = input_events.egui_clipboard.get_contents() {
+        if command && input_resources.keyboard_input.just_pressed(KeyCode::V) {
+            if let Some(contents) = input_resources.egui_clipboard.get_contents() {
                 paste = Some(contents);
             }
         }
