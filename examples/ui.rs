@@ -59,7 +59,8 @@ fn ui_example(
             ui_state.value += 1.0;
         }
 
-        ui.with_layout(egui::Layout::left_to_right(), |ui| {
+        ui.allocate_space(egui::Vec2::new(1.0, 100.0));
+        ui.horizontal(|ui| {
             load = ui.button("Load").clicked();
             invert = ui.button("Invert").clicked();
             remove = ui.button("Remove").clicked();
