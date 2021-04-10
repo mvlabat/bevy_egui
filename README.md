@@ -30,7 +30,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.5"
-bevy_egui = "0.3"
+bevy_egui = "0.4"
 ```
 
 ```rust
