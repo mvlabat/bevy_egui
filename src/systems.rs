@@ -211,12 +211,8 @@ pub fn process_output(
 
     if let Some(window) = windows.get_primary() {
         if let Some(winit_window) = winit_windows.get_window(window.id()) {
-            match egui_to_winit_cursor_icon(output.cursor_icon) {
-                None => winit_window.set_cursor_visible(false),
-                Some(icon) => {
-                    winit_window.set_cursor_visible(true);
-                    winit_window.set_cursor_icon(icon);
-                }
+            if let Some(icon) = egui_to_winit_cursor_icon(output.cursor_icon) {
+                winit_window.set_cursor_icon(icon);
             }
         } else {
             log::error!("No winit window found for the primary window");
