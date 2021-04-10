@@ -1,26 +1,25 @@
 #![deny(missing_docs)]
 
-//! This crate provides a [egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+//! This crate provides a [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+//!
+//! **Trying out:**
+//!
+//! An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
 //!
 //! **Features:**
 //! - Desktop and web ([bevy_webgl2](https://github.com/mrk-its/bevy_webgl2)) platforms support
 //! - Clipboard (web support is limited to the same window, see [rust-windowing/winit#1829](https://github.com/rust-windowing/winit/issues/1829))
 //! - Opening URLs
+//! - Multiple windows support (see [./examples/two_windows.rs](./examples/two_windows.rs))
 //!
 //! `bevy_egui` can be compiled with using only `bevy` and `egui` as dependencies: `manage_clipboard` and `open_url` features,
 //! that require additional crates, can be disabled.
-//!
-//! ## Trying out
-//!
-//! An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
-//!
-//! **Note** that in order to use `bevy_egui`in WASM you need [bevy_webgl2](https://github.com/mrk-its/bevy_webgl2) of at least `0.5.0` version.
 //!
 //! ## Usage
 //!
 //! Here's a minimal usage example:
 //!
-//! ```no_run
+//! ```no_run,rust
 //! use bevy::prelude::*;
 //! use bevy_egui::{egui, EguiContext, EguiPlugin};
 //!
@@ -88,7 +87,7 @@ use std::cell::{RefCell, RefMut};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
-/// A handle pointing to the egui [PipelineDescriptor].
+/// A handle pointing to the egui [`PipelineDescriptor`].
 pub const EGUI_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 9404026720151354217);
 /// Name of the transform uniform.
@@ -96,10 +95,10 @@ pub const EGUI_TRANSFORM_RESOURCE_BINDING_NAME: &str = "EguiTransform";
 /// Name of the texture uniform.
 pub const EGUI_TEXTURE_RESOURCE_BINDING_NAME: &str = "EguiTexture_texture";
 
-/// Adds all egui resources and render graph nodes.
+/// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
 
-/// A resource containing global UI settings.
+/// A resource for storing global UI settings.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EguiSettings {
     /// Global scale factor for egui widgets (`1.0` by default).
@@ -124,10 +123,9 @@ impl Default for EguiSettings {
     }
 }
 
-/// A resource that stores the input passed to Egui.
+/// Is used for storing the input passed to Egui. The actual resource is a [`HashMap<WindowId, EguiInput>`].
 ///
-/// The actual resource is a [`HashMap<WindowId, EguiInput>`].
-/// It gets reset during the [EguiSystem::ProcessInput] system.
+/// It gets reset during the [`EguiSystem::ProcessInput`] system.
 #[derive(Clone, Debug, Default)]
 pub struct EguiInput {
     /// Egui's raw input.
@@ -135,7 +133,8 @@ pub struct EguiInput {
 }
 
 /// A resource for accessing clipboard.
-/// Is available only if `manage_clipboard` feature is enabled.
+///
+/// The resource is available only if `manage_clipboard` feature is enabled.
 #[cfg(feature = "manage_clipboard")]
 #[derive(Default)]
 pub struct EguiClipboard {
@@ -152,7 +151,7 @@ impl EguiClipboard {
         self.set_contents_impl(contents);
     }
 
-    /// Gets clipboard contents. Returns [None] if clipboard provider is unavailable or returns an error.
+    /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
     pub fn get_contents(&self) -> Option<String> {
         self.get_contents_impl()
     }
@@ -204,27 +203,23 @@ impl EguiClipboard {
     }
 }
 
+/// Is used for storing Egui shapes. The actual resource is [`HashMap<WindowId, EguiShapes>`].
 #[derive(Clone, Default)]
-/// A resource for storing Egui shapes.
-///
-/// The actual resource is a [`HashMap<WindowId, EguiShapes>`].
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [EguiStage::UiFrameEnd] stage and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiStage::UiFrameEnd`] stage and reset during `EguiNode::update`.
     pub shapes: Vec<egui::paint::ClippedShape>,
 }
 
-/// A resource for storing Egui output.
-///
-/// The actual resource is a [`HashMap<WindowId, EguiOutput>`].
+/// Is used for storing Egui output. The actual resource is [`HashMap<WindowId, EguiOutput>`].
 #[derive(Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [EguiStage::UiFrameEnd] stage.
+    /// The field gets updated during the [`EguiStage::UiFrameEnd`] stage.
     pub output: egui::Output,
 }
 
-/// A resource that is used to store `bevy_egui` context.
+/// A resource for storing `bevy_egui` context.
 pub struct EguiContext {
     ctx: HashMap<WindowId, egui::CtxRef>,
     egui_textures: HashMap<egui::TextureId, Handle<Texture>>,
@@ -245,6 +240,7 @@ impl EguiContext {
     pub fn ctx(&self) -> &egui::CtxRef {
         &self.ctx[&WindowId::primary()]
     }
+
     /// Egui context for a specific window.
     /// If you want to display UI on a non-primary window,
     /// make sure to set up the render graph by calling [`setup_pipeline`].
@@ -288,7 +284,6 @@ impl EguiContext {
     }
 }
 
-/// The actual resource is a [`HashMap<WindowId, EguiShapes>`].
 #[doc(hidden)]
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WindowSize {
@@ -335,9 +330,10 @@ pub enum EguiStage {
 #[derive(SystemLabel, Clone, Hash, Debug, Eq, PartialEq)]
 /// The names of egui systems.
 pub enum EguiSystem {
-    /// Reads keyboard, mouse etc. input and write it into the [`EguiInput`] resource
+    /// Reads Egui inputs (keyboard, mouse, etc) and writes them into the [`EguiInput`] resource.
     ///
-    /// To modify the input, specify
+    /// To modify the input, you can hook your system like this:
+    ///
     /// `system.after(EguiSystem::ProcessInput).before(EguiSystem::BeginFrame)`.
     ProcessInput,
     /// Begins the `egui` frame
@@ -412,6 +408,7 @@ pub struct RenderGraphConfig {
     pub sampled_color_attachment: &'static str,
     pub transform_node: &'static str,
 }
+
 impl Default for RenderGraphConfig {
     fn default() -> Self {
         RenderGraphConfig {
@@ -425,6 +422,7 @@ impl Default for RenderGraphConfig {
         }
     }
 }
+
 /// Set up egui render pipeline.
 ///
 /// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
