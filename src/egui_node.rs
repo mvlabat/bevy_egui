@@ -6,8 +6,8 @@ use bevy::{
     app::{Events, ManualEventReader},
     asset::{AssetEvent, Assets, Handle},
     core::AsBytes,
+    ecs::world::World,
     log,
-    prelude::World,
     render::{
         pass::{
             ClearColor, LoadOp, Operations, PassDescriptor,
@@ -27,14 +27,15 @@ use bevy::{
         shader::Shader,
         texture::{Extent3d, Texture, TextureDescriptor, TextureDimension, TextureFormat},
     },
+    utils::HashMap,
+    window::WindowId,
 };
 use egui::paint::ClippedShape;
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-};
+use std::{borrow::Cow, collections::HashSet};
 
 pub struct EguiNode {
+    window_id: WindowId,
+
     pass_descriptor: PassDescriptor,
     pipeline_descriptor: Option<Handle<PipelineDescriptor>>,
     inputs: Vec<ResourceSlotInfo>,
@@ -67,7 +68,7 @@ pub struct TextureResource {
 }
 
 impl EguiNode {
-    pub fn new(msaa: &Msaa) -> Self {
+    pub fn new(msaa: &Msaa, window: WindowId) -> Self {
         let color_attachments = vec![msaa.color_attachment_descriptor(
             TextureAttachment::Input("color_attachment".to_string()),
             TextureAttachment::Input("color_resolve_target".to_string()),
@@ -121,6 +122,7 @@ impl EguiNode {
         }
 
         Self {
+            window_id: window,
             pass_descriptor: PassDescriptor {
                 color_attachments,
                 depth_stencil_attachment: Some(depth_stencil_attachment),
@@ -184,7 +186,10 @@ impl Node for EguiNode {
             &mut texture_assets,
         );
 
-        let mut egui_shapes = world.get_resource_mut::<EguiShapes>().unwrap();
+        let mut egui_shapes = world
+            .get_resource_mut::<HashMap<WindowId, EguiShapes>>()
+            .unwrap();
+        let egui_shapes = egui_shapes.get_mut(&self.window_id).unwrap();
         self.shapes = std::mem::take(&mut egui_shapes.shapes);
     }
 
@@ -199,8 +204,14 @@ impl Node for EguiNode {
 
         self.process_attachments(input, world);
 
-        let window_size = world.get_resource::<WindowSize>().unwrap();
+        let window_size = &world
+            .get_resource::<HashMap<WindowId, WindowSize>>()
+            .unwrap()[&self.window_id];
         let egui_settings = world.get_resource::<EguiSettings>().unwrap();
+
+        if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
+            return;
+        }
 
         let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
 
@@ -209,7 +220,7 @@ impl Node for EguiNode {
         let egui_context = world.get_resource::<EguiContext>().unwrap();
 
         let shapes = std::mem::take(&mut self.shapes);
-        let egui_paint_jobs = egui_context.ctx.tessellate(shapes);
+        let egui_paint_jobs = egui_context.ctx().tessellate(shapes);
 
         let mut vertex_buffer = Vec::<u8>::new();
         let mut index_buffer = Vec::new();
@@ -451,7 +462,7 @@ impl EguiNode {
         asset_events: &Events<AssetEvent<Texture>>,
         texture_assets: &mut Assets<Texture>,
     ) {
-        let mut changed_assets: HashMap<Handle<Texture>, &Texture> = HashMap::new();
+        let mut changed_assets: HashMap<Handle<Texture>, &Texture> = HashMap::default();
         let mut asset_event_reader = ManualEventReader::<AssetEvent<Texture>>::default();
         for event in asset_event_reader.iter(asset_events) {
             let handle = match event {
@@ -490,7 +501,7 @@ impl EguiNode {
             self.update_texture(render_resource_context, texture, texture_handle);
         }
 
-        let egui_texture = egui_context.ctx.texture();
+        let egui_texture = egui_context.ctx_for_window(self.window_id).texture();
         if self.egui_texture_version != Some(egui_texture.version) {
             self.egui_texture_version = Some(egui_texture.version);
             if let Some(egui_texture_handle) = self.egui_texture.clone() {
@@ -528,7 +539,7 @@ impl EguiNode {
         texture_assets: &mut Assets<Texture>,
     ) {
         if self.egui_texture.is_none() {
-            let texture = egui_context.ctx.texture();
+            let texture = egui_context.ctx_for_window(self.window_id).texture();
             self.egui_texture = Some(texture_assets.add(as_bevy_texture(&texture)));
             self.egui_texture_version = Some(texture.version);
 

@@ -1,8 +1,10 @@
 use crate::{EguiSettings, WindowSize, EGUI_TRANSFORM_RESOURCE_BINDING_NAME};
 use bevy::{
     core::AsBytes,
-    ecs::world::World,
-    prelude::{IntoSystem, Local, Res, ResMut, System},
+    ecs::{
+        system::{IntoSystem, Local, Res, ResMut, System},
+        world::World,
+    },
     render::{
         render_graph::{CommandQueue, Node, ResourceSlots, SystemNode},
         renderer::{
@@ -10,16 +12,20 @@ use bevy::{
             RenderResourceBindings, RenderResourceContext,
         },
     },
+    utils::HashMap,
+    window::WindowId,
 };
 
 #[derive(Debug)]
 pub struct EguiTransformNode {
+    window_id: WindowId,
     command_queue: CommandQueue,
 }
 
 impl EguiTransformNode {
-    pub fn new() -> Self {
+    pub fn new(window_id: WindowId) -> Self {
         EguiTransformNode {
+            window_id,
             command_queue: Default::default(),
         }
     }
@@ -41,6 +47,7 @@ impl SystemNode for EguiTransformNode {
     fn get_system(&self) -> Box<dyn System<In = (), Out = ()>> {
         let system = transform_node_system.system().config(|c| {
             c.0 = Some(TransformNodeState {
+                window_id: self.window_id,
                 command_queue: self.command_queue.clone(),
                 transform_buffer: None,
                 staging_buffer: None,
@@ -54,6 +61,7 @@ impl SystemNode for EguiTransformNode {
 
 #[derive(Default)]
 pub struct TransformNodeState {
+    window_id: WindowId,
     command_queue: CommandQueue,
     transform_buffer: Option<BufferId>,
     staging_buffer: Option<BufferId>,
@@ -64,10 +72,12 @@ pub struct TransformNodeState {
 fn transform_node_system(
     mut state: Local<TransformNodeState>,
     render_resource_context: Res<Box<dyn RenderResourceContext>>,
-    window_size: Res<WindowSize>,
+    window_size: Res<HashMap<WindowId, WindowSize>>,
     egui_settings: Res<EguiSettings>,
     mut render_resource_bindings: ResMut<RenderResourceBindings>,
 ) {
+    let window_size = &window_size[&state.window_id];
+
     #[allow(clippy::float_cmp)]
     if state.prev_window_size == *window_size
         && state.prev_scale_factor == egui_settings.scale_factor

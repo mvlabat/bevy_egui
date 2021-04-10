@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 10-Apr-2021
+
+Huge thanks to @jakobhellermann and @Weasy666 for contributing to this release!
+
+### Added
+
+- Implement Egui 0.11.0 support ([#12](https://github.com/mvlabat/bevy_egui/pull/12) by @Weasy666 and @jakobhellermann).
+- Implement multiple windows support ([#14](https://github.com/mvlabat/bevy_egui/pull/14) by @jakobhellermann).
+
 ## [0.3.0] - 02-Mar-2021
 
 ### Added
