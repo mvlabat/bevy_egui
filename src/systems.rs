@@ -203,6 +203,12 @@ pub fn process_input(
         }
     }
 
+    for egui_input in egui_input.values_mut() {
+        egui_input.raw_input.predicted_dt = time.delta_seconds();
+    }
+
+    let focused_input = egui_input.get_mut(&*focused_window).unwrap();
+
     #[cfg(feature = "manage_clipboard")]
     {
         let mut copy = false;
@@ -219,24 +225,21 @@ pub fn process_input(
                 paste = Some(contents);
             }
         }
-        for egui_input in egui_input.values_mut() {
-            if copy {
-                egui_input.raw_input.events.push(egui::Event::Copy);
-            }
-            if cut {
-                egui_input.raw_input.events.push(egui::Event::Cut);
-            }
-            if let Some(content) = paste.clone() {
-                egui_input.raw_input.events.push(egui::Event::Text(content))
-            }
+
+        if copy {
+            focused_input.raw_input.events.push(egui::Event::Copy);
+        }
+        if cut {
+            focused_input.raw_input.events.push(egui::Event::Cut);
+        }
+        if let Some(content) = paste {
+            focused_input
+                .raw_input
+                .events
+                .push(egui::Event::Text(content))
         }
     };
 
-    for egui_input in egui_input.values_mut() {
-        egui_input.raw_input.predicted_dt = time.delta_seconds();
-    }
-
-    let focused_input = egui_input.get_mut(&*focused_window).unwrap();
     focused_input.raw_input.modifiers = modifiers;
 }
 
