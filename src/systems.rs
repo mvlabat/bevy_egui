@@ -11,7 +11,9 @@ use bevy::{
         Input,
     },
     utils::HashMap,
-    window::{CursorLeft, CursorMoved, ReceivedCharacter, WindowFocused, WindowId, Windows},
+    window::{
+        CursorLeft, CursorMoved, ReceivedCharacter, WindowCreated, WindowFocused, WindowId, Windows,
+    },
     winit::WinitWindows,
 };
 
@@ -21,7 +23,8 @@ pub struct InputEvents<'a> {
     ev_cursor: EventReader<'a, CursorMoved>,
     ev_mouse_wheel: EventReader<'a, MouseWheel>,
     ev_received_character: EventReader<'a, ReceivedCharacter>,
-    ev_window_focus: EventReader<'a, WindowFocused>,
+    ev_window_focused: EventReader<'a, WindowFocused>,
+    ev_window_created: EventReader<'a, WindowCreated>,
 }
 
 #[derive(SystemParam)]
@@ -48,10 +51,15 @@ pub fn process_input(
     egui_settings: ResMut<EguiSettings>,
     time: Res<Time>,
 ) {
-    for focus_event in input_events.ev_window_focus.iter().rev() {
-        if focus_event.focused {
-            *window_resources.focused_window = focus_event.id;
-            break;
+    // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired.
+    // when a window is created.
+    for event in input_events.ev_window_created.iter().rev() {
+        *window_resources.focused_window = event.id;
+    }
+
+    for event in input_events.ev_window_focused.iter().rev() {
+        if event.focused {
+            *window_resources.focused_window = event.id;
         }
     }
 
