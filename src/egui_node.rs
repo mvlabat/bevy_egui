@@ -6,8 +6,8 @@ use bevy::{
     app::{Events, ManualEventReader},
     asset::{AssetEvent, Assets, Handle},
     core::AsBytes,
+    ecs::world::World,
     log,
-    prelude::World,
     render::{
         pass::{
             ClearColor, LoadOp, Operations, PassDescriptor,

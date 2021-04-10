@@ -60,9 +60,12 @@ use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
     app::{AppBuilder, CoreStage, Plugin},
     asset::{Assets, Handle, HandleUntyped},
+    ecs::{
+        schedule::{ParallelSystemDescriptorCoercion, StageLabel, SystemLabel, SystemStage},
+        system::IntoSystem,
+    },
     input::InputSystem,
     log,
-    prelude::{IntoSystem, ParallelSystemDescriptorCoercion, StageLabel, SystemLabel, SystemStage},
     reflect::TypeUuid,
     render::{
         pipeline::{

@@ -1,15 +1,15 @@
 use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize};
+#[cfg(feature = "open_url")]
+use bevy::log;
 use bevy::{
     app::EventReader,
     core::Time,
-    ecs::system::SystemParam,
+    ecs::system::{Local, Res, ResMut, SystemParam},
     input::{
         keyboard::KeyCode,
         mouse::{MouseButton, MouseScrollUnit, MouseWheel},
         Input,
     },
-    log,
-    prelude::{Local, Res, ResMut},
     utils::HashMap,
     window::{CursorLeft, CursorMoved, ReceivedCharacter, WindowFocused, WindowId, Windows},
     winit::WinitWindows,
