@@ -271,17 +271,19 @@ struct UiState {
 }
 
 fn ui_first_window(egui_context: Res<EguiContext>, mut ui_state: Local<UiState>) {
-    egui::Window::new("First Window").show(egui_context.ctx(), |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Write something: ");
-            ui.text_edit_singleline(&mut ui_state.label);
-        });
+    egui::Window::new("First Window")
+        .scroll(true)
+        .show(egui_context.ctx(), |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Write something: ");
+                ui.text_edit_singleline(&mut ui_state.label);
+            });
 
-        ui.add(egui::widgets::Image::new(
-            egui::TextureId::User(BEVY_TEXTURE_ID),
-            [256.0, 256.0],
-        ));
-    });
+            ui.add(egui::widgets::Image::new(
+                egui::TextureId::User(BEVY_TEXTURE_ID),
+                [256.0, 256.0],
+            ));
+        });
 }
 
 fn ui_second_window(
@@ -289,15 +291,18 @@ fn ui_second_window(
     second_window: Res<SecondWindow>,
     mut ui_state: Local<UiState>,
 ) {
-    egui::Window::new("Second Window").show(egui_context.ctx_for_window(second_window.id), |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Write something else: ");
-            ui.text_edit_singleline(&mut ui_state.label);
-        });
+    egui::Window::new("Second Window").scroll(true).show(
+        egui_context.ctx_for_window(second_window.id),
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Write something else: ");
+                ui.text_edit_singleline(&mut ui_state.label);
+            });
 
-        ui.add(egui::widgets::Image::new(
-            egui::TextureId::User(BEVY_TEXTURE_ID),
-            [256.0, 256.0],
-        ));
-    });
+            ui.add(egui::widgets::Image::new(
+                egui::TextureId::User(BEVY_TEXTURE_ID),
+                [256.0, 256.0],
+            ));
+        },
+    );
 }
