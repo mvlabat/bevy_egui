@@ -13,6 +13,8 @@ use bevy::{
 };
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
+const BEVY_TEXTURE_ID: u64 = 0;
+
 /// This example creates a second window and draws a mesh from two different cameras.
 fn main() {
     App::build()
@@ -20,6 +22,7 @@ fn main() {
         .add_state(AppState::CreateWindow)
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
+        .add_startup_system(load_assets.system())
         .add_system_set(
             SystemSet::on_update(AppState::CreateWindow).with_system(setup_window.system()),
         )
@@ -70,6 +73,11 @@ mod second_window {
     pub const CAMERA_NAME: &str = "Secondary";
     pub const SAMPLED_COLOR_ATTACHMENT: &str = "second_multi_sampled_color_attachment";
     pub const PASS: &str = "second_window_pass";
+}
+
+fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
+    let texture_handle = assets.load("icon.png");
+    egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
 }
 
 fn setup_pipeline(
@@ -257,14 +265,39 @@ fn setup(
     app_state.set(AppState::Done).unwrap();
 }
 
-fn ui_first_window(egui_context: Res<EguiContext>) {
+#[derive(Default)]
+struct UiState {
+    label: String,
+}
+
+fn ui_first_window(egui_context: Res<EguiContext>, mut ui_state: Local<UiState>) {
     egui::Window::new("First Window").show(egui_context.ctx(), |ui| {
-        ui.label("Some UI");
+        ui.horizontal(|ui| {
+            ui.label("Write something: ");
+            ui.text_edit_singleline(&mut ui_state.label);
+        });
+
+        ui.add(egui::widgets::Image::new(
+            egui::TextureId::User(BEVY_TEXTURE_ID),
+            [256.0, 256.0],
+        ));
     });
 }
 
-fn ui_second_window(egui_context: Res<EguiContext>, second_window: Res<SecondWindow>) {
+fn ui_second_window(
+    egui_context: Res<EguiContext>,
+    second_window: Res<SecondWindow>,
+    mut ui_state: Local<UiState>,
+) {
     egui::Window::new("Second Window").show(egui_context.ctx_for_window(second_window.id), |ui| {
-        ui.label("Some more UI");
+        ui.horizontal(|ui| {
+            ui.label("Write something else: ");
+            ui.text_edit_singleline(&mut ui_state.label);
+        });
+
+        ui.add(egui::widgets::Image::new(
+            egui::TextureId::User(BEVY_TEXTURE_ID),
+            [256.0, 256.0],
+        ));
     });
 }
