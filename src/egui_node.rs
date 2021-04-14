@@ -310,18 +310,25 @@ impl Node for EguiNode {
                     );
 
                     let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
-                    render_pass.set_scissor_rect(
+
+                    let (x, y, w, mut h) = (
                         (draw_command.clipping_zone.min.x * scale_factor) as u32,
                         (draw_command.clipping_zone.min.y * scale_factor) as u32,
                         (draw_command.clipping_zone.width() * scale_factor) as u32,
-                        (draw_command.clipping_zone.height() * scale_factor) as u32,
+                        (draw_command.clipping_zone.height() * scale_factor) as u32
                     );
-                    render_pass.draw_indexed(
-                        vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
-                        0,
-                        0..1,
-                    );
-                    vertex_offset += draw_command.vertices_count as u32;
+
+                    if h != 0 && w != 0 {
+                        render_pass.set_scissor_rect(
+                            x, y, w, h,
+                        );
+                        render_pass.draw_indexed(
+                            vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
+                            0,
+                            0..1,
+                        );
+                        vertex_offset += draw_command.vertices_count as u32;
+                    }
                 }
             },
         );
