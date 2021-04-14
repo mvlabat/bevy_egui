@@ -311,7 +311,7 @@ impl Node for EguiNode {
 
                     let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
 
-                    let (x, y, w, mut h) = (
+                    let (x, y, w, h) = (
                         (draw_command.clipping_zone.min.x * scale_factor) as u32,
                         (draw_command.clipping_zone.min.y * scale_factor) as u32,
                         (draw_command.clipping_zone.width() * scale_factor) as u32,
