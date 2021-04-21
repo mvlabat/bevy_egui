@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::{EguiContext, EguiPlugin, EguiSettings};
+use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 
 const BEVY_TEXTURE_ID: u64 = 0;
 
