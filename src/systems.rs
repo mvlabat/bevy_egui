@@ -71,17 +71,20 @@ pub fn process_input(
             window.physical_height() as f32,
             window.scale_factor() as f32,
         );
+        let width = window_size.physical_width
+            / window_size.scale_factor
+            / egui_settings.scale_factor as f32;
+        let height = window_size.physical_height
+            / window_size.scale_factor
+            / egui_settings.scale_factor as f32;
+
+        if width < 1.0 || height < 1.0 {
+            continue;
+        }
 
         egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
-            egui::pos2(
-                window_size.physical_width
-                    / window_size.scale_factor
-                    / egui_settings.scale_factor as f32,
-                window_size.physical_height
-                    / window_size.scale_factor
-                    / egui_settings.scale_factor as f32,
-            ),
+            egui::pos2(width, height),
         ));
 
         egui_input.raw_input.pixels_per_point =

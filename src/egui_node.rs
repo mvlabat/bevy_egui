@@ -152,7 +152,7 @@ impl EguiNode {
 struct DrawCommand {
     vertices_count: usize,
     texture_handle: Option<Handle<Texture>>,
-    clipping_zone: egui::Rect,
+    clipping_zone: (u32, u32, u32, u32), // x, y, w, h
 }
 
 impl Node for EguiNode {
@@ -227,7 +227,19 @@ impl Node for EguiNode {
         let mut draw_commands = Vec::new();
         let mut index_offset = 0;
 
+        let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
         for egui::ClippedMesh(rect, triangles) in &egui_paint_jobs {
+            let (x, y, w, h) = (
+                (rect.min.x * scale_factor).round() as u32,
+                (rect.min.y * scale_factor).round() as u32,
+                (rect.width() * scale_factor).round() as u32,
+                (rect.height() * scale_factor).round() as u32,
+            );
+
+            if w < 1 || h < 1 {
+                continue;
+            }
+
             let texture_handle = egui_context
                 .egui_textures
                 .get(&triangles.texture_id)
@@ -254,10 +266,12 @@ impl Node for EguiNode {
             index_buffer.extend_from_slice(indices_with_offset.as_slice().as_bytes());
             index_offset += triangles.vertices.len() as u32;
 
+            let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);
+            let y_viewport_clamp = (y + h).saturating_sub(window_size.physical_height as u32);
             draw_commands.push(DrawCommand {
                 vertices_count: triangles.indices.len(),
                 texture_handle,
-                clipping_zone: *rect,
+                clipping_zone: (x, y, w - x_viewport_clamp, h - y_viewport_clamp),
             });
         }
 
@@ -309,24 +323,18 @@ impl Node for EguiNode {
                         None,
                     );
 
-                    let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
-
-                    let (x, y, w, h) = (
-                        (draw_command.clipping_zone.min.x * scale_factor) as u32,
-                        (draw_command.clipping_zone.min.y * scale_factor) as u32,
-                        (draw_command.clipping_zone.width() * scale_factor) as u32,
-                        (draw_command.clipping_zone.height() * scale_factor) as u32,
+                    render_pass.set_scissor_rect(
+                        draw_command.clipping_zone.0,
+                        draw_command.clipping_zone.1,
+                        draw_command.clipping_zone.2,
+                        draw_command.clipping_zone.3,
                     );
-
-                    if h != 0 && w != 0 {
-                        render_pass.set_scissor_rect(x, y, w, h);
-                        render_pass.draw_indexed(
-                            vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
-                            0,
-                            0..1,
-                        );
-                        vertex_offset += draw_command.vertices_count as u32;
-                    }
+                    render_pass.draw_indexed(
+                        vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
+                        0,
+                        0..1,
+                    );
+                    vertex_offset += draw_command.vertices_count as u32;
                 }
             },
         );
