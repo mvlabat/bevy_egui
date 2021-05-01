@@ -253,6 +253,11 @@ impl EguiContext {
             .unwrap()
     }
 
+    /// Fallible variant of [`EguiContext::ctx_for_window`]. Make sure to set up the render graph by calling [`setup_pipeline`].
+    pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::CtxRef> {
+        self.ctx.get(&window)
+    }
+
     /// Can accept either a strong or a weak handle.
     ///
     /// You may want to pass a weak handle if you control removing texture assets in your
