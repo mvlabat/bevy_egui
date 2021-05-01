@@ -228,8 +228,10 @@ pub struct EguiContext {
 
 impl EguiContext {
     fn new() -> Self {
+        let mut ctx = HashMap::default();
+        ctx.insert(WindowId::primary(), egui::CtxRef::default());
         Self {
-            ctx: HashMap::default(),
+            ctx,
             egui_textures: Default::default(),
             mouse_position: Some((0.0, 0.0)),
         }
