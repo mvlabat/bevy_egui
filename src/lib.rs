@@ -238,7 +238,7 @@ impl EguiContext {
     /// Egui context of the primary window.
     #[track_caller]
     pub fn ctx(&self) -> &egui::CtxRef {
-        &self.ctx[&WindowId::primary()]
+        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx()` called before the ctx has been initialized. Consider moving your UI system to `CoreStage::Update` or run you system after `EguiSystem::BeginFrame`.")
     }
 
     /// Egui context for a specific window.
