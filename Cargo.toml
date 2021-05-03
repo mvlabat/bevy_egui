@@ -20,7 +20,7 @@ manage_clipboard = ["clipboard", "thread_local"]
 open_url = ["webbrowser"]
 
 [dependencies]
-bevy = { version = "0.5", default-features = false, features = ["render", "bevy_winit", "dynamic"] }
+bevy = { version = "0.5", default-features = false, features = ["render", "bevy_winit"] }
 #use dynamic for  Fast Compile dependencies required , https://bevyengine.org/learn/book/getting-started/setup/
 #bevy = { version = "0.5", default-features = false, features = ["bevy_wgpu", "x11", "png", "dynamic"] }
 egui = "0.11.0"
@@ -35,7 +35,7 @@ thread_local = { version = "1.1.0", optional = true }
 version-sync = "0.9.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-bevy = { version = "0.5", default-features = false, features = ["bevy_wgpu", "x11", "png", "dynamic"] }
+bevy = { version = "0.5", default-features = false, features = ["bevy_wgpu", "x11", "png"] }
 #use dynamic for  Fast Compile dependencies required , https://bevyengine.org/learn/book/getting-started/setup/
 #bevy = { version = "0.5", default-features = false, features = ["bevy_wgpu", "x11", "png", "dynamic"] }
 
