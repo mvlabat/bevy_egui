@@ -68,8 +68,8 @@ use bevy::{
     reflect::TypeUuid,
     render::{
         pipeline::{
-            BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrite, CompareFunction,
-            CullMode, DepthBiasState, DepthStencilState, FrontFace, MultisampleState,
+            BlendComponent, BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrite,
+            CompareFunction, DepthBiasState, DepthStencilState, FrontFace, MultisampleState,
             PipelineDescriptor, PrimitiveState, StencilFaceState, StencilState,
         },
         render_graph::{base, base::Msaa, RenderGraph, WindowSwapChainNode, WindowTextureNode},
@@ -485,7 +485,7 @@ fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> Pipel
     PipelineDescriptor {
         primitive: PrimitiveState {
             front_face: FrontFace::Cw,
-            cull_mode: CullMode::None,
+            cull_mode: None,
             ..Default::default()
         },
         depth_stencil: Some(DepthStencilState {
@@ -503,20 +503,21 @@ fn build_egui_pipeline(shaders: &mut Assets<Shader>, sample_count: u32) -> Pipel
                 slope_scale: 0.0,
                 clamp: 0.0,
             },
-            clamp_depth: false,
         }),
         color_target_states: vec![ColorTargetState {
             format: TextureFormat::default(),
-            color_blend: BlendState {
-                src_factor: BlendFactor::One,
-                dst_factor: BlendFactor::OneMinusSrcAlpha,
-                operation: BlendOperation::Add,
-            },
-            alpha_blend: BlendState {
-                src_factor: BlendFactor::One,
-                dst_factor: BlendFactor::OneMinusSrcAlpha,
-                operation: BlendOperation::Add,
-            },
+            blend: Some(BlendState {
+                color: BlendComponent {
+                    src_factor: BlendFactor::One,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+                alpha: BlendComponent {
+                    src_factor: BlendFactor::One,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+            }),
             write_mask: ColorWrite::ALL,
         }],
         multisample: MultisampleState {
