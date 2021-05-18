@@ -5,7 +5,7 @@ use crate::{
 use bevy::{
     app::{Events, ManualEventReader},
     asset::{AssetEvent, Assets, Handle},
-    core::AsBytes,
+    core::{bytes_of, cast_slice},
     ecs::world::World,
     log,
     render::{
@@ -250,24 +250,24 @@ impl Node for EguiNode {
                 .cloned();
 
             for vertex in &triangles.vertices {
-                vertex_buffer.extend_from_slice([vertex.pos.x, vertex.pos.y].as_bytes());
-                vertex_buffer.extend_from_slice([vertex.uv.x, vertex.uv.y].as_bytes());
-                vertex_buffer.extend_from_slice(
+                vertex_buffer.extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
+                vertex_buffer.extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
+                vertex_buffer.extend_from_slice(cast_slice(
                     vertex
                         .color
                         .to_array()
                         .iter()
                         .map(|c| *c as f32)
                         .collect::<Vec<_>>()
-                        .as_bytes(),
-                );
+                        .as_slice(),
+                ));
             }
             let indices_with_offset = triangles
                 .indices
                 .iter()
                 .map(|i| i + index_offset)
                 .collect::<Vec<_>>();
-            index_buffer.extend_from_slice(indices_with_offset.as_slice().as_bytes());
+            index_buffer.extend_from_slice(cast_slice(indices_with_offset.as_slice()));
             index_offset += triangles.vertices.len() as u32;
 
             let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);

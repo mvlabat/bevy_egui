@@ -1,6 +1,6 @@
 use crate::{EguiSettings, WindowSize, EGUI_TRANSFORM_RESOURCE_BINDING_NAME};
 use bevy::{
-    core::AsBytes,
+    core::bytes_of,
     ecs::{
         system::{IntoSystem, Local, Res, ResMut, System},
         world::World,
@@ -130,7 +130,7 @@ fn transform_node_system(
         staging_buffer,
         0..transform_data_size as u64,
         &mut |data, _renderer| {
-            data[0..transform_data_size].copy_from_slice(transform_data.as_bytes());
+            data[0..transform_data_size].copy_from_slice(bytes_of(&transform_data));
         },
     );
     render_resource_context.unmap_buffer(staging_buffer);
