@@ -246,8 +246,7 @@ impl EguiContext {
     /// make sure to set up the render graph by calling [`setup_pipeline`].
     #[track_caller]
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
-        &self
-            .ctx
+        self.ctx
             .get(&window)
             .ok_or_else(|| format!("window with id {} not found", window))
             .unwrap()
@@ -433,7 +432,7 @@ impl Default for RenderGraphConfig {
 /// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
 /// so you'll only need to manually call this if you want to use multiple windows.
 pub fn setup_pipeline(render_graph: &mut RenderGraph, msaa: &Msaa, config: RenderGraphConfig) {
-    render_graph.add_node(config.egui_pass, EguiNode::new(&msaa, config.window_id));
+    render_graph.add_node(config.egui_pass, EguiNode::new(msaa, config.window_id));
     render_graph
         .add_node_edge(config.main_pass, config.egui_pass)
         .unwrap();
