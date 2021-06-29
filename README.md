@@ -30,7 +30,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.5"
-bevy_egui = "0.5"
+bevy_egui = "0.6"
 ```
 
 ```rust
@@ -45,7 +45,10 @@ fn main() {
         .run();
 }
 
-fn ui_example(mut egui_context: ResMut<EguiContext>) {
+// Note the usage of `ResMut`. Even though `ctx` method doesn't require
+// mutability, accessing the context from different threads will result
+// into panic if you don't enable `egui/multi_threaded` feature.
+fn ui_example(egui_context: ResMut<EguiContext>) {
     egui::Window::new("Hello").show(egui_context.ctx(), |ui| {
         ui.label("world");
     });

@@ -31,6 +31,9 @@
 //!         .run();
 //! }
 //!
+//! // Note the usage of `ResMut`. Even though `ctx` method doesn't require
+//! // mutability, accessing the context from different threads will result
+//! // into panic if you don't enable `egui/multi_threaded` feature.
 //! fn ui_example(egui_context: Res<EguiContext>) {
 //!     egui::Window::new("Hello").show(egui_context.ctx(), |ui| {
 //!         ui.label("world");
@@ -236,6 +239,9 @@ impl EguiContext {
     }
 
     /// Egui context of the primary window.
+    ///
+    /// Note: accessing the context from different threads simultaneously requires enabling
+    /// `egui/multi_threaded` feature.
     #[track_caller]
     pub fn ctx(&self) -> &egui::CtxRef {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx()` called before the ctx has been initialized. Consider moving your UI system to `CoreStage::Update` or run you system after `EguiSystem::BeginFrame`.")
@@ -244,6 +250,9 @@ impl EguiContext {
     /// Egui context for a specific window.
     /// If you want to display UI on a non-primary window,
     /// make sure to set up the render graph by calling [`setup_pipeline`].
+    ///
+    /// Note: accessing the context from different threads simultaneously requires enabling
+    /// `egui/multi_threaded` feature.
     #[track_caller]
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
         self.ctx
