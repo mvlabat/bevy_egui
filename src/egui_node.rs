@@ -215,7 +215,7 @@ impl Node for EguiNode {
 
         let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
 
-        self.init_transform_bind_group(render_context, &render_resource_bindings);
+        self.init_transform_bind_group(render_context, render_resource_bindings);
 
         let egui_context = world.get_resource::<EguiContext>().unwrap();
 
@@ -279,7 +279,7 @@ impl Node for EguiNode {
 
         render_context.begin_pass(
             &self.pass_descriptor,
-            &render_resource_bindings,
+            render_resource_bindings,
             &mut |render_pass| {
                 render_pass.set_pipeline(self.pipeline_descriptor.as_ref().unwrap());
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.unwrap(), 0);
@@ -506,7 +506,7 @@ impl EguiNode {
                     egui_context.remove_texture(handle);
                     self.remove_texture(render_resource_context, handle);
                     // If an asset was modified and removed in the same update, ignore the modification.
-                    changed_assets.remove(&handle);
+                    changed_assets.remove(handle);
                 }
             }
         }
@@ -520,7 +520,7 @@ impl EguiNode {
             if let Some(egui_texture_handle) = self.egui_texture.clone() {
                 let texture_asset = texture_assets.get_mut(&egui_texture_handle).unwrap();
                 *texture_asset = as_bevy_texture(&egui_texture);
-                self.update_texture(render_resource_context, &texture_asset, egui_texture_handle);
+                self.update_texture(render_resource_context, texture_asset, egui_texture_handle);
             }
         }
     }
@@ -597,7 +597,7 @@ impl EguiNode {
         Self::copy_texture(
             &mut self.render_commands,
             render_resource_context,
-            &texture_resource,
+            texture_resource,
             texture_asset,
         );
     }
