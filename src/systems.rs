@@ -46,6 +46,8 @@ pub struct WindowResources<'w, 's> {
     focused_window: Local<'s, WindowId>,
     windows: ResMut<'w, Windows>,
     window_sizes: ResMut<'w, HashMap<WindowId, WindowSize>>,
+    #[system_param(ignore)]
+    _marker: PhantomData<&'s usize>,
 }
 
 pub fn init_contexts_on_startup(
