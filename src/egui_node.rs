@@ -1,149 +1,179 @@
-use crate::{
-    EguiContext, EguiSettings, EguiShapes, WindowSize, EGUI_PIPELINE_HANDLE,
-    EGUI_TEXTURE_RESOURCE_BINDING_NAME, EGUI_TRANSFORM_RESOURCE_BINDING_NAME,
-};
 use bevy::{
-    app::{Events, ManualEventReader},
-    asset::{AssetEvent, Assets, Handle},
     core::{bytes_of, cast_slice},
-    ecs::world::World,
-    log,
-    render::{
-        pass::{
-            ClearColor, LoadOp, Operations, PassDescriptor, RenderPassDepthStencilAttachment,
-            TextureAttachment,
+    prelude::{FromWorld, Handle, World},
+    render2::{
+        render_asset::RenderAssets,
+        render_graph::{Node, NodeRunError, RenderGraphContext},
+        render_resource::{
+            BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
+            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
+            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferInitDescriptor,
+            BufferSize, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState,
+            FrontFace, IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
+            PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+            RenderPipelineDescriptor, ShaderStages, TextureDimension, TextureFormat,
+            TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout,
+            VertexFormat, VertexState, VertexStepMode,
         },
-        pipeline::{
-            BindGroupDescriptor, IndexFormat, InputStepMode, PipelineCompiler, PipelineDescriptor,
-            PipelineLayout, PipelineSpecialization, VertexAttribute, VertexBufferLayout,
-            VertexFormat,
-        },
-        render_graph::{base::Msaa, CommandQueue, Node, ResourceSlotInfo, ResourceSlots},
-        renderer::{
-            BindGroup, BufferId, BufferInfo, BufferUsage, RenderContext, RenderResourceBinding,
-            RenderResourceBindings, RenderResourceContext, RenderResourceType, SamplerId,
-            TextureId,
-        },
+        renderer::{RenderContext, RenderDevice, RenderQueue},
         shader::Shader,
-        texture::{Extent3d, Texture, TextureDescriptor, TextureDimension, TextureFormat},
+        texture::{BevyDefault, Image},
+        view::ExtractedWindows,
     },
-    utils::HashMap,
+    utils::{HashMap, HashSet},
     window::WindowId,
 };
-use egui::paint::ClippedShape;
-use std::{borrow::Cow, collections::HashSet};
+use wgpu::{BufferBinding, BufferDescriptor};
 
-pub struct EguiNode {
-    window_id: WindowId,
+use crate::render_systems::{
+    EguiTransform, ExtractedEguiContext, ExtractedEguiSettings, ExtractedEguiTextures,
+    ExtractedShapes, ExtractedWindowSizes,
+};
 
-    pass_descriptor: PassDescriptor,
-    pipeline_descriptor: Option<Handle<PipelineDescriptor>>,
-    inputs: Vec<ResourceSlotInfo>,
-    color_attachment_input_indices: Vec<Option<usize>>,
-    color_resolve_target_indices: Vec<Option<usize>>,
-    depth_stencil_attachment_input_index: Option<usize>,
-    default_clear_color_inputs: Vec<usize>,
+pub struct EguiShaders {
+    render_pipeline: RenderPipeline,
 
-    transform_bind_group_descriptor: Option<BindGroupDescriptor>,
-    transform_bind_group: Option<BindGroup>,
+    transform_buffer: Buffer,
+    transform_bind_group: BindGroup,
 
-    egui_texture: Option<Handle<Texture>>,
-    egui_texture_version: Option<u64>,
-    texture_bind_group_descriptor: Option<BindGroupDescriptor>,
-    texture_resources: HashMap<Handle<Texture>, TextureResource>,
-
-    vertex_buffer: Option<BufferId>,
-    index_buffer: Option<BufferId>,
-
-    shapes: Vec<ClippedShape>,
-    render_commands: CommandQueue,
+    texture_bind_group_layout: BindGroupLayout,
 }
 
-#[derive(Debug)]
-pub struct TextureResource {
-    descriptor: TextureDescriptor,
-    texture: TextureId,
-    sampler: SamplerId,
-    bind_group: BindGroup,
-}
+impl FromWorld for EguiShaders {
+    fn from_world(world: &mut World) -> Self {
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
 
-impl EguiNode {
-    pub fn new(msaa: &Msaa, window: WindowId) -> Self {
-        let color_attachments = vec![msaa.color_attachment(
-            TextureAttachment::Input("color_attachment".to_string()),
-            TextureAttachment::Input("color_resolve_target".to_string()),
-            Operations {
-                load: LoadOp::Load,
-                store: true,
+        let shader = Shader::from_wgsl(include_str!("egui.wgsl"));
+        let shader_module = render_device.create_shader_module(&shader);
+
+        let transform_buffer_size =
+            BufferSize::new(std::mem::size_of::<EguiTransform>() as u64).unwrap();
+        let transform_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("egui transform buffer"),
+            size: transform_buffer_size.get(),
+            usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        });
+        let transform_bind_group_layout =
+            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("egui transform bind group layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(transform_buffer_size),
+                    },
+                    count: None,
+                }],
+            });
+        let transform_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+            label: Some("egui transform bind gruop"),
+            layout: &transform_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::Buffer(BufferBinding {
+                    buffer: &transform_buffer,
+                    offset: 0,
+                    size: Some(transform_buffer_size),
+                }),
+            }],
+        });
+
+        let texture_bind_group_layout =
+            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("egui texture bind group layout"),
+                entries: &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float { filterable: true },
+                            view_dimension: TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Sampler {
+                            filtering: true,
+                            comparison: false,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+        let pipeline_layout = render_device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("egui pipeline layout"),
+            bind_group_layouts: &[&transform_bind_group_layout, &texture_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let render_pipeline = render_device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: Some("egui render pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &shader_module,
+                entry_point: "vs_main",
+                buffers: &[VertexBufferLayout {
+                    array_stride: 32,
+                    step_mode: VertexStepMode::Vertex,
+                    attributes: &[
+                        VertexAttribute {
+                            format: VertexFormat::Float32x2,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        VertexAttribute {
+                            format: VertexFormat::Float32x2,
+                            offset: 8,
+                            shader_location: 1,
+                        },
+                        VertexAttribute {
+                            format: VertexFormat::Float32x4,
+                            offset: 16,
+                            shader_location: 2,
+                        },
+                    ],
+                }],
             },
-        )];
-        let depth_stencil_attachment = RenderPassDepthStencilAttachment {
-            attachment: TextureAttachment::Input("depth".to_string()),
-            depth_ops: Some(Operations {
-                load: LoadOp::Clear(1.0),
-                store: true,
+            fragment: Some(FragmentState {
+                module: &shader_module,
+                entry_point: "fs_main",
+                targets: &[ColorTargetState {
+                    format: TextureFormat::bevy_default(),
+                    blend: Some(BlendState {
+                        color: BlendComponent {
+                            src_factor: BlendFactor::One,
+                            dst_factor: BlendFactor::OneMinusSrcAlpha,
+                            operation: BlendOperation::Add,
+                        },
+                        alpha: BlendComponent {
+                            src_factor: BlendFactor::One,
+                            dst_factor: BlendFactor::OneMinusSrcAlpha,
+                            operation: BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: ColorWrites::ALL,
+                }],
             }),
-            stencil_ops: None,
-        };
-
-        let mut inputs = Vec::new();
-        let mut color_attachment_input_indices = Vec::new();
-        let mut color_resolve_target_indices = Vec::new();
-
-        for color_attachment in color_attachments.iter() {
-            if let TextureAttachment::Input(ref name) = color_attachment.attachment {
-                color_attachment_input_indices.push(Some(inputs.len()));
-                inputs.push(ResourceSlotInfo::new(
-                    name.to_string(),
-                    RenderResourceType::Texture,
-                ));
-            } else {
-                color_attachment_input_indices.push(None);
-            }
-
-            if let Some(TextureAttachment::Input(ref name)) = color_attachment.resolve_target {
-                color_resolve_target_indices.push(Some(inputs.len()));
-                inputs.push(ResourceSlotInfo::new(
-                    name.to_string(),
-                    RenderResourceType::Texture,
-                ));
-            } else {
-                color_resolve_target_indices.push(None);
-            }
-        }
-
-        let mut depth_stencil_attachment_input_index = None;
-        if let TextureAttachment::Input(ref name) = depth_stencil_attachment.attachment {
-            depth_stencil_attachment_input_index = Some(inputs.len());
-            inputs.push(ResourceSlotInfo::new(
-                name.to_string(),
-                RenderResourceType::Texture,
-            ));
-        }
-
-        Self {
-            window_id: window,
-            pass_descriptor: PassDescriptor {
-                color_attachments,
-                depth_stencil_attachment: Some(depth_stencil_attachment),
-                sample_count: msaa.samples,
+            primitive: PrimitiveState {
+                front_face: FrontFace::Cw,
+                cull_mode: None,
+                ..Default::default()
             },
-            pipeline_descriptor: None,
-            default_clear_color_inputs: Vec::new(),
-            inputs,
-            depth_stencil_attachment_input_index,
-            color_attachment_input_indices,
-            transform_bind_group_descriptor: None,
-            transform_bind_group: None,
-            egui_texture: None,
-            egui_texture_version: None,
-            texture_bind_group_descriptor: None,
-            texture_resources: Default::default(),
-            vertex_buffer: None,
-            index_buffer: None,
-            color_resolve_target_indices,
-            shapes: Vec::new(),
-            render_commands: Default::default(),
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+        });
+
+        EguiShaders {
+            render_pipeline,
+            transform_buffer,
+            transform_bind_group,
+            texture_bind_group_layout,
         }
     }
 }
@@ -151,83 +181,61 @@ impl EguiNode {
 #[derive(Debug)]
 struct DrawCommand {
     vertices_count: usize,
-    texture_handle: Option<Handle<Texture>>,
+    texture_handle: Option<Handle<Image>>,
     clipping_zone: (u32, u32, u32, u32), // x, y, w, h
 }
 
+pub struct EguiNode {
+    window_id: WindowId,
+    vertex_buffer: Option<Buffer>,
+    index_buffer: Option<Buffer>,
+    draw_commands: Vec<DrawCommand>,
+    image_bind_groups: HashMap<Handle<Image>, BindGroup>,
+}
+
+impl EguiNode {
+    pub fn new(window_id: WindowId) -> Self {
+        EguiNode {
+            window_id,
+            draw_commands: Vec::new(),
+            vertex_buffer: None,
+            index_buffer: None,
+            image_bind_groups: HashMap::default(),
+        }
+    }
+}
+
 impl Node for EguiNode {
-    fn input(&self) -> &[ResourceSlotInfo] {
-        &self.inputs
-    }
+    fn update(&mut self, world: &mut World) {
+        let mut shapes = world.get_resource_mut::<ExtractedShapes>().unwrap();
+        let shapes = shapes.0.get_mut(&self.window_id).unwrap();
+        let shapes = std::mem::take(&mut shapes.shapes);
 
-    fn prepare(&mut self, world: &mut World) {
-        self.init_pipeline(world);
+        let window_size =
+            &world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].0;
+        let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap().0;
+        let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap().0;
+        let egui_textures = world.get_resource::<ExtractedEguiTextures>().unwrap();
 
-        let world = world.cell();
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
+        let egui_shaders = world.get_resource::<EguiShaders>().unwrap();
+        let image_render_assets = world.get_resource::<RenderAssets<Image>>().unwrap();
 
-        let mut texture_assets = world.get_resource_mut::<Assets<Texture>>().unwrap();
-        let asset_events = world.get_resource::<Events<AssetEvent<Texture>>>().unwrap();
-        let mut render_resource_context = world
-            .get_resource_mut::<Box<dyn RenderResourceContext>>()
-            .unwrap();
-        let render_resource_context = &mut **render_resource_context;
-        let mut egui_context = world.get_resource_mut::<EguiContext>().unwrap();
-
-        self.process_asset_events(
-            render_resource_context,
-            &mut egui_context,
-            &asset_events,
-            &mut texture_assets,
-        );
-        self.remove_unused_textures(render_resource_context, &egui_context);
-        self.init_textures(
-            render_resource_context,
-            &mut egui_context,
-            &mut texture_assets,
-        );
-
-        let mut egui_shapes = world
-            .get_resource_mut::<HashMap<WindowId, EguiShapes>>()
-            .unwrap();
-        let egui_shapes = egui_shapes.get_mut(&self.window_id).unwrap();
-        self.shapes = std::mem::take(&mut egui_shapes.shapes);
-    }
-
-    fn update(
-        &mut self,
-        world: &World,
-        render_context: &mut dyn RenderContext,
-        input: &ResourceSlots,
-        _output: &mut ResourceSlots,
-    ) {
-        self.render_commands.execute(render_context);
-
-        self.process_attachments(input, world);
-
-        let window_size = &world
-            .get_resource::<HashMap<WindowId, WindowSize>>()
-            .unwrap()[&self.window_id];
-        let egui_settings = world.get_resource::<EguiSettings>().unwrap();
-
+        let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
             return;
         }
 
-        let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
+        self.remove_unused_bind_groups(&egui_textures);
 
-        self.init_transform_bind_group(render_context, render_resource_bindings);
-
-        let egui_context = world.get_resource::<EguiContext>().unwrap();
-
-        let shapes = std::mem::take(&mut self.shapes);
-        let egui_paint_jobs = egui_context.ctx().tessellate(shapes);
+        let egui_paint_jobs = egui_context[&self.window_id].tessellate(shapes);
 
         let mut vertex_buffer = Vec::<u8>::new();
-        let mut index_buffer = Vec::new();
-        let mut draw_commands = Vec::new();
+        let mut index_buffer = Vec::<u8>::new();
         let mut index_offset = 0;
 
-        let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
+        self.draw_commands.clear();
+
         for egui::ClippedMesh(rect, triangles) in &egui_paint_jobs {
             let (x, y, w, h) = (
                 (rect.min.x * scale_factor).round() as u32,
@@ -243,11 +251,6 @@ impl Node for EguiNode {
             {
                 continue;
             }
-
-            let texture_handle = egui_context
-                .egui_textures
-                .get(&triangles.texture_id)
-                .cloned();
 
             for vertex in &triangles.vertices {
                 vertex_buffer.extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
@@ -270,9 +273,25 @@ impl Node for EguiNode {
             index_buffer.extend_from_slice(cast_slice(indices_with_offset.as_slice()));
             index_offset += triangles.vertices.len() as u32;
 
+            let texture_handle = match triangles.texture_id {
+                egui::TextureId::Egui => Some(egui_textures.main_textures[&self.window_id].clone()),
+                texture_id @ egui::TextureId::User(_) => {
+                    egui_textures.user_textures.get(&texture_id).cloned()
+                }
+            };
+            if let Some(texture_handle) = &texture_handle {
+                self.create_texture_bind_group(
+                    texture_handle.clone_weak(),
+                    render_device,
+                    egui_textures,
+                    image_render_assets,
+                    egui_shaders,
+                );
+            }
+
             let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);
             let y_viewport_clamp = (y + h).saturating_sub(window_size.physical_height as u32);
-            draw_commands.push(DrawCommand {
+            self.draw_commands.push(DrawCommand {
                 vertices_count: triangles.indices.len(),
                 texture_handle,
                 clipping_zone: (
@@ -284,492 +303,149 @@ impl Node for EguiNode {
             });
         }
 
-        self.update_buffers(render_context, &vertex_buffer, &index_buffer);
+        let vertex_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("egui vertex buffer"),
+            contents: &vertex_buffer,
+            usage: BufferUsages::VERTEX,
+        });
+        let index_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("egui index buffer"),
+            contents: &index_buffer,
+            usage: BufferUsages::INDEX,
+        });
 
-        render_context.begin_pass(
-            &self.pass_descriptor,
-            render_resource_bindings,
-            &mut |render_pass| {
-                render_pass.set_pipeline(self.pipeline_descriptor.as_ref().unwrap());
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.unwrap(), 0);
-                render_pass.set_index_buffer(self.index_buffer.unwrap(), 0, IndexFormat::Uint32);
-                render_pass.set_bind_group(
-                    0,
-                    self.transform_bind_group_descriptor.as_ref().unwrap().id,
-                    self.transform_bind_group.as_ref().unwrap().id,
-                    None,
-                );
+        self.vertex_buffer = Some(vertex_buffer);
+        self.index_buffer = Some(index_buffer);
+    }
 
-                // This is a pretty weird kludge, but we need to bind all our groups at least once,
-                // so they don't get garbage collected by `remove_stale_bind_groups`.
-                for texture_resource in self.texture_resources.values() {
-                    render_pass.set_bind_group(
-                        1,
-                        self.texture_bind_group_descriptor.as_ref().unwrap().id,
-                        texture_resource.bind_group.id,
-                        None,
-                    );
-                }
+    fn run(
+        &self,
+        _graph: &mut RenderGraphContext,
+        render_context: &mut RenderContext,
+        world: &World,
+    ) -> Result<(), NodeRunError> {
+        let egui_shaders = world.get_resource::<EguiShaders>().unwrap();
+        let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
-                let mut vertex_offset: u32 = 0;
-                for draw_command in &draw_commands {
-                    let texture_resource = match draw_command
-                        .texture_handle
-                        .as_ref()
-                        .and_then(|texture_handle| self.texture_resources.get(texture_handle))
-                    {
-                        Some(texture_resource) => texture_resource,
-                        None => {
-                            vertex_offset += draw_command.vertices_count as u32;
-                            continue;
-                        }
-                    };
+        let egui_transform =
+            world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].1;
 
-                    render_pass.set_bind_group(
-                        1,
-                        self.texture_bind_group_descriptor.as_ref().unwrap().id,
-                        texture_resource.bind_group.id,
-                        None,
-                    );
-
-                    render_pass.set_scissor_rect(
-                        draw_command.clipping_zone.0,
-                        draw_command.clipping_zone.1,
-                        draw_command.clipping_zone.2,
-                        draw_command.clipping_zone.3,
-                    );
-                    render_pass.draw_indexed(
-                        vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
-                        0,
-                        0..1,
-                    );
-                    vertex_offset += draw_command.vertices_count as u32;
-                }
-            },
+        render_queue.write_buffer(
+            &egui_shaders.transform_buffer,
+            0,
+            bytemuck::bytes_of(&egui_transform),
         );
+
+        let extracted_window =
+            &world.get_resource::<ExtractedWindows>().unwrap().windows[&self.window_id];
+        let swap_chain_texture = extracted_window
+            .swap_chain_texture
+            .as_ref()
+            .unwrap()
+            .clone();
+
+        let mut render_pass =
+            render_context
+                .command_encoder
+                .begin_render_pass(&RenderPassDescriptor {
+                    label: Some("egui render pass"),
+                    color_attachments: &[RenderPassColorAttachment {
+                        view: &swap_chain_texture,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Load,
+                            store: true,
+                        },
+                    }],
+                    depth_stencil_attachment: None,
+                });
+
+        render_pass.set_pipeline(&egui_shaders.render_pipeline);
+        render_pass.set_vertex_buffer(0, *self.vertex_buffer.as_ref().unwrap().slice(..));
+        render_pass.set_index_buffer(
+            *self.index_buffer.as_ref().unwrap().slice(..),
+            IndexFormat::Uint32,
+        );
+
+        render_pass.set_bind_group(0, &egui_shaders.transform_bind_group, &[]);
+
+        let mut vertex_offset: u32 = 0;
+        for draw_command in &self.draw_commands {
+            let texture_resource = match draw_command
+                .texture_handle
+                .as_ref()
+                .and_then(|texture_handle| self.image_bind_groups.get(texture_handle))
+            {
+                Some(texture_resource) => texture_resource,
+                None => {
+                    vertex_offset += draw_command.vertices_count as u32;
+                    continue;
+                }
+            };
+
+            // bind group 1
+            render_pass.set_bind_group(1, texture_resource, &[]);
+
+            render_pass.set_scissor_rect(
+                draw_command.clipping_zone.0,
+                draw_command.clipping_zone.1,
+                draw_command.clipping_zone.2,
+                draw_command.clipping_zone.3,
+            );
+            render_pass.draw_indexed(
+                vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
+                0,
+                0..1,
+            );
+            vertex_offset += draw_command.vertices_count as u32;
+        }
+
+        Ok(())
     }
 }
 
 impl EguiNode {
-    fn process_attachments(&mut self, input: &ResourceSlots, world: &World) {
-        if let Some(input_index) = self.depth_stencil_attachment_input_index {
-            self.pass_descriptor
-                .depth_stencil_attachment
-                .as_mut()
-                .unwrap()
-                .attachment =
-                TextureAttachment::Id(input.get(input_index).unwrap().get_texture().unwrap());
-        }
-
-        for (i, color_attachment) in self
-            .pass_descriptor
-            .color_attachments
-            .iter_mut()
-            .enumerate()
-        {
-            if self.default_clear_color_inputs.contains(&i) {
-                if let Some(default_clear_color) = world.get_resource::<ClearColor>() {
-                    color_attachment.ops.load = LoadOp::Clear(default_clear_color.0);
-                }
-            }
-            if let Some(input_index) = self.color_attachment_input_indices[i] {
-                color_attachment.attachment =
-                    TextureAttachment::Id(input.get(input_index).unwrap().get_texture().unwrap());
-            }
-            if let Some(input_index) = self.color_resolve_target_indices[i] {
-                color_attachment.resolve_target = Some(TextureAttachment::Id(
-                    input.get(input_index).unwrap().get_texture().unwrap(),
-                ));
-            }
-        }
-    }
-
-    fn init_pipeline(&mut self, world: &mut World) {
-        let world = world.cell();
-
-        let render_resource_context = world
-            .get_resource::<Box<dyn RenderResourceContext>>()
-            .unwrap();
-
-        if self.pipeline_descriptor.is_some() {
-            return;
-        }
-
-        let mut pipelines = world
-            .get_resource_mut::<Assets<PipelineDescriptor>>()
-            .unwrap();
-        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
-        let msaa = world.get_resource::<Msaa>().unwrap();
-
-        let pipeline_descriptor_handle = {
-            let mut pipeline_compiler = world.get_resource_mut::<PipelineCompiler>().unwrap();
-
-            let attributes = vec![
-                VertexAttribute {
-                    name: Cow::from("Vertex_Position"),
-                    offset: 0,
-                    format: VertexFormat::Float32x2,
-                    shader_location: 0,
-                },
-                VertexAttribute {
-                    name: Cow::from("Vertex_Uv"),
-                    offset: VertexFormat::Float32x2.get_size(),
-                    format: VertexFormat::Float32x2,
-                    shader_location: 1,
-                },
-                VertexAttribute {
-                    name: Cow::from("Vertex_Color"),
-                    offset: VertexFormat::Float32x2.get_size() + VertexFormat::Float32x2.get_size(),
-                    format: VertexFormat::Float32x4,
-                    shader_location: 2,
-                },
-            ];
-            pipeline_compiler.compile_pipeline(
-                &**render_resource_context,
-                &mut pipelines,
-                &mut shaders,
-                &EGUI_PIPELINE_HANDLE.typed(),
-                &PipelineSpecialization {
-                    vertex_buffer_layout: VertexBufferLayout {
-                        name: Cow::from("EguiVertex"),
-                        stride: attributes
-                            .iter()
-                            .fold(0, |acc, attribute| acc + attribute.format.get_size()),
-                        step_mode: InputStepMode::Vertex,
-                        attributes,
-                    },
-                    sample_count: msaa.samples,
-                    ..PipelineSpecialization::default()
-                },
-            )
-        };
-
-        let pipeline_descriptor = pipelines.get(pipeline_descriptor_handle.clone()).unwrap();
-        let layout = pipeline_descriptor.layout.as_ref().unwrap();
-        let transform_bind_group =
-            find_bind_group_by_binding_name(layout, EGUI_TRANSFORM_RESOURCE_BINDING_NAME).unwrap();
-        let texture_bind_group =
-            find_bind_group_by_binding_name(layout, EGUI_TEXTURE_RESOURCE_BINDING_NAME).unwrap();
-
-        self.pipeline_descriptor = Some(pipeline_descriptor_handle);
-        self.transform_bind_group_descriptor = Some(transform_bind_group);
-        self.texture_bind_group_descriptor = Some(texture_bind_group);
-    }
-
-    fn init_transform_bind_group(
+    fn create_texture_bind_group(
         &mut self,
-        render_context: &mut dyn RenderContext,
-        render_resource_bindings: &RenderResourceBindings,
+        texture_handle: Handle<Image>,
+        render_device: &RenderDevice,
+        _egui_textures: &ExtractedEguiTextures,
+        image_render_assets: &RenderAssets<Image>,
+        egui_shaders: &EguiShaders,
     ) {
-        if self.transform_bind_group.is_none() {
-            let transform_bindings = render_resource_bindings
-                .get(EGUI_TRANSFORM_RESOURCE_BINDING_NAME)
-                .unwrap()
-                .clone();
-            let transform_bind_group = BindGroup::build()
-                .add_binding(0, transform_bindings)
-                .finish();
-            self.transform_bind_group = Some(transform_bind_group);
-        }
-        render_context.resources().create_bind_group(
-            self.transform_bind_group_descriptor.as_ref().unwrap().id,
-            self.transform_bind_group.as_ref().unwrap(),
-        );
-    }
-
-    fn process_asset_events(
-        &mut self,
-        render_resource_context: &mut dyn RenderResourceContext,
-        egui_context: &mut EguiContext,
-        asset_events: &Events<AssetEvent<Texture>>,
-        texture_assets: &mut Assets<Texture>,
-    ) {
-        let mut changed_assets: HashMap<Handle<Texture>, &Texture> = HashMap::default();
-        let mut asset_event_reader = ManualEventReader::<AssetEvent<Texture>>::default();
-        for event in asset_event_reader.iter(asset_events) {
-            let handle = match event {
-                AssetEvent::Created { ref handle }
-                | AssetEvent::Modified { ref handle }
-                | AssetEvent::Removed { ref handle } => handle,
-            };
-            if !self.texture_resources.contains_key(handle)
-                || self.egui_texture.as_ref() == Some(handle)
-            {
-                // We update `egui_texture` ourselves below when comparing its version,
-                // so this is why we skip updates here. We also skip all other textures that we don't track.
-                continue;
-            }
-            log::debug!("{:?}", event);
-
-            match event {
-                AssetEvent::Created { .. } => {
-                    // Don't have to do anything really, since we track uninitialized textures
-                    // via `EguiContext::set_egui_texture` and `Self::init_textures`.
-                }
-                AssetEvent::Modified { ref handle } => {
-                    if let Some(asset) = texture_assets.get(handle) {
-                        changed_assets.insert(handle.clone(), asset);
-                    }
-                }
-                AssetEvent::Removed { ref handle } => {
-                    egui_context.remove_texture(handle);
-                    self.remove_texture(render_resource_context, handle);
-                    // If an asset was modified and removed in the same update, ignore the modification.
-                    changed_assets.remove(handle);
-                }
-            }
-        }
-        for (texture_handle, texture) in changed_assets {
-            self.update_texture(render_resource_context, texture, texture_handle);
-        }
-
-        let egui_texture = egui_context.ctx_for_window(self.window_id).texture();
-        if self.egui_texture_version != Some(egui_texture.version) {
-            self.egui_texture_version = Some(egui_texture.version);
-            if let Some(egui_texture_handle) = self.egui_texture.clone() {
-                let texture_asset = texture_assets.get_mut(&egui_texture_handle).unwrap();
-                *texture_asset = as_bevy_texture(&egui_texture);
-                self.update_texture(render_resource_context, texture_asset, egui_texture_handle);
-            }
-        }
-    }
-
-    fn remove_unused_textures(
-        &mut self,
-        render_resource_context: &mut dyn RenderResourceContext,
-        egui_context: &EguiContext,
-    ) {
-        let texture_handles = egui_context.egui_textures.values().collect::<HashSet<_>>();
-        let mut textures_to_remove = Vec::new();
-
-        for texture_handle in self.texture_resources.keys() {
-            if !texture_handles.contains(texture_handle)
-                && self.egui_texture.as_ref().unwrap() != texture_handle
-            {
-                textures_to_remove.push(texture_handle.clone_weak());
-            }
-        }
-        for texture_to_remove in textures_to_remove {
-            self.remove_texture(render_resource_context, &texture_to_remove);
-        }
-    }
-
-    fn init_textures(
-        &mut self,
-        render_resource_context: &mut dyn RenderResourceContext,
-        egui_context: &mut EguiContext,
-        texture_assets: &mut Assets<Texture>,
-    ) {
-        if self.egui_texture.is_none() {
-            let texture = egui_context.ctx_for_window(self.window_id).texture();
-            self.egui_texture = Some(texture_assets.add(as_bevy_texture(&texture)));
-            self.egui_texture_version = Some(texture.version);
-
-            egui_context.egui_textures.insert(
-                egui::TextureId::Egui,
-                self.egui_texture.as_ref().unwrap().clone_weak(),
-            );
-        }
-
-        for texture in egui_context.egui_textures.values() {
-            self.create_texture(
-                render_resource_context,
-                texture_assets,
-                texture.clone_weak(),
-            );
-        }
-    }
-
-    fn update_texture(
-        &mut self,
-        render_resource_context: &mut dyn RenderResourceContext,
-        texture_asset: &Texture,
-        texture_handle: Handle<Texture>,
-    ) {
-        let texture_resource = match self.texture_resources.get(&texture_handle) {
-            Some(texture_resource) => texture_resource,
-            None => return,
-        };
-        log::debug!("Updating a texture: ${:?}", texture_handle);
-
-        let texture_descriptor: TextureDescriptor = texture_asset.into();
-
-        if texture_descriptor != texture_resource.descriptor {
-            log::debug!(
-                "Removing an updated texture for it to be re-created later: {:?}",
-                texture_handle
-            );
-            // If a texture descriptor is updated, we'll re-create the texture in `init_textures`.
-            self.remove_texture(render_resource_context, &texture_handle);
-            return;
-        }
-        Self::copy_texture(
-            &mut self.render_commands,
-            render_resource_context,
-            texture_resource,
-            texture_asset,
-        );
-    }
-
-    fn create_texture(
-        &mut self,
-        render_resource_context: &mut dyn RenderResourceContext,
-        texture_assets: &Assets<Texture>,
-        texture_handle: Handle<Texture>,
-    ) {
-        if let Some(texture_resource) = self.texture_resources.get(&texture_handle) {
-            // bevy_webgl2 seems to clean bind groups each frame.
-            render_resource_context.create_bind_group(
-                self.texture_bind_group_descriptor.as_ref().unwrap().id,
-                &texture_resource.bind_group,
-            );
-            return;
-        }
-
-        // If a texture is still loading, we skip it.
-        let texture_asset = match texture_assets.get(texture_handle.clone()) {
-            Some(texture_asset) => texture_asset,
+        let gpu_image = match image_render_assets.get(&texture_handle) {
+            Some(gpu_image) => gpu_image,
             None => return,
         };
 
-        log::debug!("Creating a texture: ${:?}", texture_handle);
-
-        let texture_descriptor: TextureDescriptor = texture_asset.into();
-        let texture = render_resource_context.create_texture(texture_descriptor);
-        let sampler = render_resource_context.create_sampler(&texture_asset.sampler);
-
-        let texture_bind_group = BindGroup::build()
-            .add_binding(0, RenderResourceBinding::Texture(texture))
-            .add_binding(1, RenderResourceBinding::Sampler(sampler))
-            .finish();
-
-        render_resource_context.create_bind_group(
-            self.texture_bind_group_descriptor.as_ref().unwrap().id,
-            &texture_bind_group,
-        );
-
-        let texture_resource = TextureResource {
-            descriptor: texture_descriptor,
-            texture,
-            sampler,
-            bind_group: texture_bind_group,
-        };
-        Self::copy_texture(
-            &mut self.render_commands,
-            render_resource_context,
-            &texture_resource,
-            texture_asset,
-        );
-        log::debug!("Texture created: {:?}", texture_resource);
-        self.texture_resources
-            .insert(texture_handle, texture_resource);
-    }
-
-    fn remove_texture(
-        &mut self,
-        render_resource_context: &mut dyn RenderResourceContext,
-        texture_handle: &Handle<Texture>,
-    ) {
-        let texture_resource = match self.texture_resources.remove(texture_handle) {
-            Some(texture_resource) => texture_resource,
-            None => return,
-        };
-        log::debug!("Removing a texture: ${:?}", texture_handle);
-
-        render_resource_context.remove_texture(texture_resource.texture);
-        render_resource_context.remove_sampler(texture_resource.sampler);
-    }
-
-    fn copy_texture(
-        render_commands: &mut CommandQueue,
-        render_resource_context: &mut dyn RenderResourceContext,
-        texture_resource: &TextureResource,
-        texture: &Texture,
-    ) {
-        let width = texture.size.width as usize;
-        let aligned_width = render_resource_context.get_aligned_texture_size(width);
-        let format_size = texture.format.pixel_size();
-        let mut aligned_data = vec![
-            0;
-            format_size
-                * aligned_width
-                * texture.size.height as usize
-                * texture.size.depth_or_array_layers as usize
-        ];
-        texture
-            .data
-            .chunks_exact(format_size * width)
-            .enumerate()
-            .for_each(|(index, row)| {
-                let offset = index * aligned_width * format_size;
-                aligned_data[offset..(offset + width * format_size)].copy_from_slice(row);
+        self.image_bind_groups
+            .entry(texture_handle)
+            .or_insert_with(|| {
+                let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+                    label: None,
+                    layout: &egui_shaders.texture_bind_group_layout,
+                    entries: &[
+                        BindGroupEntry {
+                            binding: 0,
+                            resource: BindingResource::TextureView(&gpu_image.texture_view),
+                        },
+                        BindGroupEntry {
+                            binding: 1,
+                            resource: BindingResource::Sampler(&gpu_image.sampler),
+                        },
+                    ],
+                });
+                bind_group
             });
-        let texture_buffer = render_resource_context.create_buffer_with_data(
-            BufferInfo {
-                buffer_usage: BufferUsage::COPY_SRC,
-                ..Default::default()
-            },
-            &aligned_data,
-        );
-
-        render_commands.copy_buffer_to_texture(
-            texture_buffer,
-            0,
-            (format_size * aligned_width) as u32,
-            texture_resource.texture,
-            [0, 0, 0],
-            0,
-            texture_resource.descriptor.size,
-        );
-        render_commands.free_buffer(texture_buffer);
     }
 
-    fn update_buffers(
-        &mut self,
-        render_context: &mut dyn RenderContext,
-        vertex_buffer: &[u8],
-        index_buffer: &[u8],
-    ) {
-        if let Some(vertex_buffer) = self.vertex_buffer.take() {
-            render_context.resources().remove_buffer(vertex_buffer);
-        }
-        if let Some(index_buffer) = self.index_buffer.take() {
-            render_context.resources().remove_buffer(index_buffer);
-        }
-        self.vertex_buffer = Some(render_context.resources().create_buffer_with_data(
-            BufferInfo {
-                buffer_usage: BufferUsage::VERTEX,
-                ..Default::default()
-            },
-            vertex_buffer,
-        ));
-        self.index_buffer = Some(render_context.resources().create_buffer_with_data(
-            BufferInfo {
-                buffer_usage: BufferUsage::INDEX,
-                ..Default::default()
-            },
-            index_buffer,
-        ));
+    fn remove_unused_bind_groups(&mut self, extracted_egui_textures: &ExtractedEguiTextures) {
+        let texture_handles = extracted_egui_textures.handles().collect::<HashSet<_>>();
+        self.image_bind_groups
+            .retain(|handle, _| texture_handles.contains(handle));
     }
 }
-
-fn find_bind_group_by_binding_name(
-    pipeline_layout: &PipelineLayout,
-    binding_name: &str,
-) -> Option<BindGroupDescriptor> {
-    pipeline_layout
-        .bind_groups
-        .iter()
-        .find(|bind_group| {
-            bind_group
-                .bindings
-                .iter()
-                .any(|binding| binding.name == binding_name)
-        })
-        .cloned()
-}
-
-fn as_bevy_texture(egui_texture: &egui::Texture) -> Texture {
+pub fn as_wgpu_image(egui_texture: &egui::Texture) -> Image {
     let mut pixels = Vec::new();
     pixels.reserve(4 * pixels.len());
     for &alpha in egui_texture.pixels.iter() {
@@ -780,8 +456,12 @@ fn as_bevy_texture(egui_texture: &egui::Texture) -> Texture {
         );
     }
 
-    Texture::new(
-        Extent3d::new(egui_texture.width as u32, egui_texture.height as u32, 1),
+    Image::new(
+        Extent3d {
+            width: egui_texture.width as u32,
+            height: egui_texture.height as u32,
+            depth_or_array_layers: 1,
+        },
         TextureDimension::D2,
         pixels,
         TextureFormat::Rgba8UnormSrgb,

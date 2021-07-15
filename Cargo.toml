@@ -20,12 +20,15 @@ open_url = ["webbrowser"]
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
-    "render",
-    "bevy_winit"
+    "bevy_render2",
+    "bevy_winit",
+    "bevy_core_pipeline"
 ] }
 egui = "0.15.0"
 webbrowser = { version = "0.5.5", optional = true }
 winit = { version = "0.25.0", features = ["x11"], default-features = false }
+bytemuck = { version = "1.7.0", features = ["derive"] }
+wgpu = "0.11.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clipboard = { version = "0.5.0", optional = true }
