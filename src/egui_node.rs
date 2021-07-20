@@ -236,7 +236,11 @@ impl Node for EguiNode {
                 (rect.height() * scale_factor).round() as u32,
             );
 
-            if w < 1 || h < 1 {
+            if w < 1
+                || h < 1
+                || x >= window_size.physical_width as u32
+                || y >= window_size.physical_height as u32
+            {
                 continue;
             }
 
@@ -271,7 +275,12 @@ impl Node for EguiNode {
             draw_commands.push(DrawCommand {
                 vertices_count: triangles.indices.len(),
                 texture_handle,
-                clipping_zone: (x, y, w - x_viewport_clamp, h - y_viewport_clamp),
+                clipping_zone: (
+                    x,
+                    y,
+                    w.saturating_sub(x_viewport_clamp).max(1),
+                    h.saturating_sub(y_viewport_clamp).max(1),
+                ),
             });
         }
 

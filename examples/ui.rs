@@ -29,9 +29,23 @@ fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) 
     egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
 }
 
-fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    if let Some(window) = windows.get_primary() {
-        egui_settings.scale_factor = 1.0 / window.scale_factor();
+pub fn update_ui_scale_factor(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut toggle_scale_factor: Local<Option<bool>>,
+    mut egui_settings: ResMut<EguiSettings>,
+    windows: Res<Windows>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
+        *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
+
+        if let Some(window) = windows.get_primary() {
+            let scale_factor = if toggle_scale_factor.unwrap() {
+                1.0
+            } else {
+                1.0 / window.scale_factor()
+            };
+            egui_settings.scale_factor = scale_factor;
+        }
     }
 }
 
