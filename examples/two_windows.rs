@@ -17,7 +17,7 @@ const BEVY_TEXTURE_ID: u64 = 0;
 
 /// This example creates a second window and draws a mesh from two different cameras.
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(Msaa { samples: 4 })
         .init_resource::<SharedUiState>()
         .add_state(AppState::CreateWindow)

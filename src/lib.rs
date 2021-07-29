@@ -24,7 +24,7 @@
 //! use bevy_egui::{egui, EguiContext, EguiPlugin};
 //!
 //! fn main() {
-//!     App::build()
+//!     App::new()
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugin(EguiPlugin)
 //!         .add_system(ui_example.system())
@@ -60,7 +60,7 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{AppBuilder, CoreStage, Plugin, StartupStage},
+    app::{App, CoreStage, Plugin, StartupStage},
     asset::{Assets, Handle, HandleUntyped},
     ecs::{
         schedule::{ParallelSystemDescriptorCoercion, StageLabel, SystemLabel, SystemStage},
@@ -363,7 +363,7 @@ pub enum EguiSystem {
 }
 
 impl Plugin for EguiPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_startup_system_to_stage(
             StartupStage::PreStartup,
             init_contexts_on_startup
@@ -396,7 +396,7 @@ impl Plugin for EguiPlugin {
             process_output.system().label(EguiSystem::ProcessOutput),
         );
 
-        let world = app.world_mut();
+        let world = &mut app.world;
         world.get_resource_or_insert_with(EguiSettings::default);
         world.get_resource_or_insert_with(HashMap::<WindowId, EguiInput>::default);
         world.get_resource_or_insert_with(HashMap::<WindowId, EguiOutput>::default);
