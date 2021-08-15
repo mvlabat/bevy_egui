@@ -6,9 +6,9 @@ use bevy::{
     core::Time,
     ecs::system::{Local, Res, ResMut, SystemParam},
     input::{
-        keyboard::KeyCode,
+        keyboard::{KeyCode, KeyboardInput},
         mouse::{MouseButton, MouseScrollUnit, MouseWheel},
-        Input,
+        ElementState, Input,
     },
     utils::HashMap,
     window::{
@@ -23,6 +23,7 @@ pub struct InputEvents<'a> {
     ev_cursor: EventReader<'a, CursorMoved>,
     ev_mouse_wheel: EventReader<'a, MouseWheel>,
     ev_received_character: EventReader<'a, ReceivedCharacter>,
+    ev_keyboard_input: EventReader<'a, KeyboardInput>,
     ev_window_focused: EventReader<'a, WindowFocused>,
     ev_window_created: EventReader<'a, WindowCreated>,
 }
@@ -205,78 +206,51 @@ pub fn process_input(
         }
     }
 
-    for pressed_key in input_resources.keyboard_input.get_just_pressed() {
-        if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            input_resources
-                .egui_input
-                .get_mut(&*window_resources.focused_window)
-                .unwrap()
-                .raw_input
-                .events
-                .push(egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                })
-        }
-    }
-    for pressed_key in input_resources.keyboard_input.get_just_released() {
-        if let Some(key) = bevy_to_egui_key(*pressed_key) {
-            input_resources
-                .egui_input
-                .get_mut(&*window_resources.focused_window)
-                .unwrap()
-                .raw_input
-                .events
-                .push(egui::Event::Key {
-                    key,
-                    pressed: false,
-                    modifiers,
-                })
-        }
-    }
-
-    for egui_input in input_resources.egui_input.values_mut() {
-        egui_input.raw_input.predicted_dt = time.delta_seconds();
-    }
-
     let focused_input = input_resources
         .egui_input
         .get_mut(&*window_resources.focused_window)
         .unwrap();
 
-    #[cfg(feature = "manage_clipboard")]
-    {
-        let mut copy = false;
-        let mut cut = false;
-        let mut paste = None;
-        if command && input_resources.keyboard_input.just_pressed(KeyCode::C) {
-            copy = true;
-        }
-        if command && input_resources.keyboard_input.just_pressed(KeyCode::X) {
-            cut = true;
-        }
-        if command && input_resources.keyboard_input.just_pressed(KeyCode::V) {
-            if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                paste = Some(contents);
+    for ev in input_events.ev_keyboard_input.iter() {
+        if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
+            let egui_event = egui::Event::Key {
+                key,
+                pressed: match ev.state {
+                    ElementState::Pressed => true,
+                    ElementState::Released => false,
+                },
+                modifiers,
+            };
+            focused_input.raw_input.events.push(egui_event);
+
+            #[cfg(feature = "manage_clipboard")]
+            if command {
+                match key {
+                    egui::Key::C => {
+                        focused_input.raw_input.events.push(egui::Event::Copy);
+                    }
+                    egui::Key::X => {
+                        focused_input.raw_input.events.push(egui::Event::Cut);
+                    }
+                    egui::Key::V => {
+                        if let Some(contents) = input_resources.egui_clipboard.get_contents() {
+                            focused_input
+                                .raw_input
+                                .events
+                                .push(egui::Event::Text(contents))
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
-
-        if copy {
-            focused_input.raw_input.events.push(egui::Event::Copy);
-        }
-        if cut {
-            focused_input.raw_input.events.push(egui::Event::Cut);
-        }
-        if let Some(content) = paste {
-            focused_input
-                .raw_input
-                .events
-                .push(egui::Event::Text(content))
-        }
-    };
+    }
 
     focused_input.raw_input.modifiers = modifiers;
+
+    for egui_input in input_resources.egui_input.values_mut() {
+        egui_input.raw_input.predicted_dt = time.delta_seconds();
+    }
 }
 
 pub fn begin_frame(
