@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize};
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -18,30 +20,32 @@ use bevy::{
 };
 
 #[derive(SystemParam)]
-pub struct InputEvents<'a> {
-    ev_cursor_left: EventReader<'a, CursorLeft>,
-    ev_cursor: EventReader<'a, CursorMoved>,
-    ev_mouse_wheel: EventReader<'a, MouseWheel>,
-    ev_received_character: EventReader<'a, ReceivedCharacter>,
-    ev_keyboard_input: EventReader<'a, KeyboardInput>,
-    ev_window_focused: EventReader<'a, WindowFocused>,
-    ev_window_created: EventReader<'a, WindowCreated>,
+pub struct InputEvents<'w, 's> {
+    ev_cursor_left: EventReader<'w, 's, CursorLeft>,
+    ev_cursor: EventReader<'w, 's, CursorMoved>,
+    ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
+    ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
+    ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
+    ev_window_focused: EventReader<'w, 's, WindowFocused>,
+    ev_window_created: EventReader<'w, 's, WindowCreated>,
 }
 
 #[derive(SystemParam)]
-pub struct InputResources<'a> {
+pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
-    egui_clipboard: Res<'a, crate::EguiClipboard>,
-    mouse_button_input: Res<'a, Input<MouseButton>>,
-    keyboard_input: Res<'a, Input<KeyCode>>,
-    egui_input: ResMut<'a, HashMap<WindowId, EguiInput>>,
+    egui_clipboard: Res<'w, crate::EguiClipboard>,
+    mouse_button_input: Res<'w, Input<MouseButton>>,
+    keyboard_input: Res<'w, Input<KeyCode>>,
+    egui_input: ResMut<'w, HashMap<WindowId, EguiInput>>,
+    #[system_param(ignore)]
+    marker: PhantomData<&'s usize>,
 }
 
 #[derive(SystemParam)]
-pub struct WindowResources<'a> {
-    focused_window: Local<'a, WindowId>,
-    windows: ResMut<'a, Windows>,
-    window_sizes: ResMut<'a, HashMap<WindowId, WindowSize>>,
+pub struct WindowResources<'w, 's> {
+    focused_window: Local<'s, WindowId>,
+    windows: ResMut<'w, Windows>,
+    window_sizes: ResMut<'w, HashMap<WindowId, WindowSize>>,
 }
 
 pub fn init_contexts_on_startup(
