@@ -44,12 +44,26 @@ pub struct WindowResources<'a> {
     window_sizes: ResMut<'a, HashMap<WindowId, WindowSize>>,
 }
 
+pub fn init_contexts_on_startup(
+    mut egui_context: ResMut<EguiContext>,
+    mut egui_input: ResMut<HashMap<WindowId, EguiInput>>,
+    mut window_resources: WindowResources,
+    egui_settings: Res<EguiSettings>,
+) {
+    update_window_contexts(
+        &mut egui_context,
+        &mut egui_input,
+        &mut window_resources,
+        &egui_settings,
+    );
+}
+
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut input_events: InputEvents,
     mut input_resources: InputResources,
     mut window_resources: WindowResources,
-    egui_settings: ResMut<EguiSettings>,
+    egui_settings: Res<EguiSettings>,
     time: Res<Time>,
 ) {
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired.
@@ -64,38 +78,12 @@ pub fn process_input(
         }
     }
 
-    for window in window_resources.windows.iter() {
-        let egui_input = input_resources.egui_input.entry(window.id()).or_default();
-
-        let window_size = WindowSize::new(
-            window.physical_width() as f32,
-            window.physical_height() as f32,
-            window.scale_factor() as f32,
-        );
-        let width = window_size.physical_width
-            / window_size.scale_factor
-            / egui_settings.scale_factor as f32;
-        let height = window_size.physical_height
-            / window_size.scale_factor
-            / egui_settings.scale_factor as f32;
-
-        if width < 1.0 || height < 1.0 {
-            continue;
-        }
-
-        egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
-            egui::pos2(0.0, 0.0),
-            egui::pos2(width, height),
-        ));
-
-        egui_input.raw_input.pixels_per_point =
-            Some(window_size.scale_factor * egui_settings.scale_factor as f32);
-
-        window_resources
-            .window_sizes
-            .insert(window.id(), window_size);
-        egui_context.ctx.entry(window.id()).or_default();
-    }
+    update_window_contexts(
+        &mut egui_context,
+        &mut input_resources.egui_input,
+        &mut window_resources,
+        &egui_settings,
+    );
 
     for event in input_events.ev_mouse_wheel.iter() {
         let mut delta = egui::vec2(event.x, event.y);
@@ -250,6 +238,46 @@ pub fn process_input(
 
     for egui_input in input_resources.egui_input.values_mut() {
         egui_input.raw_input.predicted_dt = time.delta_seconds();
+    }
+}
+
+fn update_window_contexts(
+    egui_context: &mut EguiContext,
+    egui_input: &mut HashMap<WindowId, EguiInput>,
+    window_resources: &mut WindowResources,
+    egui_settings: &EguiSettings,
+) {
+    for window in window_resources.windows.iter() {
+        let egui_input = egui_input.entry(window.id()).or_default();
+
+        let window_size = WindowSize::new(
+            window.physical_width() as f32,
+            window.physical_height() as f32,
+            window.scale_factor() as f32,
+        );
+        let width = window_size.physical_width
+            / window_size.scale_factor
+            / egui_settings.scale_factor as f32;
+        let height = window_size.physical_height
+            / window_size.scale_factor
+            / egui_settings.scale_factor as f32;
+
+        if width < 1.0 || height < 1.0 {
+            continue;
+        }
+
+        egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(width, height),
+        ));
+
+        egui_input.raw_input.pixels_per_point =
+            Some(window_size.scale_factor * egui_settings.scale_factor as f32);
+
+        window_resources
+            .window_sizes
+            .insert(window.id(), window_size);
+        egui_context.ctx.entry(window.id()).or_default();
     }
 }
 

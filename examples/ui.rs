@@ -3,6 +3,10 @@ use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 
 const BEVY_TEXTURE_ID: u64 = 0;
 
+/// This example demonstrates the following functionality and use-cases of bevy_egui:
+/// - rendering loaded assets;
+/// - toggling hidpi scaling (by pressing '/' button);
+/// - configuring egui contexts during the startup.
 fn main() {
     App::build()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
@@ -11,6 +15,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .add_startup_system(load_assets.system())
+        .add_startup_system(configure_visuals.system())
         .add_system(update_ui_scale_factor.system())
         .add_system(ui_example.system())
         .run();
@@ -29,7 +34,14 @@ fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) 
     egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
 }
 
-pub fn update_ui_scale_factor(
+fn configure_visuals(egui_ctx: ResMut<EguiContext>) {
+    egui_ctx.ctx().set_visuals(egui::Visuals {
+        window_corner_radius: 0.0,
+        ..Default::default()
+    });
+}
+
+fn update_ui_scale_factor(
     keyboard_input: Res<Input<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut egui_settings: ResMut<EguiSettings>,

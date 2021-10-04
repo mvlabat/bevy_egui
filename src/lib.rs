@@ -60,7 +60,7 @@ mod transform_node;
 
 use crate::{egui_node::EguiNode, systems::*, transform_node::EguiTransformNode};
 use bevy::{
-    app::{AppBuilder, CoreStage, Plugin},
+    app::{AppBuilder, CoreStage, Plugin, StartupStage},
     asset::{Assets, Handle, HandleUntyped},
     ecs::{
         schedule::{ParallelSystemDescriptorCoercion, StageLabel, SystemLabel, SystemStage},
@@ -244,7 +244,7 @@ impl EguiContext {
     /// `egui/multi_threaded` feature.
     #[track_caller]
     pub fn ctx(&self) -> &egui::CtxRef {
-        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx()` called before the ctx has been initialized. Consider moving your UI system to `CoreStage::Update` or run you system after `EguiSystem::BeginFrame`.")
+        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx` was called for an uninitialized context (primary window), consider moving your startup system to `StartupStage::Startup` stage or run it after `EguiStartupSystem::InitContexts` system")
     }
 
     /// Egui context for a specific window.
@@ -257,7 +257,7 @@ impl EguiContext {
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
         self.ctx
             .get(&window)
-            .ok_or_else(|| format!("window with id {} not found", window))
+            .ok_or_else(|| format!("`EguiContext::ctx_for_window` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
             .unwrap()
     }
 
@@ -333,15 +333,22 @@ pub mod node {
     pub const EGUI_TRANSFORM: &str = "egui_transform";
 }
 
-#[derive(StageLabel, Clone, Hash, Debug, Eq, PartialEq)]
 /// The names of `bevy_egui` stages.
+#[derive(StageLabel, Clone, Hash, Debug, Eq, PartialEq)]
 pub enum EguiStage {
     /// Runs before [`bevy::render::RenderStage::RenderResource`]. This is where we read Egui's output.
     UiFrameEnd,
 }
 
+/// The names of `bevy_egui` startup stages.
 #[derive(SystemLabel, Clone, Hash, Debug, Eq, PartialEq)]
+pub enum EguiStartupSystem {
+    /// Initializes Egui contexts for available windows.
+    InitContexts,
+}
+
 /// The names of egui systems.
+#[derive(SystemLabel, Clone, Hash, Debug, Eq, PartialEq)]
 pub enum EguiSystem {
     /// Reads Egui inputs (keyboard, mouse, etc) and writes them into the [`EguiInput`] resource.
     ///
@@ -357,6 +364,13 @@ pub enum EguiSystem {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut AppBuilder) {
+        app.add_startup_system_to_stage(
+            StartupStage::PreStartup,
+            init_contexts_on_startup
+                .system()
+                .label(EguiStartupSystem::InitContexts),
+        );
+
         app.add_stage_before(
             RenderStage::RenderResource,
             EguiStage::UiFrameEnd,
