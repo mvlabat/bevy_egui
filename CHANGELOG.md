@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Initialize egui contexts during startup (fixes [#42](https://github.com/mvlabat/bevy_egui/issues/42)).
+- Initialize egui contexts during startup (fixes [#41](https://github.com/mvlabat/bevy_egui/issues/41)).
 
 ## [0.7.0] - 05-Sep-2021
 
