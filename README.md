@@ -25,10 +25,10 @@ that require additional crates, can be disabled.
 
 ## Dependencies
 
-On Linux, this create requires certain parts of [XCB](https://xcb.freedesktop.org/) are installed on your system. On Debian-based systems, these can be installed with the command:
+On Linux, this crate requires certain parts of [XCB](https://xcb.freedesktop.org/) are installed on your system. On Debian-based systems, these can be installed with the command:
 
 ```
-$ sudo apt install ibxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+$ sudo apt install libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 ```
 
 ## Usage
