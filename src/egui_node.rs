@@ -8,22 +8,20 @@ use bevy::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
             BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
             BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferInitDescriptor,
-            BufferSize, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState,
-            FrontFace, IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
+            BufferSize, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FrontFace,
+            IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
             PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-            RenderPipelineDescriptor, ShaderStages, TextureDimension, TextureFormat,
-            TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout,
-            VertexFormat, VertexState, VertexStepMode,
+            ShaderStages, TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
+            VertexAttribute, VertexFormat, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        shader::Shader,
         texture::{BevyDefault, Image},
         view::ExtractedWindows,
     },
     utils::{HashMap, HashSet},
     window::WindowId,
 };
-use wgpu::{BufferBinding, BufferDescriptor};
+use wgpu::{BufferBinding, BufferDescriptor, ShaderModuleDescriptor, ShaderSource};
 
 use crate::render_systems::{
     EguiTransform, ExtractedEguiContext, ExtractedEguiSettings, ExtractedEguiTextures,
@@ -43,8 +41,11 @@ impl FromWorld for EguiShaders {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
-        let shader = Shader::from_wgsl(include_str!("egui.wgsl"));
-        let shader_module = render_device.create_shader_module(&shader);
+        let shader_source = ShaderSource::Wgsl(include_str!("egui.wgsl").into());
+        let shader_module = render_device.create_shader_module(&ShaderModuleDescriptor {
+            label: Some("egui shader"),
+            source: shader_source,
+        });
 
         let transform_buffer_size =
             BufferSize::new(std::mem::size_of::<EguiTransform>() as u64).unwrap();
@@ -112,62 +113,63 @@ impl FromWorld for EguiShaders {
             push_constant_ranges: &[],
         });
 
-        let render_pipeline = render_device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("egui render pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader_module,
-                entry_point: "vs_main",
-                buffers: &[VertexBufferLayout {
-                    array_stride: 32,
-                    step_mode: VertexStepMode::Vertex,
-                    attributes: &[
-                        VertexAttribute {
-                            format: VertexFormat::Float32x2,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x2,
-                            offset: 8,
-                            shader_location: 1,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x4,
-                            offset: 16,
-                            shader_location: 2,
-                        },
-                    ],
-                }],
-            },
-            fragment: Some(FragmentState {
-                module: &shader_module,
-                entry_point: "fs_main",
-                targets: &[ColorTargetState {
-                    format: TextureFormat::bevy_default(),
-                    blend: Some(BlendState {
-                        color: BlendComponent {
-                            src_factor: BlendFactor::One,
-                            dst_factor: BlendFactor::OneMinusSrcAlpha,
-                            operation: BlendOperation::Add,
-                        },
-                        alpha: BlendComponent {
-                            src_factor: BlendFactor::One,
-                            dst_factor: BlendFactor::OneMinusSrcAlpha,
-                            operation: BlendOperation::Add,
-                        },
-                    }),
-                    write_mask: ColorWrites::ALL,
-                }],
-            }),
-            primitive: PrimitiveState {
-                front_face: FrontFace::Cw,
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-        });
+        let render_pipeline =
+            render_device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("egui render pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader_module,
+                    entry_point: "vs_main",
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: 32,
+                        step_mode: VertexStepMode::Vertex,
+                        attributes: &[
+                            VertexAttribute {
+                                format: VertexFormat::Float32x2,
+                                offset: 0,
+                                shader_location: 0,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x2,
+                                offset: 8,
+                                shader_location: 1,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                offset: 16,
+                                shader_location: 2,
+                            },
+                        ],
+                    }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader_module,
+                    entry_point: "fs_main",
+                    targets: &[ColorTargetState {
+                        format: TextureFormat::bevy_default(),
+                        blend: Some(BlendState {
+                            color: BlendComponent {
+                                src_factor: BlendFactor::One,
+                                dst_factor: BlendFactor::OneMinusSrcAlpha,
+                                operation: BlendOperation::Add,
+                            },
+                            alpha: BlendComponent {
+                                src_factor: BlendFactor::One,
+                                dst_factor: BlendFactor::OneMinusSrcAlpha,
+                                operation: BlendOperation::Add,
+                            },
+                        }),
+                        write_mask: ColorWrites::ALL,
+                    }],
+                }),
+                primitive: PrimitiveState {
+                    front_face: FrontFace::Cw,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+            });
 
         EguiShaders {
             render_pipeline,
