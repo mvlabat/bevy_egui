@@ -39,7 +39,6 @@ version-sync = "0.9.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
-	"bevy_wgpu",
 	"x11",
 	"png"
 ] }
