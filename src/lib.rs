@@ -211,7 +211,7 @@ pub struct EguiOutput {
 #[derive(Clone)]
 pub struct EguiContext {
     ctx: HashMap<WindowId, egui::CtxRef>,
-    egui_textures: HashMap<egui::TextureId, Handle<Image>>,
+    egui_textures: HashMap<u64, Handle<Image>>,
     mouse_position: Option<(f32, f32)>,
 }
 
@@ -261,13 +261,12 @@ impl EguiContext {
     /// handle copies stored anywhere else.
     pub fn set_egui_texture(&mut self, id: u64, texture: Handle<Image>) {
         log::debug!("Set egui texture: {:?}", texture);
-        self.egui_textures
-            .insert(egui::TextureId::User(id), texture);
+        self.egui_textures.insert(id, texture);
     }
 
     /// Removes a texture handle associated with the id.
     pub fn remove_egui_texture(&mut self, id: u64) {
-        let texture_handle = self.egui_textures.remove(&egui::TextureId::User(id));
+        let texture_handle = self.egui_textures.remove(&id);
         log::debug!("Remove egui texture: {:?}", texture_handle);
     }
 
@@ -383,15 +382,14 @@ impl Plugin for EguiPlugin {
         world.insert_resource(EguiContext::new());
 
         let render_app = &mut app.get_sub_app(RenderApp).unwrap();
-        render_app.init_resource::<egui_node::EguiShaders>();
-        render_app.add_system_to_stage(
-            RenderStage::Extract,
-            render_systems::extract_egui_render_data.system(),
-        );
-        render_app.add_system_to_stage(
-            RenderStage::Extract,
-            render_systems::extract_egui_textures.system(),
-        );
+        render_app.init_resource::<egui_node::EguiPipeline>();
+        render_app
+            .add_system_to_stage(
+                RenderStage::Extract,
+                render_systems::extract_egui_render_data,
+            )
+            .add_system_to_stage(RenderStage::Extract, render_systems::extract_egui_textures)
+            .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
 
         let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
         setup_pipeline(&mut *render_graph, RenderGraphConfig::default());
