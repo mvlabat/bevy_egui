@@ -257,15 +257,8 @@ impl Node for EguiNode {
             for vertex in &triangles.vertices {
                 vertex_buffer.extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
                 vertex_buffer.extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
-                vertex_buffer.extend_from_slice(cast_slice(
-                    vertex
-                        .color
-                        .to_array()
-                        .iter()
-                        .map(|c| *c as f32)
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                ));
+                vertex_buffer
+                    .extend_from_slice(bytes_of(&vertex.color.to_array().map(|c| c as f32)));
             }
             let indices_with_offset = triangles
                 .indices
