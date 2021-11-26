@@ -1,8 +1,7 @@
 use bevy::{
     core::{bytes_of, cast_slice},
-    prelude::{FromWorld, Handle, World},
+    prelude::{FromWorld, World},
     render2::{
-        render_asset::RenderAssets,
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
@@ -18,26 +17,25 @@ use bevy::{
         texture::{BevyDefault, Image},
         view::ExtractedWindows,
     },
-    utils::{HashMap, HashSet},
     window::WindowId,
 };
 use wgpu::{BufferBinding, BufferDescriptor, ShaderModuleDescriptor, ShaderSource};
 
 use crate::render_systems::{
-    EguiTransform, ExtractedEguiContext, ExtractedEguiSettings, ExtractedEguiTextures,
+    EguiTexture, EguiTextureBindGroups, EguiTransform, ExtractedEguiContext, ExtractedEguiSettings,
     ExtractedShapes, ExtractedWindowSizes,
 };
 
-pub struct EguiShaders {
-    render_pipeline: RenderPipeline,
+pub struct EguiPipeline {
+    pipeline: RenderPipeline,
 
     transform_buffer: Buffer,
     transform_bind_group: BindGroup,
 
-    texture_bind_group_layout: BindGroupLayout,
+    pub texture_bind_group_layout: BindGroupLayout,
 }
 
-impl FromWorld for EguiShaders {
+impl FromWorld for EguiPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
@@ -171,8 +169,8 @@ impl FromWorld for EguiShaders {
                 multisample: MultisampleState::default(),
             });
 
-        EguiShaders {
-            render_pipeline,
+        EguiPipeline {
+            pipeline: render_pipeline,
             transform_buffer,
             transform_bind_group,
             texture_bind_group_layout,
@@ -183,7 +181,7 @@ impl FromWorld for EguiShaders {
 #[derive(Debug)]
 struct DrawCommand {
     vertices_count: usize,
-    texture_handle: Option<Handle<Image>>,
+    egui_texture: EguiTexture,
     clipping_zone: (u32, u32, u32, u32), // x, y, w, h
 }
 
@@ -192,7 +190,6 @@ pub struct EguiNode {
     vertex_buffer: Option<Buffer>,
     index_buffer: Option<Buffer>,
     draw_commands: Vec<DrawCommand>,
-    image_bind_groups: HashMap<Handle<Image>, BindGroup>,
 }
 
 impl EguiNode {
@@ -202,7 +199,6 @@ impl EguiNode {
             draw_commands: Vec::new(),
             vertex_buffer: None,
             index_buffer: None,
-            image_bind_groups: HashMap::default(),
         }
     }
 }
@@ -217,18 +213,13 @@ impl Node for EguiNode {
             &world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].0;
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap().0;
         let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap().0;
-        let egui_textures = world.get_resource::<ExtractedEguiTextures>().unwrap();
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
-        let egui_shaders = world.get_resource::<EguiShaders>().unwrap();
-        let image_render_assets = world.get_resource::<RenderAssets<Image>>().unwrap();
 
         let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
             return;
         }
-
-        self.remove_unused_bind_groups(&egui_textures);
 
         let egui_paint_jobs = egui_context[&self.window_id].tessellate(shapes);
 
@@ -269,26 +260,15 @@ impl Node for EguiNode {
             index_offset += triangles.vertices.len() as u32;
 
             let texture_handle = match triangles.texture_id {
-                egui::TextureId::Egui => Some(egui_textures.main_textures[&self.window_id].clone()),
-                texture_id @ egui::TextureId::User(_) => {
-                    egui_textures.user_textures.get(&texture_id).cloned()
-                }
+                egui::TextureId::Egui => EguiTexture::Font(self.window_id),
+                egui::TextureId::User(id) => EguiTexture::User(id),
             };
-            if let Some(texture_handle) = &texture_handle {
-                self.create_texture_bind_group(
-                    texture_handle.clone_weak(),
-                    render_device,
-                    egui_textures,
-                    image_render_assets,
-                    egui_shaders,
-                );
-            }
 
             let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);
             let y_viewport_clamp = (y + h).saturating_sub(window_size.physical_height as u32);
             self.draw_commands.push(DrawCommand {
                 vertices_count: triangles.indices.len(),
-                texture_handle,
+                egui_texture: texture_handle,
                 clipping_zone: (
                     x,
                     y,
@@ -319,11 +299,16 @@ impl Node for EguiNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let egui_shaders = world.get_resource::<EguiShaders>().unwrap();
+        let egui_shaders = world.get_resource::<EguiPipeline>().unwrap();
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
         let egui_transform =
             world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].1;
+
+        let bind_groups = &world
+            .get_resource::<EguiTextureBindGroups>()
+            .unwrap()
+            .bind_groups;
 
         render_queue.write_buffer(
             &egui_shaders.transform_buffer,
@@ -355,7 +340,7 @@ impl Node for EguiNode {
                     depth_stencil_attachment: None,
                 });
 
-        render_pass.set_pipeline(&egui_shaders.render_pipeline);
+        render_pass.set_pipeline(&egui_shaders.pipeline);
         render_pass.set_vertex_buffer(0, *self.vertex_buffer.as_ref().unwrap().slice(..));
         render_pass.set_index_buffer(
             *self.index_buffer.as_ref().unwrap().slice(..),
@@ -366,11 +351,7 @@ impl Node for EguiNode {
 
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {
-            let texture_resource = match draw_command
-                .texture_handle
-                .as_ref()
-                .and_then(|texture_handle| self.image_bind_groups.get(texture_handle))
-            {
+            let texture_bind_group = match bind_groups.get(&draw_command.egui_texture) {
                 Some(texture_resource) => texture_resource,
                 None => {
                     vertex_offset += draw_command.vertices_count as u32;
@@ -378,8 +359,7 @@ impl Node for EguiNode {
                 }
             };
 
-            // bind group 1
-            render_pass.set_bind_group(1, texture_resource, &[]);
+            render_pass.set_bind_group(1, texture_bind_group, &[]);
 
             render_pass.set_scissor_rect(
                 draw_command.clipping_zone.0,
@@ -399,47 +379,6 @@ impl Node for EguiNode {
     }
 }
 
-impl EguiNode {
-    fn create_texture_bind_group(
-        &mut self,
-        texture_handle: Handle<Image>,
-        render_device: &RenderDevice,
-        _egui_textures: &ExtractedEguiTextures,
-        image_render_assets: &RenderAssets<Image>,
-        egui_shaders: &EguiShaders,
-    ) {
-        let gpu_image = match image_render_assets.get(&texture_handle) {
-            Some(gpu_image) => gpu_image,
-            None => return,
-        };
-
-        self.image_bind_groups
-            .entry(texture_handle)
-            .or_insert_with(|| {
-                let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-                    label: None,
-                    layout: &egui_shaders.texture_bind_group_layout,
-                    entries: &[
-                        BindGroupEntry {
-                            binding: 0,
-                            resource: BindingResource::TextureView(&gpu_image.texture_view),
-                        },
-                        BindGroupEntry {
-                            binding: 1,
-                            resource: BindingResource::Sampler(&gpu_image.sampler),
-                        },
-                    ],
-                });
-                bind_group
-            });
-    }
-
-    fn remove_unused_bind_groups(&mut self, extracted_egui_textures: &ExtractedEguiTextures) {
-        let texture_handles = extracted_egui_textures.handles().collect::<HashSet<_>>();
-        self.image_bind_groups
-            .retain(|handle, _| texture_handles.contains(handle));
-    }
-}
 pub fn as_wgpu_image(egui_texture: &egui::Texture) -> Image {
     let mut pixels = Vec::new();
     pixels.reserve(4 * pixels.len());

@@ -1,4 +1,13 @@
-use bevy::{prelude::*, render2::texture::Image, utils::HashMap, window::WindowId};
+use bevy::{
+    prelude::*,
+    render2::{
+        render_asset::RenderAssets, render_resource::BindGroup, renderer::RenderDevice,
+        texture::Image,
+    },
+    utils::HashMap,
+    window::WindowId,
+};
+use wgpu::{BindGroupDescriptor, BindGroupEntry, BindingResource};
 
 #[repr(C)]
 #[derive(bytemuck::Zeroable, bytemuck::Pod, Clone, Copy)]
@@ -18,22 +27,35 @@ impl EguiTransform {
     }
 }
 
-use crate::{EguiContext, EguiMainTextures, EguiSettings, EguiShapes, WindowSize};
+use crate::{
+    egui_node::EguiPipeline, EguiContext, EguiMainTextures, EguiSettings, EguiShapes, WindowSize,
+};
 
 pub(crate) struct ExtractedShapes(pub HashMap<WindowId, EguiShapes>);
 pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, (WindowSize, EguiTransform)>);
 pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
 pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::CtxRef>);
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub(crate) enum EguiTexture {
+    Font(WindowId),
+    User(u64),
+}
+
 pub(crate) struct ExtractedEguiTextures {
     pub(crate) main_textures: HashMap<WindowId, Handle<Image>>,
-    pub(crate) user_textures: HashMap<egui::TextureId, Handle<Image>>,
+    pub(crate) user_textures: HashMap<u64, Handle<Image>>,
 }
 impl ExtractedEguiTextures {
-    pub(crate) fn handles(&self) -> impl Iterator<Item = &Handle<Image>> {
+    pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, &Handle<Image>)> {
         self.main_textures
-            .values()
-            .chain(self.user_textures.values())
+            .iter()
+            .map(|(&window, handle)| (EguiTexture::Font(window), handle))
+            .chain(
+                self.user_textures
+                    .iter()
+                    .map(|(&id, handle)| (EguiTexture::User(id), handle)),
+            )
     }
 }
 
@@ -73,4 +95,40 @@ pub(crate) fn extract_egui_textures(
             .collect(),
         user_textures: egui_context.egui_textures.clone(),
     });
+}
+
+pub(crate) struct EguiTextureBindGroups {
+    pub(crate) bind_groups: HashMap<EguiTexture, BindGroup>,
+}
+
+pub(crate) fn queue_bind_groups(
+    mut commands: Commands,
+    egui_textures: Res<ExtractedEguiTextures>,
+    render_device: Res<RenderDevice>,
+    gpu_images: Res<RenderAssets<Image>>,
+    egui_pipeline: Res<EguiPipeline>,
+) {
+    let bind_groups = egui_textures
+        .handles()
+        .filter_map(|(texture, handle)| {
+            let gpu_image = gpu_images.get(handle)?;
+            let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+                label: None,
+                layout: &egui_pipeline.texture_bind_group_layout,
+                entries: &[
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: BindingResource::TextureView(&gpu_image.texture_view),
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: BindingResource::Sampler(&gpu_image.sampler),
+                    },
+                ],
+            });
+            Some((texture, bind_group))
+        })
+        .collect();
+
+    commands.insert_resource(EguiTextureBindGroups { bind_groups })
 }
