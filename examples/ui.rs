@@ -138,7 +138,7 @@ fn ui_example(
     });
 
     egui::Window::new("Window")
-        .scroll(true)
+        .vscroll(true)
         .show(egui_ctx.ctx(), |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
@@ -190,7 +190,7 @@ impl Painting {
 
     pub fn ui_content(&mut self, ui: &mut egui::Ui) {
         let (response, painter) =
-            ui.allocate_painter(ui.available_size_before_wrap_finite(), egui::Sense::drag());
+            ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::drag());
         let rect = response.rect;
 
         if self.lines.is_empty() {
