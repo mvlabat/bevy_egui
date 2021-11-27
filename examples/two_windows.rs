@@ -282,7 +282,7 @@ fn ui_first_window(
     mut shared_ui_state: ResMut<SharedUiState>,
 ) {
     egui::Window::new("First Window")
-        .scroll(true)
+        .vscroll(true)
         .show(egui_context.ctx(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
@@ -306,7 +306,7 @@ fn ui_second_window(
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
 ) {
-    egui::Window::new("Second Window").scroll(true).show(
+    egui::Window::new("Second Window").vscroll(true).show(
         egui_context.ctx_for_window(second_window.id),
         |ui| {
             ui.horizontal(|ui| {
