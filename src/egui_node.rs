@@ -6,7 +6,7 @@ use bevy::{
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
             BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
-            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferInitDescriptor,
+            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer,
             BufferSize, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FrontFace,
             IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
             PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
@@ -187,7 +187,11 @@ struct DrawCommand {
 
 pub struct EguiNode {
     window_id: WindowId,
+    vertex_data: Vec<u8>,
+    vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
+    index_data: Vec<u8>,
+    index_buffer_capacity: usize,
     index_buffer: Option<Buffer>,
     draw_commands: Vec<DrawCommand>,
 }
@@ -197,7 +201,11 @@ impl EguiNode {
         EguiNode {
             window_id,
             draw_commands: Vec::new(),
+            vertex_data: Vec::new(),
+            vertex_buffer_capacity: 0,
             vertex_buffer: None,
+            index_data: Vec::new(),
+            index_buffer_capacity: 0,
             index_buffer: None,
         }
     }
@@ -223,11 +231,11 @@ impl Node for EguiNode {
 
         let egui_paint_jobs = egui_context[&self.window_id].tessellate(shapes);
 
-        let mut vertex_buffer = Vec::<u8>::new();
-        let mut index_buffer = Vec::<u8>::new();
         let mut index_offset = 0;
 
         self.draw_commands.clear();
+        self.vertex_data.clear();
+        self.index_data.clear();
 
         for egui::ClippedMesh(rect, triangles) in &egui_paint_jobs {
             let (x, y, w, h) = (
@@ -246,9 +254,9 @@ impl Node for EguiNode {
             }
 
             for vertex in &triangles.vertices {
-                vertex_buffer.extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
-                vertex_buffer.extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
-                vertex_buffer
+                self.vertex_data.extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
+                self.vertex_data.extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
+                self.vertex_data
                     .extend_from_slice(bytes_of(&vertex.color.to_array().map(|c| c as f32)));
             }
             let indices_with_offset = triangles
@@ -256,7 +264,7 @@ impl Node for EguiNode {
                 .iter()
                 .map(|i| i + index_offset)
                 .collect::<Vec<_>>();
-            index_buffer.extend_from_slice(cast_slice(indices_with_offset.as_slice()));
+            self.index_data.extend_from_slice(cast_slice(indices_with_offset.as_slice()));
             index_offset += triangles.vertices.len() as u32;
 
             let texture_handle = match triangles.texture_id {
@@ -278,19 +286,32 @@ impl Node for EguiNode {
             });
         }
 
-        let vertex_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("egui vertex buffer"),
-            contents: &vertex_buffer,
-            usage: BufferUsages::VERTEX,
-        });
-        let index_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("egui index buffer"),
-            contents: &index_buffer,
-            usage: BufferUsages::INDEX,
-        });
-
-        self.vertex_buffer = Some(vertex_buffer);
-        self.index_buffer = Some(index_buffer);
+        if self.vertex_data.len() > self.vertex_buffer_capacity {
+            self.vertex_buffer_capacity = if self.vertex_data.len().is_power_of_two() {
+                self.vertex_data.len()
+            } else {
+                self.vertex_data.len().next_power_of_two()
+            };
+            self.vertex_buffer = Some(render_device.create_buffer(&BufferDescriptor {
+                label: Some("egui vertex buffer"),
+                size: self.vertex_buffer_capacity as wgpu::BufferAddress,
+                usage: BufferUsages::COPY_DST | BufferUsages::VERTEX,
+                mapped_at_creation: false,
+            }));
+        }
+        if self.index_data.len() > self.index_buffer_capacity {
+            self.index_buffer_capacity = if self.index_data.len().is_power_of_two() {
+                self.index_data.len()
+            } else {
+                self.index_data.len().next_power_of_two()
+            };
+            self.index_buffer = Some(render_device.create_buffer(&BufferDescriptor {
+                label: Some("egui index buffer"),
+                size: self.index_buffer_capacity as wgpu::BufferAddress,
+                usage: BufferUsages::COPY_DST | BufferUsages::INDEX,
+                mapped_at_creation: false,
+            }));
+        }
     }
 
     fn run(
@@ -301,6 +322,9 @@ impl Node for EguiNode {
     ) -> Result<(), NodeRunError> {
         let egui_shaders = world.get_resource::<EguiPipeline>().unwrap();
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
+
+        render_queue.write_buffer(self.vertex_buffer.as_ref().unwrap(), 0, &self.vertex_data);
+        render_queue.write_buffer(self.index_buffer.as_ref().unwrap(), 0, &self.index_data);
 
         let egui_transform =
             world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].1;
