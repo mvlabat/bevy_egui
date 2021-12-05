@@ -13,21 +13,11 @@ struct VertexOutput {
     [[builtin(position)]] pos: vec4<f32>;
 };
 
-fn vec3_bool_to_f32(bvec: vec3<bool>) -> vec3<f32> {
-    var x: f32 = 0.0;
-	if(bvec.x) { x = 1.0; }
-	var y: f32 = 0.0;
-	if(bvec.y) { y = 1.0; }
-	var z: f32 = 0.0;
-	if(bvec.z) { z = 1.0; }
-    return vec3<f32>(x, y, z);
-}
-
 fn linear_from_srgb(srgb: vec3<f32>) -> vec3<f32> {
-    let cutoff = srgb < vec3<f32>(10.31475);
+    let cutoff = vec3<f32>(srgb < vec3<f32>(10.31475));
     let lower = srgb / vec3<f32>(3294.6);
     let higher = pow((srgb + vec3<f32>(14.025)) / vec3<f32>(269.025), vec3<f32>(2.4));
-    return mix(higher, lower, vec3_bool_to_f32(cutoff));
+    return mix(higher, lower, cutoff);
 }
 
 fn linear_from_srgba(srgba: vec4<f32>) -> vec4<f32> {
