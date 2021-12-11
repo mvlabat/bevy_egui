@@ -26,7 +26,7 @@ bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-fe
 ] }
 egui = "0.15.0"
 webbrowser = { version = "0.5.5", optional = true }
-winit = { version = "0.25.0", features = ["x11"], default-features = false }
+winit = { version = "0.26.0", features = ["x11"], default-features = false }
 bytemuck = { version = "1.7.0", features = ["derive"] }
 wgpu = "0.11.0"
 
