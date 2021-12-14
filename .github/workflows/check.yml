@@ -103,10 +103,6 @@ jobs:
             cache-wasm32-cargo
       - uses: actions-rs/cargo@v1
         with:
-          command: update
-          args: -p tracing-wasm --precise 0.2.0
-      - uses: actions-rs/cargo@v1
-        with:
           command: clippy
           args: --no-default-features --target=wasm32-unknown-unknown --features=${{ matrix.features }} -- -D warnings
 
