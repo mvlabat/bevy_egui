@@ -1,7 +1,7 @@
 use bevy::{
     core::{bytes_of, cast_slice},
     prelude::{FromWorld, World},
-    render2::{
+    render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,

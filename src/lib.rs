@@ -71,7 +71,7 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{AssetEvent, Assets, Commands, EventReader, ResMut},
-    render2::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
+    render::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
     utils::HashMap,
     window::WindowId,
 };
