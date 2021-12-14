@@ -6,11 +6,11 @@ use bevy::{
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
             BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
-            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer,
-            BufferSize, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FrontFace,
-            IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
-            PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-            ShaderStages, TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
+            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferSize,
+            BufferUsages, ColorTargetState, ColorWrites, Extent3d, FrontFace, IndexFormat, LoadOp,
+            MultisampleState, Operations, PipelineLayoutDescriptor, PrimitiveState,
+            RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, ShaderStages,
+            TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
             VertexAttribute, VertexFormat, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
@@ -254,8 +254,10 @@ impl Node for EguiNode {
             }
 
             for vertex in &triangles.vertices {
-                self.vertex_data.extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
-                self.vertex_data.extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
+                self.vertex_data
+                    .extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
+                self.vertex_data
+                    .extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
                 self.vertex_data
                     .extend_from_slice(bytes_of(&vertex.color.to_array().map(|c| c as f32)));
             }
@@ -264,7 +266,8 @@ impl Node for EguiNode {
                 .iter()
                 .map(|i| i + index_offset)
                 .collect::<Vec<_>>();
-            self.index_data.extend_from_slice(cast_slice(indices_with_offset.as_slice()));
+            self.index_data
+                .extend_from_slice(cast_slice(indices_with_offset.as_slice()));
             index_offset += triangles.vertices.len() as u32;
 
             let texture_handle = match triangles.texture_id {
