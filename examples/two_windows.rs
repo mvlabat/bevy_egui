@@ -1,3 +1,5 @@
+fn main() {}
+/*
 use bevy::{
     prelude::*,
     render::{
@@ -325,3 +327,4 @@ fn ui_second_window(
         },
     );
 }
+*/
