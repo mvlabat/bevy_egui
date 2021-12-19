@@ -1,4 +1,3 @@
-[[block]]
 struct EguiTransform {
     scale: vec2<f32>;
     translation: vec2<f32>;
