@@ -381,7 +381,7 @@ impl Plugin for EguiPlugin {
         world.get_resource_or_insert_with(EguiClipboard::default);
         world.insert_resource(EguiContext::new());
 
-        let render_app = &mut app.get_sub_app(RenderApp).unwrap();
+        let render_app = &mut app.sub_app_mut(RenderApp);
         render_app.init_resource::<egui_node::EguiPipeline>();
         render_app
             .add_system_to_stage(
