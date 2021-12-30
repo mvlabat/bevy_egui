@@ -76,6 +76,8 @@ cargo run --example ui
 
 ## Bevy support table
 
+**Note:** if you're looking for a `bevy_egui` version that supports `main` branch of Bevy, check out [open PRs](https://github.com/mvlabat/bevy_egui/pulls), there's a great chance we've already started working on the future Bevy release support.
+
 |bevy|bevy_egui|
 |---|---|
 |0.5|0.4-0.8|
