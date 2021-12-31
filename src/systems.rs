@@ -93,7 +93,7 @@ pub fn process_input(
         }
 
         for egui_input in input_resources.egui_input.values_mut() {
-            egui_input.raw_input.scroll_delta += delta;
+            egui_input.raw_input.events.push(egui::Event::Scroll(delta));
         }
     }
 

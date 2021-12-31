@@ -30,7 +30,7 @@ use bevy::{
     utils::HashMap,
     window::WindowId,
 };
-use egui::paint::ClippedShape;
+use egui::epaint::ClippedShape;
 use std::{borrow::Cow, collections::HashSet};
 
 pub struct EguiNode {
@@ -523,7 +523,7 @@ impl EguiNode {
             self.update_texture(render_resource_context, texture, texture_handle);
         }
 
-        let egui_texture = egui_context.ctx_for_window(self.window_id).texture();
+        let egui_texture = egui_context.ctx_for_window(self.window_id).font_image();
         if self.egui_texture_version != Some(egui_texture.version) {
             self.egui_texture_version = Some(egui_texture.version);
             if let Some(egui_texture_handle) = self.egui_texture.clone() {
@@ -561,7 +561,7 @@ impl EguiNode {
         texture_assets: &mut Assets<Texture>,
     ) {
         if self.egui_texture.is_none() {
-            let texture = egui_context.ctx_for_window(self.window_id).texture();
+            let texture = egui_context.ctx_for_window(self.window_id).font_image();
             self.egui_texture = Some(texture_assets.add(as_bevy_texture(&texture)));
             self.egui_texture_version = Some(texture.version);
 
@@ -769,7 +769,7 @@ fn find_bind_group_by_binding_name(
         .cloned()
 }
 
-fn as_bevy_texture(egui_texture: &egui::Texture) -> Texture {
+fn as_bevy_texture(egui_texture: &egui::FontImage) -> Texture {
     let mut pixels = Vec::new();
     pixels.reserve(4 * pixels.len());
     for &alpha in egui_texture.pixels.iter() {
