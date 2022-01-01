@@ -134,6 +134,8 @@ jobs:
         with:
           command: doc
           args: --all
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   test:
     name: Run tests
