@@ -98,16 +98,17 @@ fn ui_example(
             ));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.add(
-                    egui::Hyperlink::new("https://github.com/emilk/egui/").text("powered by egui"),
-                );
+                ui.add(egui::Hyperlink::from_label_and_url(
+                    "powered by egui",
+                    "https://github.com/emilk/egui/",
+                ));
             });
         });
 
     egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
-            egui::menu::menu(ui, "File", |ui| {
+            egui::menu::menu_button(ui, "File", |ui| {
                 if ui.button("Quit").clicked() {
                     std::process::exit(0);
                 }

@@ -212,7 +212,7 @@ pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
     /// The field gets populated during the [`EguiStage::UiFrameEnd`] stage and reset during `EguiNode::update`.
-    pub shapes: Vec<egui::paint::ClippedShape>,
+    pub shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 /// Is used for storing Egui output. The actual resource is [`HashMap<WindowId, EguiOutput>`].

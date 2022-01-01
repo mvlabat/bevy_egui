@@ -21,9 +21,9 @@ open_url = ["webbrowser"]
 [dependencies]
 bevy = { version = "0.5", default-features = false, features = [
     "render",
-    "bevy_winit"
+    "bevy_winit",
 ] }
-egui = "0.15.0"
+egui = "0.16.1"
 webbrowser = { version = "0.5.5", optional = true }
 winit = { version = "0.24.0", features = ["x11"], default-features = false }
 
@@ -38,5 +38,5 @@ version-sync = "0.9.2"
 bevy = { version = "0.5", default-features = false, features = [
     "bevy_wgpu",
     "x11",
-    "png"
+    "png",
 ] }
