@@ -38,7 +38,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.5"
-bevy_egui = "0.8"
+bevy_egui = "0.9"
 ```
 
 ```rust
@@ -78,7 +78,7 @@ cargo run --example ui
 
 **Note:** if you're looking for a `bevy_egui` version that supports `main` branch of Bevy, check out [open PRs](https://github.com/mvlabat/bevy_egui/pulls), there's a great chance we've already started working on the future Bevy release support.
 
-|bevy|bevy_egui|
-|---|---|
-|0.5|0.4-0.8|
-|0.4|0.1-0.3|
+| bevy | bevy_egui |
+|------|-----------|
+| 0.5  | 0.4-0.9   |
+| 0.4  | 0.1-0.3   |
