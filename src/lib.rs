@@ -376,7 +376,7 @@ impl Plugin for EguiPlugin {
         world.get_resource_or_insert_with(HashMap::<WindowId, EguiOutput>::default);
         world.get_resource_or_insert_with(HashMap::<WindowId, WindowSize>::default);
         world.get_resource_or_insert_with(HashMap::<WindowId, EguiShapes>::default);
-        world.get_resource_or_insert_with(EguiMainTextures::default);
+        world.get_resource_or_insert_with(EguiFontTextures::default);
         #[cfg(feature = "manage_clipboard")]
         world.get_resource_or_insert_with(EguiClipboard::default);
         world.insert_resource(EguiContext::new());
@@ -397,19 +397,19 @@ impl Plugin for EguiPlugin {
 }
 
 #[derive(Default)]
-pub(crate) struct EguiMainTextures(HashMap<WindowId, (Handle<Image>, u64)>);
+pub(crate) struct EguiFontTextures(HashMap<WindowId, (Handle<Image>, u64)>);
 
 fn update_egui_textures(
     _commands: Commands,
     mut egui_context: ResMut<EguiContext>,
-    mut egui_main_textures: ResMut<EguiMainTextures>,
+    mut egui_font_textures: ResMut<EguiFontTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
     egui_context.ctx.iter().for_each(|(&window_id, ctx)| {
-        let texture = ctx.texture();
+        let texture = ctx.font_image();
 
-        match egui_main_textures.0.entry(window_id) {
+        match egui_font_textures.0.entry(window_id) {
             Entry::Occupied(entry) if entry.get().1 == texture.version => {}
             Entry::Occupied(mut entry) => {
                 let image = image_assets.add(egui_node::as_wgpu_image(&texture));

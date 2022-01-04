@@ -28,7 +28,7 @@ impl EguiTransform {
 }
 
 use crate::{
-    egui_node::EguiPipeline, EguiContext, EguiMainTextures, EguiSettings, EguiShapes, WindowSize,
+    egui_node::EguiPipeline, EguiContext, EguiFontTextures, EguiSettings, EguiShapes, WindowSize,
 };
 
 pub(crate) struct ExtractedShapes(pub HashMap<WindowId, EguiShapes>);
@@ -43,12 +43,12 @@ pub(crate) enum EguiTexture {
 }
 
 pub(crate) struct ExtractedEguiTextures {
-    pub(crate) main_textures: HashMap<WindowId, Handle<Image>>,
+    pub(crate) font_textures: HashMap<WindowId, Handle<Image>>,
     pub(crate) user_textures: HashMap<u64, Handle<Image>>,
 }
 impl ExtractedEguiTextures {
     pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, &Handle<Image>)> {
-        self.main_textures
+        self.font_textures
             .iter()
             .map(|(&window, handle)| (EguiTexture::Font(window), handle))
             .chain(
@@ -84,11 +84,11 @@ pub(crate) fn extract_egui_render_data(
 pub(crate) fn extract_egui_textures(
     mut commands: Commands,
     egui_context: Res<EguiContext>,
-    egui_main_textures: ResMut<EguiMainTextures>,
+    egui_font_textures: ResMut<EguiFontTextures>,
     _image_assets: ResMut<Assets<Image>>,
 ) {
     commands.insert_resource(ExtractedEguiTextures {
-        main_textures: egui_main_textures
+        font_textures: egui_font_textures
             .0
             .iter()
             .map(|(&window_id, (handle, _))| (window_id, handle.clone()))

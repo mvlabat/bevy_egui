@@ -406,9 +406,8 @@ impl Node for EguiNode {
     }
 }
 
-pub fn as_wgpu_image(egui_texture: &egui::Texture) -> Image {
-    let mut pixels = Vec::new();
-    pixels.reserve(4 * pixels.len());
+pub fn as_wgpu_image(egui_texture: &egui::FontImage) -> Image {
+    let mut pixels = Vec::with_capacity(4 * egui_texture.pixels.len());
     for &alpha in egui_texture.pixels.iter() {
         pixels.extend(
             egui::color::Color32::from_white_alpha(alpha)
