@@ -355,7 +355,7 @@ impl Plugin for EguiPlugin {
             process_input
                 .system()
                 .label(EguiSystem::ProcessInput)
-                .after(InputSystem),
+                .before(InputSystem),
         );
         app.add_system_to_stage(
             CoreStage::PreUpdate,

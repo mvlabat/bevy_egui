@@ -17,6 +17,7 @@ no-default-features = true # clipboard crate fails the build currently https://g
 default = ["manage_clipboard", "open_url"]
 manage_clipboard = ["clipboard", "thread_local"]
 open_url = ["webbrowser"]
+drop_events_on_focus = []
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [

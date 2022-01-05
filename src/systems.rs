@@ -4,12 +4,12 @@ use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, Window
 #[cfg(feature = "open_url")]
 use bevy::log;
 use bevy::{
-    app::EventReader,
+    app::{EventReader, Events},
     core::Time,
     ecs::system::{Local, Res, ResMut, SystemParam},
     input::{
         keyboard::{KeyCode, KeyboardInput},
-        mouse::{MouseButton, MouseScrollUnit, MouseWheel},
+        mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         ElementState, Input,
     },
     utils::HashMap,
@@ -22,14 +22,20 @@ use bevy::{
 #[derive(SystemParam)]
 pub struct InputEvents<'w, 's> {
     ev_cursor_left: EventReader<'w, 's, CursorLeft>,
-    ev_cursor: EventReader<'w, 's, CursorMoved>,
-    ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
-    ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
-    ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     ev_window_focused: EventReader<'w, 's, WindowFocused>,
     ev_window_created: EventReader<'w, 's, WindowCreated>,
 }
 
+#[derive(SystemParam)]
+pub struct InputEventsMut<'w, 's> {
+    ev_cursor: ResMut<'w, Events<CursorMoved>>,
+    ev_mouse_wheel: ResMut<'w, Events<MouseWheel>>,
+    ev_received_character: ResMut<'w, Events<ReceivedCharacter>>,
+    ev_keyboard_input: ResMut<'w, Events<KeyboardInput>>,
+    ev_mouse_button_input: ResMut<'w, Events<MouseButtonInput>>,
+    #[system_param(ignore)]
+    marker: PhantomData<&'s usize>,
+}
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
@@ -67,6 +73,7 @@ pub fn init_contexts_on_startup(
 pub fn process_input(
     mut egui_context: ResMut<EguiContext>,
     mut input_events: InputEvents,
+    mut input_events_mut: InputEventsMut,
     mut input_resources: InputResources,
     mut window_resources: WindowResources,
     egui_settings: Res<EguiSettings>,
@@ -84,6 +91,17 @@ pub fn process_input(
         }
     }
 
+    // due to running before bevy_input's InputSystem, our mouse & keyboard inputs are not properly updated yet
+    // make a clone & update these so that subsequent systems will not see the updates
+    let mut keyboard_input = input_resources.keyboard_input.clone();
+    let mut mouse_button_input = input_resources.mouse_button_input.clone();
+
+    update_keyboard_input(&mut keyboard_input, &mut input_events_mut.ev_keyboard_input);
+    update_mouse_input(
+        &mut mouse_button_input,
+        &mut input_events_mut.ev_mouse_button_input,
+    );
+
     update_window_contexts(
         &mut egui_context,
         &mut input_resources.egui_input,
@@ -91,7 +109,11 @@ pub fn process_input(
         &egui_settings,
     );
 
-    for event in input_events.ev_mouse_wheel.iter() {
+    for event in input_events_mut
+        .ev_mouse_wheel
+        .get_reader()
+        .iter(&*input_events_mut.ev_mouse_wheel)
+    {
         let mut delta = egui::vec2(event.x, event.y);
         if let MouseScrollUnit::Line = event.unit {
             // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
@@ -103,14 +125,11 @@ pub fn process_input(
         }
     }
 
-    let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
-        || input_resources.keyboard_input.pressed(KeyCode::RShift);
-    let ctrl = input_resources.keyboard_input.pressed(KeyCode::LControl)
-        || input_resources.keyboard_input.pressed(KeyCode::RControl);
-    let alt = input_resources.keyboard_input.pressed(KeyCode::LAlt)
-        || input_resources.keyboard_input.pressed(KeyCode::RAlt);
-    let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
-        || input_resources.keyboard_input.pressed(KeyCode::RWin);
+    let shift = keyboard_input.pressed(KeyCode::LShift) || keyboard_input.pressed(KeyCode::RShift);
+    let ctrl =
+        keyboard_input.pressed(KeyCode::LControl) || keyboard_input.pressed(KeyCode::RControl);
+    let alt = keyboard_input.pressed(KeyCode::LAlt) || keyboard_input.pressed(KeyCode::RAlt);
+    let win = keyboard_input.pressed(KeyCode::LWin) || keyboard_input.pressed(KeyCode::RWin);
 
     let mac_cmd = if cfg!(target_os = "macos") {
         win
@@ -137,7 +156,13 @@ pub fn process_input(
             .push(egui::Event::PointerGone);
         egui_context.mouse_position = None;
     }
-    if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
+
+    if let Some(cursor_moved) = input_events_mut
+        .ev_cursor
+        .get_reader()
+        .iter(&*input_events_mut.ev_cursor)
+        .next_back()
+    {
         let scale_factor = egui_settings.scale_factor as f32;
         let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
         mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height() / scale_factor
@@ -167,27 +192,31 @@ pub fn process_input(
             events,
             pos,
             modifiers,
-            &input_resources.mouse_button_input,
+            &mouse_button_input,
             MouseButton::Left,
         );
         process_mouse_button_event(
             events,
             pos,
             modifiers,
-            &input_resources.mouse_button_input,
+            &mouse_button_input,
             MouseButton::Right,
         );
         process_mouse_button_event(
             events,
             pos,
             modifiers,
-            &input_resources.mouse_button_input,
+            &mouse_button_input,
             MouseButton::Middle,
         );
     }
 
     if !ctrl && !win {
-        for event in input_events.ev_received_character.iter() {
+        for event in input_events_mut
+            .ev_received_character
+            .get_reader()
+            .iter(&*input_events_mut.ev_received_character)
+        {
             if !event.char.is_control() {
                 input_resources
                     .egui_input
@@ -205,7 +234,11 @@ pub fn process_input(
         .get_mut(&*window_resources.focused_window)
         .unwrap();
 
-    for ev in input_events.ev_keyboard_input.iter() {
+    for ev in input_events_mut
+        .ev_keyboard_input
+        .get_reader()
+        .iter(&*input_events_mut.ev_keyboard_input)
+    {
         if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
             let egui_event = egui::Event::Key {
                 key,
@@ -244,6 +277,53 @@ pub fn process_input(
 
     for egui_input in input_resources.egui_input.values_mut() {
         egui_input.raw_input.predicted_dt = time.delta_seconds();
+    }
+
+    #[cfg(feature = "drop_events_on_focus")]
+    if egui_context.ctx().is_pointer_over_area() {
+        input_events_mut.ev_cursor.clear();
+        input_events_mut.ev_keyboard_input.clear();
+        input_events_mut.ev_mouse_wheel.clear();
+        input_events_mut.ev_received_character.clear();
+    }
+}
+
+pub fn update_keyboard_input(
+    keyboard_input: &mut Input<KeyCode>,
+    keyboard_input_events: &mut Events<KeyboardInput>,
+) {
+    keyboard_input.clear();
+    for event in keyboard_input_events
+        .get_reader()
+        .iter(keyboard_input_events)
+    {
+        if let KeyboardInput {
+            key_code: Some(key_code),
+            state,
+            ..
+        } = event
+        {
+            match state {
+                ElementState::Pressed => keyboard_input.press(*key_code),
+                ElementState::Released => keyboard_input.release(*key_code),
+            }
+        }
+    }
+}
+
+pub fn update_mouse_input(
+    mouse_button_input: &mut Input<MouseButton>,
+    mouse_button_input_events: &mut Events<MouseButtonInput>,
+) {
+    mouse_button_input.clear();
+    for event in mouse_button_input_events
+        .get_reader()
+        .iter(mouse_button_input_events)
+    {
+        match event.state {
+            ElementState::Pressed => mouse_button_input.press(event.button),
+            ElementState::Released => mouse_button_input.release(event.button),
+        }
     }
 }
 
