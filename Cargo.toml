@@ -43,3 +43,6 @@ bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-fe
 	"x11",
 	"png"
 ] }
+
+[patch."https://github.com/bevyengine/bevy"]
+bevy = { git = "https://github.com/rezural/bevy", branch = "input-derive-clone" }
