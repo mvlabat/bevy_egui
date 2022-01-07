@@ -59,6 +59,7 @@ mod render_systems;
 mod systems;
 
 use egui_node::EguiNode;
+use render_systems::EguiTransforms;
 
 use crate::systems::*;
 use bevy::{
@@ -382,11 +383,17 @@ impl Plugin for EguiPlugin {
         let render_app = &mut app.sub_app_mut(RenderApp);
         render_app.init_resource::<egui_node::EguiPipeline>();
         render_app
+            .init_resource::<egui_node::EguiPipeline>()
+            .init_resource::<EguiTransforms>()
             .add_system_to_stage(
                 RenderStage::Extract,
                 render_systems::extract_egui_render_data,
             )
             .add_system_to_stage(RenderStage::Extract, render_systems::extract_egui_textures)
+            .add_system_to_stage(
+                RenderStage::Prepare,
+                render_systems::prepare_egui_transforms,
+            )
             .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
 
         let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();

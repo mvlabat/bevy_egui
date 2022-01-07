@@ -4,13 +4,12 @@ use bevy::{
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
-            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferSize,
-            BufferUsages, ColorTargetState, ColorWrites, Extent3d, FrontFace, IndexFormat, LoadOp,
-            MultisampleState, Operations, PipelineLayoutDescriptor, PrimitiveState,
-            RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, ShaderStages,
-            TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
+            std140::AsStd140, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+            BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer,
+            BufferSize, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FrontFace,
+            IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
+            PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+            ShaderStages, TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
             VertexAttribute, VertexFormat, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
@@ -19,21 +18,17 @@ use bevy::{
     },
     window::WindowId,
 };
-use wgpu::{
-    BufferBinding, BufferDescriptor, SamplerBindingType, ShaderModuleDescriptor, ShaderSource,
-};
+use wgpu::{BufferDescriptor, SamplerBindingType, ShaderModuleDescriptor, ShaderSource};
 
 use crate::render_systems::{
-    EguiTexture, EguiTextureBindGroups, EguiTransform, ExtractedEguiContext, ExtractedEguiSettings,
-    ExtractedShapes, ExtractedWindowSizes,
+    EguiTexture, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
+    ExtractedEguiSettings, ExtractedShapes, ExtractedWindowSizes,
 };
 
 pub struct EguiPipeline {
     pipeline: RenderPipeline,
 
-    transform_buffer: Buffer,
-    transform_bind_group: BindGroup,
-
+    pub transform_bind_group_layout: BindGroupLayout,
     pub texture_bind_group_layout: BindGroupLayout,
 }
 
@@ -47,14 +42,6 @@ impl FromWorld for EguiPipeline {
             source: shader_source,
         });
 
-        let transform_buffer_size =
-            BufferSize::new(std::mem::size_of::<EguiTransform>() as u64).unwrap();
-        let transform_buffer = render_device.create_buffer(&BufferDescriptor {
-            label: Some("egui transform buffer"),
-            size: transform_buffer_size.get(),
-            usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
-            mapped_at_creation: false,
-        });
         let transform_bind_group_layout =
             render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
                 label: Some("egui transform bind group layout"),
@@ -63,24 +50,14 @@ impl FromWorld for EguiPipeline {
                     visibility: ShaderStages::VERTEX,
                     ty: BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(transform_buffer_size),
+                        has_dynamic_offset: true,
+                        min_binding_size: Some(
+                            BufferSize::new(EguiTransform::std140_size_static() as u64).unwrap(),
+                        ),
                     },
                     count: None,
                 }],
             });
-        let transform_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-            label: Some("egui transform bind gruop"),
-            layout: &transform_bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::Buffer(BufferBinding {
-                    buffer: &transform_buffer,
-                    offset: 0,
-                    size: Some(transform_buffer_size),
-                }),
-            }],
-        });
 
         let texture_bind_group_layout =
             render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -171,8 +148,7 @@ impl FromWorld for EguiPipeline {
 
         EguiPipeline {
             pipeline: render_pipeline,
-            transform_buffer,
-            transform_bind_group,
+            transform_bind_group_layout,
             texture_bind_group_layout,
         }
     }
@@ -214,11 +190,13 @@ impl EguiNode {
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
         let mut shapes = world.get_resource_mut::<ExtractedShapes>().unwrap();
-        let shapes = shapes.0.get_mut(&self.window_id).unwrap();
+        let shapes = match shapes.0.get_mut(&self.window_id) {
+            Some(shapes) => shapes,
+            None => return,
+        };
         let shapes = std::mem::take(&mut shapes.shapes);
 
-        let window_size =
-            &world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].0;
+        let window_size = &world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id];
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap().0;
         let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap().0;
 
@@ -326,22 +304,20 @@ impl Node for EguiNode {
         let egui_shaders = world.get_resource::<EguiPipeline>().unwrap();
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
-        render_queue.write_buffer(self.vertex_buffer.as_ref().unwrap(), 0, &self.vertex_data);
-        render_queue.write_buffer(self.index_buffer.as_ref().unwrap(), 0, &self.index_data);
+        let (vertex_buffer, index_buffer) = match (&self.vertex_buffer, &self.index_buffer) {
+            (Some(vertex), Some(index)) => (vertex, index),
+            _ => return Ok(()),
+        };
 
-        let egui_transform =
-            world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id].1;
+        render_queue.write_buffer(vertex_buffer, 0, &self.vertex_data);
+        render_queue.write_buffer(index_buffer, 0, &self.index_data);
 
         let bind_groups = &world
             .get_resource::<EguiTextureBindGroups>()
             .unwrap()
             .bind_groups;
 
-        render_queue.write_buffer(
-            &egui_shaders.transform_buffer,
-            0,
-            bytemuck::bytes_of(&egui_transform),
-        );
+        let egui_transforms = world.get_resource::<EguiTransforms>().unwrap();
 
         let extracted_window =
             &world.get_resource::<ExtractedWindows>().unwrap().windows[&self.window_id];
@@ -374,7 +350,9 @@ impl Node for EguiNode {
             IndexFormat::Uint32,
         );
 
-        render_pass.set_bind_group(0, &egui_shaders.transform_bind_group, &[]);
+        let transform_buffer_offset = egui_transforms.offsets[&self.window_id];
+        let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
+        render_pass.set_bind_group(0, transform_buffer_bind_group, &[transform_buffer_offset]);
 
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {

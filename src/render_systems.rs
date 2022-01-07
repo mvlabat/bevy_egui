@@ -1,7 +1,9 @@
 use bevy::{
     prelude::*,
     render::{
-        render_asset::RenderAssets, render_resource::BindGroup, renderer::RenderDevice,
+        render_asset::RenderAssets,
+        render_resource::{std140::AsStd140, BindGroup, BufferId, DynamicUniformVec},
+        renderer::{RenderDevice, RenderQueue},
         texture::Image,
     },
     utils::HashMap,
@@ -9,30 +11,12 @@ use bevy::{
 };
 use wgpu::{BindGroupDescriptor, BindGroupEntry, BindingResource};
 
-#[repr(C)]
-#[derive(bytemuck::Zeroable, bytemuck::Pod, Clone, Copy)]
-pub(crate) struct EguiTransform {
-    scale: Vec2,
-    translation: Vec2,
-}
-impl EguiTransform {
-    fn new(window_size: WindowSize, egui_settings: &EguiSettings) -> Self {
-        EguiTransform {
-            scale: Vec2::new(
-                2.0 / (window_size.width() / egui_settings.scale_factor as f32),
-                -2.0 / (window_size.height() / egui_settings.scale_factor as f32),
-            ),
-            translation: Vec2::new(-1.0, 1.0),
-        }
-    }
-}
-
 use crate::{
     egui_node::EguiPipeline, EguiContext, EguiFontTextures, EguiSettings, EguiShapes, WindowSize,
 };
 
 pub(crate) struct ExtractedShapes(pub HashMap<WindowId, EguiShapes>);
-pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, (WindowSize, EguiTransform)>);
+pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
 pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
 pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::CtxRef>);
 
@@ -70,15 +54,7 @@ pub(crate) fn extract_egui_render_data(
     commands.insert_resource(ExtractedShapes(shapes));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedEguiContext(egui_context.ctx.clone()));
-    commands.insert_resource(ExtractedWindowSizes(
-        window_sizes
-            .iter()
-            .map(|(&id, &window_size)| {
-                let transform = EguiTransform::new(window_size, &*egui_settings);
-                (id, (window_size, transform))
-            })
-            .collect(),
-    ));
+    commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
 }
 
 pub(crate) fn extract_egui_textures(
@@ -95,6 +71,72 @@ pub(crate) fn extract_egui_textures(
             .collect(),
         user_textures: egui_context.egui_textures.clone(),
     });
+}
+
+#[derive(Default)]
+pub(crate) struct EguiTransforms {
+    pub buffer: DynamicUniformVec<EguiTransform>,
+    pub offsets: HashMap<WindowId, u32>,
+
+    pub bind_group: Option<(BufferId, BindGroup)>,
+}
+
+#[derive(AsStd140)]
+pub(crate) struct EguiTransform {
+    scale: Vec2,
+    translation: Vec2,
+}
+impl EguiTransform {
+    fn new(window_size: WindowSize, egui_settings: &EguiSettings) -> Self {
+        EguiTransform {
+            scale: Vec2::new(
+                2.0 / (window_size.width() / egui_settings.scale_factor as f32),
+                -2.0 / (window_size.height() / egui_settings.scale_factor as f32),
+            ),
+            translation: Vec2::new(-1.0, 1.0),
+        }
+    }
+}
+
+pub(crate) fn prepare_egui_transforms(
+    mut egui_transforms: ResMut<EguiTransforms>,
+    window_sizes: Res<ExtractedWindowSizes>,
+    egui_settings: Res<ExtractedEguiSettings>,
+
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+
+    egui_pipeline: Res<EguiPipeline>,
+) {
+    egui_transforms.buffer.clear();
+    egui_transforms.offsets.clear();
+
+    for (window, size) in &window_sizes.0 {
+        let offset = egui_transforms
+            .buffer
+            .push(EguiTransform::new(*size, &egui_settings.0));
+        egui_transforms.offsets.insert(*window, offset);
+    }
+
+    egui_transforms
+        .buffer
+        .write_buffer(&render_device, &render_queue);
+    let buffer = egui_transforms.buffer.uniform_buffer().unwrap();
+
+    match egui_transforms.bind_group {
+        Some((id, _)) if buffer.id() == id => {}
+        _ => {
+            let transform_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+                label: Some("egui transform bind group"),
+                layout: &egui_pipeline.transform_bind_group_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: egui_transforms.buffer.binding().unwrap(),
+                }],
+            });
+            egui_transforms.bind_group = Some((buffer.id(), transform_bind_group));
+        }
+    };
 }
 
 pub(crate) struct EguiTextureBindGroups {
