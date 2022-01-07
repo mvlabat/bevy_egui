@@ -196,14 +196,14 @@ impl EguiClipboard {
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [`EguiStage::UiFrameEnd`] stage and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`] and reset during `EguiNode::update`.
     pub shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 /// Is used for storing Egui output. The actual resource is [`HashMap<WindowId, EguiOutput>`].
 #[derive(Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiStage::UiFrameEnd`] stage.
+    /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`]
     pub output: egui::Output,
 }
 
@@ -315,8 +315,6 @@ impl WindowSize {
 pub mod node {
     /// The main egui pass.
     pub const EGUI_PASS: &str = "egui_pass";
-    /// Keeps the transform uniform up to date.
-    pub const EGUI_TRANSFORM: &str = "egui_transform";
 }
 
 #[derive(SystemLabel, Clone, Hash, Debug, Eq, PartialEq)]
