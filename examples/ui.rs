@@ -14,10 +14,10 @@ fn main() {
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_startup_system(load_assets.system())
-        .add_startup_system(configure_visuals.system())
-        .add_system(update_ui_scale_factor.system())
-        .add_system(ui_example.system())
+        .add_startup_system(load_assets)
+        .add_startup_system(configure_visuals)
+        .add_system(update_ui_scale_factor)
+        .add_system(ui_example)
         .run();
 }
 

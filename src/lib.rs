@@ -27,7 +27,7 @@
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugin(EguiPlugin)
-//!         .add_system(ui_example.system())
+//!         .add_system(ui_example)
 //!         .run();
 //! }
 //!
@@ -65,10 +65,7 @@ use crate::systems::*;
 use bevy::{
     app::{App, CoreStage, Plugin, StartupStage},
     asset::Handle,
-    ecs::{
-        schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
-        system::IntoSystem,
-    },
+    ecs::schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
     input::InputSystem,
     log,
     prelude::{AssetEvent, Assets, Commands, EventReader, ResMut},
@@ -344,30 +341,26 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system_to_stage(
             StartupStage::PreStartup,
-            init_contexts_on_startup
-                .system()
-                .label(EguiStartupSystem::InitContexts),
+            init_contexts_on_startup.label(EguiStartupSystem::InitContexts),
         );
 
         app.add_system_to_stage(
             CoreStage::PreUpdate,
             process_input
-                .system()
                 .label(EguiSystem::ProcessInput)
                 .after(InputSystem),
         );
         app.add_system_to_stage(
             CoreStage::PreUpdate,
             begin_frame
-                .system()
                 .label(EguiSystem::BeginFrame)
                 .after(EguiSystem::ProcessInput),
         );
         app.add_system_to_stage(
-            CoreStage::PostUpdate, // TODO right stage?
-            process_output.system().label(EguiSystem::ProcessOutput),
+            CoreStage::PostUpdate,
+            process_output.label(EguiSystem::ProcessOutput),
         );
-        app.add_system_to_stage(CoreStage::PostUpdate, update_egui_textures.system());
+        app.add_system_to_stage(CoreStage::PostUpdate, update_egui_textures);
 
         let world = &mut app.world;
         world.get_resource_or_insert_with(EguiSettings::default);

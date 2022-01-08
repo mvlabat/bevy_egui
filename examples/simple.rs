@@ -5,7 +5,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_system(ui_example.system())
+        .add_system(ui_example)
         .run();
 }
 

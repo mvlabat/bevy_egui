@@ -13,7 +13,7 @@ This crate provides a [Egui](https://github.com/emilk/egui) integration for the 
 An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](https://mvlabat.github.io/bevy_egui_web_showcase/index.html) [[source](https://github.com/mvlabat/bevy_egui_web_showcase)].
 
 **Features:**
-- Desktop and web ([bevy_webgl2](https://github.com/mrk-its/bevy_webgl2)) platforms support
+- Desktop and web platforms support
 - Clipboard (web support is limited to the same window, see [rust-windowing/winit#1829](https://github.com/rust-windowing/winit/issues/1829))
 - Opening URLs
 - Multiple windows support (see [./examples/two_windows.rs](./examples/two_windows.rs))
@@ -37,8 +37,8 @@ Here's a minimal usage example:
 ```toml
 # Cargo.toml
 [dependencies]
-bevy = "0.5"
-bevy_egui = "0.9"
+bevy = "0.6"
+bevy_egui = "0.10"
 ```
 
 ```rust
@@ -46,10 +46,10 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 fn main() {
-    App::build()
+    App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_system(ui_example.system())
+        .add_system(ui_example)
         .run();
 }
 
@@ -80,5 +80,6 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
+| 0.6  | 0.10      |
 | 0.5  | 0.4-0.9   |
 | 0.4  | 0.1-0.3   |
