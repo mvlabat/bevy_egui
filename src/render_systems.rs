@@ -121,22 +121,23 @@ pub(crate) fn prepare_egui_transforms(
     egui_transforms
         .buffer
         .write_buffer(&render_device, &render_queue);
-    let buffer = egui_transforms.buffer.uniform_buffer().unwrap();
 
-    match egui_transforms.bind_group {
-        Some((id, _)) if buffer.id() == id => {}
-        _ => {
-            let transform_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-                label: Some("egui transform bind group"),
-                layout: &egui_pipeline.transform_bind_group_layout,
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource: egui_transforms.buffer.binding().unwrap(),
-                }],
-            });
-            egui_transforms.bind_group = Some((buffer.id(), transform_bind_group));
-        }
-    };
+    if let Some(buffer) = egui_transforms.buffer.uniform_buffer() {
+        match egui_transforms.bind_group {
+            Some((id, _)) if buffer.id() == id => {}
+            _ => {
+                let transform_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+                    label: Some("egui transform bind group"),
+                    layout: &egui_pipeline.transform_bind_group_layout,
+                    entries: &[BindGroupEntry {
+                        binding: 0,
+                        resource: egui_transforms.buffer.binding().unwrap(),
+                    }],
+                });
+                egui_transforms.bind_group = Some((buffer.id(), transform_bind_group));
+            }
+        };
+    }
 }
 
 pub(crate) struct EguiTextureBindGroups {

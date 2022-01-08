@@ -156,34 +156,35 @@ pub fn process_input(
     }
 
     if let Some((x, y)) = egui_context.mouse_position {
-        let focused_egui_input = input_resources
+        if let Some(focused_egui_input) = input_resources
             .egui_input
             .get_mut(&*window_resources.focused_window)
-            .unwrap();
-        let events = &mut focused_egui_input.raw_input.events;
+        {
+            let events = &mut focused_egui_input.raw_input.events;
 
-        let pos = egui::pos2(x, y);
-        process_mouse_button_event(
-            events,
-            pos,
-            modifiers,
-            &input_resources.mouse_button_input,
-            MouseButton::Left,
-        );
-        process_mouse_button_event(
-            events,
-            pos,
-            modifiers,
-            &input_resources.mouse_button_input,
-            MouseButton::Right,
-        );
-        process_mouse_button_event(
-            events,
-            pos,
-            modifiers,
-            &input_resources.mouse_button_input,
-            MouseButton::Middle,
-        );
+            let pos = egui::pos2(x, y);
+            process_mouse_button_event(
+                events,
+                pos,
+                modifiers,
+                &input_resources.mouse_button_input,
+                MouseButton::Left,
+            );
+            process_mouse_button_event(
+                events,
+                pos,
+                modifiers,
+                &input_resources.mouse_button_input,
+                MouseButton::Right,
+            );
+            process_mouse_button_event(
+                events,
+                pos,
+                modifiers,
+                &input_resources.mouse_button_input,
+                MouseButton::Middle,
+            );
+        }
     }
 
     if !ctrl && !win {
@@ -200,47 +201,47 @@ pub fn process_input(
         }
     }
 
-    let focused_input = input_resources
+    if let Some(focused_input) = input_resources
         .egui_input
         .get_mut(&*window_resources.focused_window)
-        .unwrap();
+    {
+        for ev in input_events.ev_keyboard_input.iter() {
+            if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
+                let egui_event = egui::Event::Key {
+                    key,
+                    pressed: match ev.state {
+                        ElementState::Pressed => true,
+                        ElementState::Released => false,
+                    },
+                    modifiers,
+                };
+                focused_input.raw_input.events.push(egui_event);
 
-    for ev in input_events.ev_keyboard_input.iter() {
-        if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
-            let egui_event = egui::Event::Key {
-                key,
-                pressed: match ev.state {
-                    ElementState::Pressed => true,
-                    ElementState::Released => false,
-                },
-                modifiers,
-            };
-            focused_input.raw_input.events.push(egui_event);
-
-            #[cfg(feature = "manage_clipboard")]
-            if command {
-                match key {
-                    egui::Key::C => {
-                        focused_input.raw_input.events.push(egui::Event::Copy);
-                    }
-                    egui::Key::X => {
-                        focused_input.raw_input.events.push(egui::Event::Cut);
-                    }
-                    egui::Key::V => {
-                        if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                            focused_input
-                                .raw_input
-                                .events
-                                .push(egui::Event::Text(contents))
+                #[cfg(feature = "manage_clipboard")]
+                if command {
+                    match key {
+                        egui::Key::C => {
+                            focused_input.raw_input.events.push(egui::Event::Copy);
                         }
+                        egui::Key::X => {
+                            focused_input.raw_input.events.push(egui::Event::Cut);
+                        }
+                        egui::Key::V => {
+                            if let Some(contents) = input_resources.egui_clipboard.get_contents() {
+                                focused_input
+                                    .raw_input
+                                    .events
+                                    .push(egui::Event::Text(contents))
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
-    }
 
-    focused_input.raw_input.modifiers = modifiers;
+        focused_input.raw_input.modifiers = modifiers;
+    }
 
     for egui_input in input_resources.egui_input.values_mut() {
         egui_input.raw_input.predicted_dt = time.delta_seconds();
@@ -307,7 +308,7 @@ pub fn process_output(
     mut egui_output: ResMut<HashMap<WindowId, EguiOutput>>,
     mut egui_shapes: ResMut<HashMap<WindowId, EguiShapes>>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
-    winit_windows: Res<WinitWindows>,
+    winit_windows: Option<Res<WinitWindows>>,
 ) {
     for id in egui_context.ctx.keys().copied() {
         let (output, shapes) = egui_context.ctx_for_window(id).end_frame();
@@ -319,11 +320,13 @@ pub fn process_output(
             egui_clipboard.set_contents(&output.copied_text);
         }
 
-        if let Some(winit_window) = winit_windows.get_window(id) {
-            winit_window.set_cursor_icon(
-                egui_to_winit_cursor_icon(output.cursor_icon)
-                    .unwrap_or(winit::window::CursorIcon::Default),
-            );
+        if let Some(ref winit_windows) = winit_windows {
+            if let Some(winit_window) = winit_windows.get_window(id) {
+                winit_window.set_cursor_icon(
+                    egui_to_winit_cursor_icon(output.cursor_icon)
+                        .unwrap_or(winit::window::CursorIcon::Default),
+                );
+            }
         }
 
         // TODO: see if we can support `new_tab`.
