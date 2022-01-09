@@ -460,6 +460,8 @@ pub fn setup_pipeline(
             config.egui_pass,
         )
         .unwrap();
+
+    let _ = render_graph.add_node_edge("ui_pass_driver", config.egui_pass);
 }
 
 #[cfg(test)]
