@@ -373,24 +373,25 @@ impl Plugin for EguiPlugin {
         world.get_resource_or_insert_with(EguiClipboard::default);
         world.insert_resource(EguiContext::new());
 
-        let render_app = &mut app.sub_app_mut(RenderApp);
-        render_app.init_resource::<egui_node::EguiPipeline>();
-        render_app
-            .init_resource::<egui_node::EguiPipeline>()
-            .init_resource::<EguiTransforms>()
-            .add_system_to_stage(
-                RenderStage::Extract,
-                render_systems::extract_egui_render_data,
-            )
-            .add_system_to_stage(RenderStage::Extract, render_systems::extract_egui_textures)
-            .add_system_to_stage(
-                RenderStage::Prepare,
-                render_systems::prepare_egui_transforms,
-            )
-            .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
+        if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.init_resource::<egui_node::EguiPipeline>();
+            render_app
+                .init_resource::<egui_node::EguiPipeline>()
+                .init_resource::<EguiTransforms>()
+                .add_system_to_stage(
+                    RenderStage::Extract,
+                    render_systems::extract_egui_render_data,
+                )
+                .add_system_to_stage(RenderStage::Extract, render_systems::extract_egui_textures)
+                .add_system_to_stage(
+                    RenderStage::Prepare,
+                    render_systems::prepare_egui_transforms,
+                )
+                .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
 
-        let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-        setup_pipeline(&mut *render_graph, RenderGraphConfig::default());
+            let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+            setup_pipeline(&mut *render_graph, RenderGraphConfig::default());
+        }
     }
 }
 
@@ -464,8 +465,23 @@ pub fn setup_pipeline(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use bevy::{render::options::WgpuOptions, winit::WinitPlugin, DefaultPlugins};
+
     #[test]
     fn test_readme_deps() {
         version_sync::assert_markdown_deps_updated!("README.md");
+    }
+
+    #[test]
+    fn headless_mode() {
+        App::new()
+            .insert_resource(WgpuOptions {
+                backends: None,
+                ..Default::default()
+            })
+            .add_plugins_with(DefaultPlugins, |group| group.disable::<WinitPlugin>())
+            .add_plugin(EguiPlugin)
+            .update();
     }
 }
