@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Horizontal scroll support (Shift + Mouse Wheel).
+- Zoom support (Ctrl/Cmd + Mouse Wheel).
+
 ### Fixed
 
 - Change points delta from 24 to 50 for `MouseScrollUnit::Line` event.

@@ -197,7 +197,21 @@ pub fn process_input(
                     delta *= 50.0;
                 }
 
-                events.push(egui::Event::Scroll(delta));
+                // Winit has inverted hscroll.
+                // TODO: remove this line when Bevy updates winit after https://github.com/rust-windowing/winit/pull/2105 is merged and released.
+                delta.x *= -1.0;
+
+                if ctrl || mac_cmd {
+                    // Treat as zoom instead.
+                    let factor = (delta.y / 200.0).exp();
+                    events.push(egui::Event::Zoom(factor));
+                } else if shift {
+                    // Treat as horizontal scrolling.
+                    // Note: Mac already fires horizontal scroll events when shift is down.
+                    events.push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
+                } else {
+                    events.push(egui::Event::Scroll(delta));
+                }
             }
         }
     }
