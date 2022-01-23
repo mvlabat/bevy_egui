@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Change points delta from 24 to 50 for `MouseScrollUnit::Line` event.
+- Fix handling of mouse button events for Safari (inputs are no longer ignored).
 
 ## [0.10.1] - 16-Jan-2022
 

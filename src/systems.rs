@@ -9,20 +9,23 @@ use bevy::{
     ecs::system::{Local, Res, ResMut, SystemParam},
     input::{
         keyboard::{KeyCode, KeyboardInput},
-        mouse::{MouseButton, MouseScrollUnit, MouseWheel},
+        mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         ElementState, Input,
     },
     utils::HashMap,
     window::{
-        CursorLeft, CursorMoved, ReceivedCharacter, WindowCreated, WindowFocused, WindowId, Windows,
+        CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, WindowCreated, WindowFocused,
+        WindowId, Windows,
     },
     winit::WinitWindows,
 };
 
 #[derive(SystemParam)]
 pub struct InputEvents<'w, 's> {
+    ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
     ev_cursor_left: EventReader<'w, 's, CursorLeft>,
     ev_cursor: EventReader<'w, 's, CursorMoved>,
+    ev_mouse_button_input: EventReader<'w, 's, MouseButtonInput>,
     ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
     ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
     ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
@@ -34,7 +37,6 @@ pub struct InputEvents<'w, 's> {
 pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
     egui_clipboard: Res<'w, crate::EguiClipboard>,
-    mouse_button_input: Res<'w, Input<MouseButton>>,
     keyboard_input: Res<'w, Input<KeyCode>>,
     egui_input: ResMut<'w, HashMap<WindowId, EguiInput>>,
     #[system_param(ignore)]
@@ -43,7 +45,7 @@ pub struct InputResources<'w, 's> {
 
 #[derive(SystemParam)]
 pub struct WindowResources<'w, 's> {
-    focused_window: Local<'s, WindowId>,
+    focused_window: Local<'s, Option<WindowId>>,
     windows: ResMut<'w, Windows>,
     window_sizes: ResMut<'w, HashMap<WindowId, WindowSize>>,
     #[system_param(ignore)]
@@ -72,16 +74,14 @@ pub fn process_input(
     egui_settings: Res<EguiSettings>,
     time: Res<Time>,
 ) {
-    // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired.
+    // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
-    for event in input_events.ev_window_created.iter().rev() {
-        *window_resources.focused_window = event.id;
+    if let Some(event) = input_events.ev_window_created.iter().next_back() {
+        *window_resources.focused_window = Some(event.id);
     }
 
-    for event in input_events.ev_window_focused.iter().rev() {
-        if event.focused {
-            *window_resources.focused_window = event.id;
-        }
+    for event in input_events.ev_window_focused.iter() {
+        *window_resources.focused_window = if event.focused { Some(event.id) } else { None };
     }
 
     update_window_contexts(
@@ -127,63 +127,84 @@ pub fn process_input(
         command,
     };
 
-    for cursor_entered in input_events.ev_cursor_left.iter() {
+    let mut cursor_left_window = None;
+    if let Some(cursor_left) = input_events.ev_cursor_left.iter().next_back() {
         input_resources
             .egui_input
-            .get_mut(&cursor_entered.id)
+            .get_mut(&cursor_left.id)
             .unwrap()
             .raw_input
             .events
             .push(egui::Event::PointerGone);
+        cursor_left_window = Some(cursor_left.id);
+    }
+    let cursor_entered_window = input_events
+        .ev_cursor_entered
+        .iter()
+        .next_back()
+        .map(|event| event.id);
+
+    // When a user releases a mouse button, Safari emits both `CursorLeft` and `CursorEntered`
+    // events during the same frame. We don't want to reset mouse position in such a case, otherwise
+    // we won't be able to process the mouse button event.
+    if cursor_left_window.is_some() && cursor_left_window != cursor_entered_window {
         egui_context.mouse_position = None;
     }
+
     if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
-        let scale_factor = egui_settings.scale_factor as f32;
-        let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-        mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height() / scale_factor
-            - mouse_position.1;
-        egui_context.mouse_position = Some(mouse_position);
-        input_resources
-            .egui_input
-            .get_mut(&cursor_moved.id)
-            .unwrap()
-            .raw_input
-            .events
-            .push(egui::Event::PointerMoved(egui::pos2(
-                mouse_position.0,
-                mouse_position.1,
-            )));
+        // If we've left the window, it's unlikely that we've moved the cursor back to the same
+        // window this exact frame.
+        if cursor_left_window != Some(cursor_moved.id) {
+            let scale_factor = egui_settings.scale_factor as f32;
+            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
+            mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height()
+                / scale_factor
+                - mouse_position.1;
+            egui_context.mouse_position = Some(mouse_position);
+            input_resources
+                .egui_input
+                .get_mut(&cursor_moved.id)
+                .unwrap()
+                .raw_input
+                .events
+                .push(egui::Event::PointerMoved(egui::pos2(
+                    mouse_position.0,
+                    mouse_position.1,
+                )));
+        }
     }
 
+    // Marks the events as read if we are going to ignore them (i.e. there's no window focused).
+    let mouse_button_event_iter = input_events.ev_mouse_button_input.iter();
     if let Some((x, y)) = egui_context.mouse_position {
-        if let Some(focused_egui_input) = input_resources
-            .egui_input
-            .get_mut(&*window_resources.focused_window)
+        if let Some(focused_egui_input) = window_resources
+            .focused_window
+            .as_ref()
+            .and_then(|window_id| input_resources.egui_input.get_mut(window_id))
         {
             let events = &mut focused_egui_input.raw_input.events;
 
             let pos = egui::pos2(x, y);
-            process_mouse_button_event(
-                events,
-                pos,
-                modifiers,
-                &input_resources.mouse_button_input,
-                MouseButton::Left,
-            );
-            process_mouse_button_event(
-                events,
-                pos,
-                modifiers,
-                &input_resources.mouse_button_input,
-                MouseButton::Right,
-            );
-            process_mouse_button_event(
-                events,
-                pos,
-                modifiers,
-                &input_resources.mouse_button_input,
-                MouseButton::Middle,
-            );
+            for mouse_button_event in mouse_button_event_iter {
+                let button = match mouse_button_event.button {
+                    MouseButton::Left => Some(egui::PointerButton::Primary),
+                    MouseButton::Right => Some(egui::PointerButton::Secondary),
+                    MouseButton::Middle => Some(egui::PointerButton::Middle),
+                    _ => None,
+                };
+                let pressed = match mouse_button_event.state {
+                    ElementState::Pressed => true,
+                    ElementState::Released => false,
+                };
+                if let Some(button) = button {
+                    events.push(egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                        modifiers,
+                    });
+                }
+            }
         }
     }
 
@@ -201,9 +222,10 @@ pub fn process_input(
         }
     }
 
-    if let Some(focused_input) = input_resources
-        .egui_input
-        .get_mut(&*window_resources.focused_window)
+    if let Some(focused_input) = window_resources
+        .focused_window
+        .as_ref()
+        .and_then(|window_id| input_resources.egui_input.get_mut(window_id))
     {
         for ev in input_events.ev_keyboard_input.iter() {
             if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
@@ -429,33 +451,4 @@ fn bevy_to_egui_key(key_code: KeyCode) -> Option<egui::Key> {
         _ => return None,
     };
     Some(key)
-}
-
-fn process_mouse_button_event(
-    egui_events: &mut Vec<egui::Event>,
-    pos: egui::Pos2,
-    modifiers: egui::Modifiers,
-    mouse_button_input: &Input<MouseButton>,
-    mouse_button: MouseButton,
-) {
-    let button = match mouse_button {
-        MouseButton::Left => egui::PointerButton::Primary,
-        MouseButton::Right => egui::PointerButton::Secondary,
-        MouseButton::Middle => egui::PointerButton::Middle,
-        _ => panic!("Unsupported mouse button"),
-    };
-
-    let pressed = if mouse_button_input.just_pressed(mouse_button) {
-        true
-    } else if mouse_button_input.just_released(mouse_button) {
-        false
-    } else {
-        return;
-    };
-    egui_events.push(egui::Event::PointerButton {
-        pos,
-        button,
-        pressed,
-        modifiers,
-    });
 }
