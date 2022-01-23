@@ -94,8 +94,8 @@ pub fn process_input(
     for event in input_events.ev_mouse_wheel.iter() {
         let mut delta = egui::vec2(event.x, event.y);
         if let MouseScrollUnit::Line = event.unit {
-            // TODO: https://github.com/emilk/egui/blob/b869db728b6bbefa098ac987a796b2b0b836c7cd/egui_glium/src/lib.rs#L141
-            delta *= 24.0;
+            // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
+            delta *= 50.0;
         }
 
         for egui_input in input_resources.egui_input.values_mut() {
