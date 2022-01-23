@@ -210,7 +210,7 @@ pub struct EguiOutput {
 pub struct EguiContext {
     ctx: HashMap<WindowId, egui::CtxRef>,
     egui_textures: HashMap<u64, Handle<Image>>,
-    mouse_position: Option<(f32, f32)>,
+    mouse_position: Option<(WindowId, egui::Vec2)>,
 }
 
 impl EguiContext {
@@ -218,7 +218,7 @@ impl EguiContext {
         Self {
             ctx: HashMap::default(),
             egui_textures: Default::default(),
-            mouse_position: Some((0.0, 0.0)),
+            mouse_position: None,
         }
     }
 

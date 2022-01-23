@@ -91,18 +91,6 @@ pub fn process_input(
         &egui_settings,
     );
 
-    for event in input_events.ev_mouse_wheel.iter() {
-        let mut delta = egui::vec2(event.x, event.y);
-        if let MouseScrollUnit::Line = event.unit {
-            // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
-            delta *= 50.0;
-        }
-
-        for egui_input in input_resources.egui_input.values_mut() {
-            egui_input.raw_input.events.push(egui::Event::Scroll(delta));
-        }
-    }
-
     let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
         || input_resources.keyboard_input.pressed(KeyCode::RShift);
     let ctrl = input_resources.keyboard_input.pressed(KeyCode::LControl)
@@ -160,7 +148,7 @@ pub fn process_input(
             mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height()
                 / scale_factor
                 - mouse_position.1;
-            egui_context.mouse_position = Some(mouse_position);
+            egui_context.mouse_position = Some((cursor_moved.id, mouse_position.into()));
             input_resources
                 .egui_input
                 .get_mut(&cursor_moved.id)
@@ -174,17 +162,13 @@ pub fn process_input(
         }
     }
 
-    // Marks the events as read if we are going to ignore them (i.e. there's no window focused).
+    // Marks the events as read if we are going to ignore them (i.e. there's no window hovered).
     let mouse_button_event_iter = input_events.ev_mouse_button_input.iter();
-    if let Some((x, y)) = egui_context.mouse_position {
-        if let Some(focused_egui_input) = window_resources
-            .focused_window
-            .as_ref()
-            .and_then(|window_id| input_resources.egui_input.get_mut(window_id))
-        {
-            let events = &mut focused_egui_input.raw_input.events;
+    let mouse_wheel_event_iter = input_events.ev_mouse_wheel.iter();
+    if let Some((window_id, position)) = egui_context.mouse_position.as_ref() {
+        if let Some(egui_input) = input_resources.egui_input.get_mut(window_id) {
+            let events = &mut egui_input.raw_input.events;
 
-            let pos = egui::pos2(x, y);
             for mouse_button_event in mouse_button_event_iter {
                 let button = match mouse_button_event.button {
                     MouseButton::Left => Some(egui::PointerButton::Primary),
@@ -198,12 +182,22 @@ pub fn process_input(
                 };
                 if let Some(button) = button {
                     events.push(egui::Event::PointerButton {
-                        pos,
+                        pos: position.to_pos2(),
                         button,
                         pressed,
                         modifiers,
                     });
                 }
+            }
+
+            for event in mouse_wheel_event_iter {
+                let mut delta = egui::vec2(event.x, event.y);
+                if let MouseScrollUnit::Line = event.unit {
+                    // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
+                    delta *= 50.0;
+                }
+
+                events.push(egui::Event::Scroll(delta));
             }
         }
     }
