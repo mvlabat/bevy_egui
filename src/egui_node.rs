@@ -356,28 +356,39 @@ impl Node for EguiNode {
 
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {
-            let texture_bind_group = match bind_groups.get(&draw_command.egui_texture) {
-                Some(texture_resource) => texture_resource,
-                None => {
-                    vertex_offset += draw_command.vertices_count as u32;
-                    continue;
-                }
-            };
+            if draw_command.clipping_zone.0 < extracted_window.physical_width
+                && draw_command.clipping_zone.1 < extracted_window.physical_height
+            {
+                let texture_bind_group = match bind_groups.get(&draw_command.egui_texture) {
+                    Some(texture_resource) => texture_resource,
+                    None => {
+                        vertex_offset += draw_command.vertices_count as u32;
+                        continue;
+                    }
+                };
 
-            render_pass.set_bind_group(1, texture_bind_group, &[]);
+                render_pass.set_bind_group(1, texture_bind_group, &[]);
 
-            render_pass.set_scissor_rect(
-                draw_command.clipping_zone.0,
-                draw_command.clipping_zone.1,
-                draw_command.clipping_zone.2,
-                draw_command.clipping_zone.3,
-            );
-            render_pass.draw_indexed(
-                vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
-                0,
-                0..1,
-            );
-            vertex_offset += draw_command.vertices_count as u32;
+                render_pass.set_scissor_rect(
+                    draw_command.clipping_zone.0,
+                    draw_command.clipping_zone.1,
+                    draw_command
+                        .clipping_zone
+                        .2
+                        .min(extracted_window.physical_width),
+                    draw_command
+                        .clipping_zone
+                        .3
+                        .min(extracted_window.physical_height),
+                );
+
+                render_pass.draw_indexed(
+                    vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
+                    0,
+                    0..1,
+                );
+                vertex_offset += draw_command.vertices_count as u32;
+            }
         }
 
         Ok(())
