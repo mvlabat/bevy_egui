@@ -33,7 +33,7 @@
 //!
 //! // Note the usage of `ResMut`. Even though `ctx` method doesn't require
 //! // mutability, accessing the context from different threads will result
-//! // into panic if you don't enable `egui/multi_threaded` feature.
+//! // into panic if you don't enable `multi_threaded` feature.
 //! fn ui_example(egui_context: Res<EguiContext>) {
 //!     egui::Window::new("Hello").show(egui_context.ctx(), |ui| {
 //!         ui.label("world");
