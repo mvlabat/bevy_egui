@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.3] - 29-Jan-2022
+
+### Added
+
+- Feature `multi_threaded`, to avoid using `egui/multi_threaded` ([#63](https://github.com/mvlabat/bevy_egui/pull/63) by @ndarilek).
+
+### Fixed
+
+- WGPU crash on minimizing a window ([#62](https://github.com/mvlabat/bevy_egui/pull/62) by @aevyrie).
+
 ## [0.10.2] - 23-Jan-2022
 
 ### Added
