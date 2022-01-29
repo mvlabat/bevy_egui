@@ -31,11 +31,8 @@
 //!         .run();
 //! }
 //!
-//! // Note the usage of `ResMut`. Even though `ctx` method doesn't require
-//! // mutability, accessing the context from different threads will result
-//! // into panic if you don't enable `multi_threaded` feature.
-//! fn ui_example(egui_context: Res<EguiContext>) {
-//!     egui::Window::new("Hello").show(egui_context.ctx(), |ui| {
+//! fn ui_example(mut egui_context: ResMut<EguiContext>) {
+//!     egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
 //!         ui.label("world");
 //!     });
 //! }
@@ -224,19 +221,22 @@ impl EguiContext {
 
     /// Egui context of the primary window.
     ///
-    /// Note: accessing the context from different threads simultaneously requires enabling
-    /// `egui/multi_threaded` feature.
+    /// This function is only available when the `multi_threaded` feature is enabled.
+    /// The preferable way is to use `ctx_mut` to avoid unpredictable blocking inside UI systems.
+    #[cfg(feature = "multi_threaded")]
     #[track_caller]
     pub fn ctx(&self) -> &egui::CtxRef {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx` was called for an uninitialized context (primary window), consider moving your startup system to `StartupStage::Startup` stage or run it after `EguiStartupSystem::InitContexts` system")
     }
 
     /// Egui context for a specific window.
-    /// If you want to display UI on a non-primary window,
-    /// make sure to set up the render graph by calling [`setup_pipeline`].
+    /// If you want to display UI on a non-primary window, make sure to set up the render graph by
+    /// calling [`setup_pipeline`].
     ///
-    /// Note: accessing the context from different threads simultaneously requires enabling
-    /// `egui/multi_threaded` feature.
+    /// This function is only available when the `multi_threaded` feature is enabled.
+    /// The preferable way is to use `ctx_for_window_mut` to avoid unpredictable blocking inside UI
+    /// systems.
+    #[cfg(feature = "multi_threaded")]
     #[track_caller]
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
         self.ctx
@@ -245,8 +245,37 @@ impl EguiContext {
             .unwrap()
     }
 
-    /// Fallible variant of [`EguiContext::ctx_for_window`]. Make sure to set up the render graph by calling [`setup_pipeline`].
+    /// Fallible variant of [`EguiContext::ctx_for_window`]. Make sure to set up the render graph by
+    /// calling [`setup_pipeline`].
+    ///
+    /// This function is only available when the `multi_threaded` feature is enabled.
+    /// The preferable way is to use `try_ctx_for_window_mut` to avoid unpredictable blocking inside
+    /// UI systems.
+    #[cfg(feature = "multi_threaded")]
     pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::CtxRef> {
+        self.ctx.get(&window)
+    }
+
+    /// Egui context of the primary window.
+    #[track_caller]
+    pub fn ctx_mut(&mut self) -> &egui::CtxRef {
+        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to `StartupStage::Startup` stage or run it after `EguiStartupSystem::InitContexts` system")
+    }
+
+    /// Egui context for a specific window.
+    /// If you want to display UI on a non-primary window, make sure to set up the render graph by
+    /// calling [`setup_pipeline`].
+    #[track_caller]
+    pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::CtxRef {
+        self.ctx
+            .get(&window)
+            .ok_or_else(|| format!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
+            .unwrap()
+    }
+
+    /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
+    /// graph by calling [`setup_pipeline`].
+    pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::CtxRef> {
         self.ctx.get(&window)
     }
 
