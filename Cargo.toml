@@ -15,6 +15,7 @@ no-default-features = true # clipboard crate fails the build currently https://g
 [features]
 default = ["manage_clipboard", "open_url"]
 manage_clipboard = ["clipboard", "thread_local"]
+multi_threaded = ["egui/multi_threaded"]
 open_url = ["webbrowser"]
 
 [dependencies]
