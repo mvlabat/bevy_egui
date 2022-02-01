@@ -72,7 +72,6 @@ cargo run --example ui
 ## See also
 
 - [`jakobhellermann/bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
-- [`mvlabat/bevy_megaui`](https://github.com/mvlabat/bevy_megaui)
 
 ## Bevy support table
 
