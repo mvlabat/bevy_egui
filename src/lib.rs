@@ -106,7 +106,7 @@ impl Default for EguiSettings {
     }
 }
 
-/// Is used for storing the input passed to Egui. The actual resource is a [`HashMap<WindowId, EguiInput>`].
+/// Is used for storing the input passed to Egui. The actual resource is `HashMap<WindowId, EguiInput>`.
 ///
 /// It gets reset during the [`EguiSystem::ProcessInput`] system.
 #[derive(Clone, Debug, Default)]
@@ -186,7 +186,7 @@ impl EguiClipboard {
     }
 }
 
-/// Is used for storing Egui shapes. The actual resource is [`HashMap<WindowId, EguiShapes>`].
+/// Is used for storing Egui shapes. The actual resource is `HashMap<WindowId, EguiShapes>`.
 #[derive(Clone, Default, Debug)]
 pub struct EguiShapes {
     /// Pairs of rectangles and paint commands.
@@ -195,7 +195,7 @@ pub struct EguiShapes {
     pub shapes: Vec<egui::epaint::ClippedShape>,
 }
 
-/// Is used for storing Egui output. The actual resource is [`HashMap<WindowId, EguiOutput>`].
+/// Is used for storing Egui output. The actual resource is `HashMap<WindowId, EguiOutput>`.
 #[derive(Clone, Default)]
 pub struct EguiOutput {
     /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`]
@@ -275,6 +275,44 @@ impl EguiContext {
     /// graph by calling [`setup_pipeline`].
     pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::CtxRef> {
         self.ctx.get(&window)
+    }
+
+    /// Allows to get multiple contexts at the same time. This function is useful when you want
+    /// to get multiple window contexts without using the `multi_threaded` feature.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the passed window ids aren't unique.
+    pub fn ctx_for_windows_mut<const N: usize>(
+        &mut self,
+        ids: [WindowId; N],
+    ) -> [&egui::CtxRef; N] {
+        let mut unique_ids = std::collections::HashSet::new();
+        assert!(
+            ids.iter().all(move |id| unique_ids.insert(id)),
+            "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {:?}",
+            ids
+        );
+        ids.map(|id| self.ctx.get(&id).unwrap_or_else(|| panic!("`EguiContext::ctx_for_windows_mut` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", id)))
+    }
+
+    /// Fallible variant of [`EguiContext::ctx_for_windows_mut`]. Make sure to set up the render
+    /// graph by calling [`setup_pipeline`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the passed window ids aren't unique.
+    pub fn try_ctx_for_windows_mut<const N: usize>(
+        &mut self,
+        ids: [WindowId; N],
+    ) -> [Option<&egui::CtxRef>; N] {
+        let mut unique_ids = std::collections::HashSet::new();
+        assert!(
+            ids.iter().all(move |id| unique_ids.insert(id)),
+            "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {:?}",
+            ids
+        );
+        ids.map(|id| self.ctx.get(&id))
     }
 
     /// Can accept either a strong or a weak handle.
@@ -503,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn headless_mode() {
+    fn test_headless_mode() {
         App::new()
             .insert_resource(WgpuOptions {
                 backends: None,
@@ -512,5 +550,53 @@ mod tests {
             .add_plugins_with(DefaultPlugins, |group| group.disable::<WinitPlugin>())
             .add_plugin(EguiPlugin)
             .update();
+    }
+
+    #[test]
+    fn test_ctx_for_windows_mut_unique_check_passes() {
+        let mut egui_context = EguiContext::new();
+        let primary_window = WindowId::primary();
+        let second_window = WindowId::new();
+        egui_context.ctx.insert(primary_window, Default::default());
+        egui_context.ctx.insert(second_window, Default::default());
+        let [primary_ctx, second_ctx] =
+            egui_context.ctx_for_windows_mut([primary_window, second_window]);
+        assert!(primary_ctx != second_ctx);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique"
+    )]
+    fn test_ctx_for_windows_mut_unique_check_panics() {
+        let mut egui_context = EguiContext::new();
+        let primary_window = WindowId::primary();
+        egui_context.ctx.insert(primary_window, Default::default());
+        egui_context.ctx_for_windows_mut([primary_window, primary_window]);
+    }
+
+    #[test]
+    fn test_try_ctx_for_windows_mut_unique_check_passes() {
+        let mut egui_context = EguiContext::new();
+        let primary_window = WindowId::primary();
+        let second_window = WindowId::new();
+        egui_context.ctx.insert(primary_window, Default::default());
+        egui_context.ctx.insert(second_window, Default::default());
+        let [primary_ctx, second_ctx] =
+            egui_context.try_ctx_for_windows_mut([primary_window, second_window]);
+        assert!(primary_ctx.is_some());
+        assert!(second_ctx.is_some());
+        assert!(primary_ctx != second_ctx);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique"
+    )]
+    fn test_try_ctx_for_windows_mut_unique_check_panics() {
+        let mut egui_context = EguiContext::new();
+        let primary_window = WindowId::primary();
+        egui_context.ctx.insert(primary_window, Default::default());
+        egui_context.try_ctx_for_windows_mut([primary_window, primary_window]);
     }
 }
