@@ -34,8 +34,8 @@ fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) 
     egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
 }
 
-fn configure_visuals(egui_ctx: ResMut<EguiContext>) {
-    egui_ctx.ctx().set_visuals(egui::Visuals {
+fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
+    egui_ctx.ctx_mut().set_visuals(egui::Visuals {
         window_corner_radius: 0.0,
         ..Default::default()
     });
@@ -72,7 +72,7 @@ fn ui_example(
 
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
-        .show(egui_ctx.ctx(), |ui| {
+        .show(egui_ctx.ctx_mut(), |ui| {
             ui.heading("Side Panel");
 
             ui.horizontal(|ui| {
@@ -105,7 +105,7 @@ fn ui_example(
             });
         });
 
-    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
+    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx_mut(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu_button(ui, "File", |ui| {
@@ -116,7 +116,7 @@ fn ui_example(
         });
     });
 
-    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
+    egui::CentralPanel::default().show(egui_ctx.ctx_mut(), |ui| {
         ui.heading("Egui Template");
         ui.hyperlink("https://github.com/emilk/egui_template");
         ui.add(egui::github_link_file_line!(
@@ -140,7 +140,7 @@ fn ui_example(
 
     egui::Window::new("Window")
         .vscroll(true)
-        .show(egui_ctx.ctx(), |ui| {
+        .show(egui_ctx.ctx_mut(), |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
             ui.label("You can turn on resizing and scrolling if you like.");

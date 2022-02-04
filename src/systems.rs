@@ -334,16 +334,17 @@ pub fn begin_frame(
 }
 
 pub fn process_output(
-    egui_context: Res<EguiContext>,
+    mut egui_context: ResMut<EguiContext>,
     mut egui_output: ResMut<HashMap<WindowId, EguiOutput>>,
     mut egui_shapes: ResMut<HashMap<WindowId, EguiShapes>>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     winit_windows: Option<Res<WinitWindows>>,
 ) {
-    for id in egui_context.ctx.keys().copied() {
-        let (output, shapes) = egui_context.ctx_for_window(id).end_frame();
-        egui_shapes.entry(id).or_default().shapes = shapes;
-        egui_output.entry(id).or_default().output = output.clone();
+    let window_ids: Vec<_> = egui_context.ctx.keys().copied().collect();
+    for window_id in window_ids {
+        let (output, shapes) = egui_context.ctx_for_window_mut(window_id).end_frame();
+        egui_shapes.entry(window_id).or_default().shapes = shapes;
+        egui_output.entry(window_id).or_default().output = output.clone();
 
         #[cfg(feature = "manage_clipboard")]
         if !output.copied_text.is_empty() {
@@ -351,7 +352,7 @@ pub fn process_output(
         }
 
         if let Some(ref winit_windows) = winit_windows {
-            if let Some(winit_window) = winit_windows.get_window(id) {
+            if let Some(winit_window) = winit_windows.get_window(window_id) {
                 winit_window.set_cursor_icon(
                     egui_to_winit_cursor_icon(output.cursor_icon)
                         .unwrap_or(winit::window::CursorIcon::Default),

@@ -64,7 +64,6 @@ const SECONDARY_EGUI_PASS: &str = "secondary_egui_pass";
 
 fn create_new_window(
     mut create_window_events: EventWriter<CreateWindow>,
-
     mut commands: Commands,
     mut active_cameras: ResMut<ActiveCameras>,
 ) {
@@ -128,13 +127,13 @@ struct SharedUiState {
 }
 
 fn ui_first_window(
-    egui_context: Res<EguiContext>,
+    mut egui_context: ResMut<EguiContext>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
 ) {
     egui::Window::new("First Window")
         .vscroll(true)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
                 ui.text_edit_singleline(&mut ui_state.input);
@@ -152,11 +151,11 @@ fn ui_first_window(
 }
 
 fn ui_second_window(
-    egui_context: Res<EguiContext>,
+    mut egui_context: ResMut<EguiContext>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
 ) {
-    let ctx = match egui_context.try_ctx_for_window(*SECOND_WINDOW_ID) {
+    let ctx = match egui_context.try_ctx_for_window_mut(*SECOND_WINDOW_ID) {
         Some(ctx) => ctx,
         None => return,
     };
