@@ -241,8 +241,7 @@ impl EguiContext {
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
         self.ctx
             .get(&window)
-            .ok_or_else(|| format!("`EguiContext::ctx_for_window` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
-            .unwrap()
+            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window`]. Make sure to set up the render graph by
@@ -269,8 +268,7 @@ impl EguiContext {
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::CtxRef {
         self.ctx
             .get(&window)
-            .ok_or_else(|| format!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
-            .unwrap()
+            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
