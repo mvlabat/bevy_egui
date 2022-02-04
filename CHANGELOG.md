@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 4-Feb-2022
+
+### Changed
+
+- Introduce mutable getters for EguiContext, feature gate immutable ones ([#64](https://github.com/mvlabat/bevy_egui/pull/63)).
+  - If you used `bevy_egui` without the `multi_threaded` feature, you'll need to change every `ctx` call to `ctx_mut`.
+
 ## [0.10.3] - 29-Jan-2022
 
 ### Added
