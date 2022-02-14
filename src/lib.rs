@@ -47,7 +47,6 @@
 //! ## See also
 //!
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
-//! - [`bevy_megaui`](https://github.com/mvlabat/bevy_megaui)
 
 pub use egui;
 
