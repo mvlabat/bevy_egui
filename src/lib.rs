@@ -27,6 +27,8 @@
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugin(EguiPlugin)
+//!         // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
+//!         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
 //!         .add_system(ui_example)
 //!         .run();
 //! }
@@ -197,7 +199,7 @@ pub struct EguiShapes {
 /// Is used for storing Egui output. The actual resource is `HashMap<WindowId, EguiOutput>`.
 #[derive(Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`]
+    /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
     pub output: egui::Output,
 }
 
@@ -225,7 +227,7 @@ impl EguiContext {
     #[cfg(feature = "multi_threaded")]
     #[track_caller]
     pub fn ctx(&self) -> &egui::CtxRef {
-        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx` was called for an uninitialized context (primary window), consider moving your startup system to `StartupStage::Startup` stage or run it after `EguiStartupSystem::InitContexts` system")
+        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
     }
 
     /// Egui context for a specific window.
@@ -240,7 +242,7 @@ impl EguiContext {
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
         self.ctx
             .get(&window)
-            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
+            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window`]. Make sure to set up the render graph by
@@ -257,7 +259,7 @@ impl EguiContext {
     /// Egui context of the primary window.
     #[track_caller]
     pub fn ctx_mut(&mut self) -> &egui::CtxRef {
-        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to `StartupStage::Startup` stage or run it after `EguiStartupSystem::InitContexts` system")
+        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
     }
 
     /// Egui context for a specific window.
@@ -267,7 +269,7 @@ impl EguiContext {
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::CtxRef {
         self.ctx
             .get(&window)
-            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
+            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
@@ -292,7 +294,7 @@ impl EguiContext {
             "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {:?}",
             ids
         );
-        ids.map(|id| self.ctx.get(&id).unwrap_or_else(|| panic!("`EguiContext::ctx_for_windows_mut` was called for an uninitialized context (window {}), consider moving your UI system to `CoreStage::Update` or run it after `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", id)))
+        ids.map(|id| self.ctx.get(&id).unwrap_or_else(|| panic!("`EguiContext::ctx_for_windows_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", id)))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_windows_mut`]. Make sure to set up the render
@@ -333,7 +335,6 @@ impl EguiContext {
     }
 
     // Is called when we get an event that a texture asset is removed.
-    #[allow(unused)] // TODO use
     fn remove_texture(&mut self, texture_handle: &Handle<Image>) {
         log::debug!("Removing egui handles: {:?}", texture_handle);
         self.egui_textures = self
@@ -493,9 +494,10 @@ fn update_egui_textures(
 }
 
 /// Egui's render graph config.
-#[allow(missing_docs)]
 pub struct RenderGraphConfig {
+    /// Target window.
     pub window_id: WindowId,
+    /// Render pass name.
     pub egui_pass: &'static str,
 }
 
