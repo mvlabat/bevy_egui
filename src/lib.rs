@@ -60,6 +60,8 @@ use egui_node::EguiNode;
 use render_systems::EguiTransforms;
 
 use crate::systems::*;
+#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+use arboard::Clipboard;
 use bevy::{
     app::{App, CoreStage, Plugin, StartupStage},
     asset::Handle,
@@ -71,8 +73,6 @@ use bevy::{
     utils::HashMap,
     window::WindowId,
 };
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
-use clipboard::{ClipboardContext, ClipboardProvider};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
@@ -123,7 +123,7 @@ pub struct EguiInput {
 #[derive(Default)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
-    clipboard: ThreadLocal<Option<RefCell<ClipboardContext>>>,
+    clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
     #[cfg(target_arch = "wasm32")]
     clipboard: String,
 }
@@ -143,7 +143,7 @@ impl EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     fn set_contents_impl(&self, contents: &str) {
         if let Some(mut clipboard) = self.get() {
-            if let Err(err) = clipboard.set_contents(contents.to_owned()) {
+            if let Err(err) = clipboard.set_text(contents.to_owned()) {
                 log::error!("Failed to set clipboard contents: {:?}", err);
             }
         }
@@ -157,7 +157,7 @@ impl EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     fn get_contents_impl(&self) -> Option<String> {
         if let Some(mut clipboard) = self.get() {
-            match clipboard.get_contents() {
+            match clipboard.get_text() {
                 Ok(contents) => return Some(contents),
                 Err(err) => log::info!("Failed to get clipboard contents: {:?}", err),
             }
@@ -172,10 +172,10 @@ impl EguiClipboard {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn get(&self) -> Option<RefMut<ClipboardContext>> {
+    fn get(&self) -> Option<RefMut<Clipboard>> {
         self.clipboard
             .get_or(|| {
-                ClipboardContext::new()
+                Clipboard::new()
                     .map(RefCell::new)
                     .map_err(|err| {
                         log::info!("Failed to initialize clipboard: {:?}", err);

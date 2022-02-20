@@ -15,7 +15,7 @@ features = ["multi_threaded", "open_url"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 default = ["manage_clipboard", "open_url"]
-manage_clipboard = ["clipboard", "thread_local"]
+manage_clipboard = ["arboard", "thread_local"]
 multi_threaded = ["egui/multi_threaded"]
 open_url = ["webbrowser"]
 
@@ -32,7 +32,7 @@ bytemuck = { version = "1.7.0", features = ["derive"] }
 wgpu = "0.12.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clipboard = { version = "0.5.0", optional = true }
+arboard = { version = "2.0.1", optional = true }
 thread_local = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
