@@ -15,7 +15,9 @@ use once_cell::sync::Lazy;
 
 static SECOND_WINDOW_ID: Lazy<WindowId> = Lazy::new(WindowId::new);
 
-const BEVY_TEXTURE_ID: u64 = 0;
+struct Images {
+    bevy_icon: Handle<Image>,
+}
 
 fn main() {
     let mut app = App::new();
@@ -92,9 +94,10 @@ fn create_new_window(
     active_cameras.add(SECONDARY_CAMERA_NAME);
 }
 
-fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
-    let texture_handle = assets.load("icon.png");
-    egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
+fn load_assets(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.insert_resource(Images {
+        bevy_icon: assets.load("icon.png"),
+    });
 }
 
 struct SecondaryCameraDriver;
@@ -130,7 +133,9 @@ fn ui_first_window(
     mut egui_context: ResMut<EguiContext>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
+    images: Res<Images>,
 ) {
+    let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
     egui::Window::new("First Window")
         .vscroll(true)
         .show(egui_context.ctx_mut(), |ui| {
@@ -144,7 +149,7 @@ fn ui_first_window(
             });
 
             ui.add(egui::widgets::Image::new(
-                egui::TextureId::User(BEVY_TEXTURE_ID),
+                egui::TextureId::User(bevy_texture_id),
                 [256.0, 256.0],
             ));
         });
@@ -154,7 +159,9 @@ fn ui_second_window(
     mut egui_context: ResMut<EguiContext>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
+    images: Res<Images>,
 ) {
+    let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
     let ctx = match egui_context.try_ctx_for_window_mut(*SECOND_WINDOW_ID) {
         Some(ctx) => ctx,
         None => return,
@@ -172,7 +179,7 @@ fn ui_second_window(
             });
 
             ui.add(egui::widgets::Image::new(
-                egui::TextureId::User(BEVY_TEXTURE_ID),
+                egui::TextureId::User(bevy_texture_id),
                 [256.0, 256.0],
             ));
         });
