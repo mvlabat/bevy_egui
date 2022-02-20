@@ -9,8 +9,7 @@ repository = "https://github.com/mvlabat/bevy_egui"
 exclude = ["assets/**/*", ".github/**/*"]
 
 [package.metadata.docs.rs]
-no-default-features = true # clipboard crate fails the build currently https://github.com/rust-lang/docs.rs/issues/695
-features = ["multi_threaded", "open_url"]
+all-features = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
