@@ -1,5 +1,9 @@
 # `bevy_egui`
 
+# Please support the Ukrainian army!
+
+https://savelife.in.ua/en/donate/
+
 [![Crates.io](https://img.shields.io/crates/v/bevy_egui.svg)](https://crates.io/crates/bevy_egui)
 [![Documentation](https://docs.rs/bevy_egui/badge.svg)](https://docs.rs/bevy_egui)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/bevyengine/bevy/blob/master/LICENSE)
