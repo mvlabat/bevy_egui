@@ -200,13 +200,13 @@ pub struct EguiShapes {
 #[derive(Clone, Default)]
 pub struct EguiOutput {
     /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
-    pub output: egui::Output,
+    pub platform_output: egui::PlatformOutput,
 }
 
 /// A resource for storing `bevy_egui` context.
 #[derive(Clone)]
 pub struct EguiContext {
-    ctx: HashMap<WindowId, egui::CtxRef>,
+    ctx: HashMap<WindowId, egui::Context>,
     egui_textures: HashMap<u64, Handle<Image>>,
     mouse_position: Option<(WindowId, egui::Vec2)>,
 }
@@ -252,13 +252,13 @@ impl EguiContext {
     /// The preferable way is to use `try_ctx_for_window_mut` to avoid unpredictable blocking inside
     /// UI systems.
     #[cfg(feature = "multi_threaded")]
-    pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::CtxRef> {
+    pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
     }
 
     /// Egui context of the primary window.
     #[track_caller]
-    pub fn ctx_mut(&mut self) -> &egui::CtxRef {
+    pub fn ctx_mut(&mut self) -> &egui::Context {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
     }
 
@@ -266,7 +266,7 @@ impl EguiContext {
     /// If you want to display UI on a non-primary window, make sure to set up the render graph by
     /// calling [`setup_pipeline`].
     #[track_caller]
-    pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::CtxRef {
+    pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
         self.ctx
             .get(&window)
             .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
@@ -274,7 +274,7 @@ impl EguiContext {
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
     /// graph by calling [`setup_pipeline`].
-    pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::CtxRef> {
+    pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
     }
 
@@ -287,7 +287,7 @@ impl EguiContext {
     pub fn ctx_for_windows_mut<const N: usize>(
         &mut self,
         ids: [WindowId; N],
-    ) -> [&egui::CtxRef; N] {
+    ) -> [&egui::Context; N] {
         let mut unique_ids = std::collections::HashSet::new();
         assert!(
             ids.iter().all(move |id| unique_ids.insert(id)),
@@ -306,7 +306,7 @@ impl EguiContext {
     pub fn try_ctx_for_windows_mut<const N: usize>(
         &mut self,
         ids: [WindowId; N],
-    ) -> [Option<&egui::CtxRef>; N] {
+    ) -> [Option<&egui::Context>; N] {
         let mut unique_ids = std::collections::HashSet::new();
         assert!(
             ids.iter().all(move |id| unique_ids.insert(id)),

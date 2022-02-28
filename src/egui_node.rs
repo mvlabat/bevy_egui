@@ -249,7 +249,11 @@ impl Node for EguiNode {
             index_offset += triangles.vertices.len() as u32;
 
             let texture_handle = match triangles.texture_id {
-                egui::TextureId::Egui => EguiTexture::Font(self.window_id),
+                egui::TextureId::Managed(_id) => {
+                    // TODO: The texture with the specified id has to be selected from the
+                    //  TexturesDelta::set that was obtained within systems::process_output.
+                    EguiTexture::Font(self.window_id)
+                }
                 egui::TextureId::User(id) => EguiTexture::User(id),
             };
 

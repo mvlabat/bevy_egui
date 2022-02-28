@@ -18,7 +18,7 @@ use crate::{
 pub(crate) struct ExtractedShapes(pub HashMap<WindowId, EguiShapes>);
 pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
 pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
-pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::CtxRef>);
+pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub(crate) enum EguiTexture {
