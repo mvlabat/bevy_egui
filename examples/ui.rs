@@ -27,6 +27,7 @@ struct UiState {
     value: f32,
     painting: Painting,
     inverted: bool,
+    egui_tex_handle: Option<egui::TextureHandle>,
 }
 
 fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
@@ -66,6 +67,15 @@ fn ui_example(
     mut ui_state: ResMut<UiState>,
     assets: Res<AssetServer>,
 ) {
+    let egui_tex_handle = ui_state
+        .egui_tex_handle
+        .get_or_insert_with(|| {
+            egui_ctx
+                .ctx_mut()
+                .load_texture("example-image", egui::ColorImage::example())
+        })
+        .clone();
+
     let mut load = false;
     let mut remove = false;
     let mut invert = false;
@@ -79,6 +89,11 @@ fn ui_example(
                 ui.label("Write something: ");
                 ui.text_edit_singleline(&mut ui_state.label);
             });
+
+            ui.add(egui::widgets::Image::new(
+                egui_tex_handle.id(),
+                egui_tex_handle.size_vec2(),
+            ));
 
             ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
             if ui.button("Increment").clicked() {
