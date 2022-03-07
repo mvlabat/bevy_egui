@@ -71,7 +71,7 @@ pub(crate) fn extract_egui_textures(
         egui_textures: egui_managed_textures
             .0
             .iter()
-            .map(|(&window_id, handle)| (window_id, handle.clone()))
+            .map(|(&window_id, managed_tex)| (window_id, managed_tex.handle.clone()))
             .collect(),
         user_textures: egui_context.user_textures.clone(),
     });

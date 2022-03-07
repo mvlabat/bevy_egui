@@ -75,7 +75,6 @@ use bevy::{
 use clipboard::{ClipboardContext, ClipboardProvider};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
-use std::collections::hash_map::Entry;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -468,7 +467,13 @@ impl Plugin for EguiPlugin {
 }
 
 #[derive(Default)]
-pub(crate) struct EguiManagedTextures(HashMap<(WindowId, u64), Handle<Image>>);
+pub(crate) struct EguiManagedTextures(HashMap<(WindowId, u64), EguiManagedTexture>);
+
+pub(crate) struct EguiManagedTexture {
+    handle: Handle<Image>,
+    /// stored in full so we can do partial updates (which bevy doesn't support).
+    color_image: egui::ColorImage,
+}
 
 fn update_egui_textures(
     _commands: Commands,
@@ -480,23 +485,40 @@ fn update_egui_textures(
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (tex_id, image_delta) in set_textures {
-            log::info!("Uploading egui texture");
-            assert!(
-                image_delta.pos.is_none(),
-                "Partial texture updates not yet implemented!"
-            );
+            let color_image = egui_node::as_color_image(&image_delta.image);
 
             if let egui::TextureId::Managed(tex_id) = tex_id {
-                match egui_managed_textures.0.entry((window_id, tex_id)) {
-                    Entry::Occupied(mut entry) => {
-                        let image = image_assets.add(egui_node::as_wgpu_image(&image_delta.image));
-                        entry.insert(image);
+                if let Some(pos) = image_delta.pos {
+                    // partial update
+                    if let Some(managed_tex) = egui_managed_textures.0.get_mut(&(window_id, tex_id))
+                    {
+                        // TODO: when bevy supports it, only update the part of the texture that changes.
+                        update_image_rect(&mut managed_tex.color_image, pos, &color_image);
+                        let image = egui_node::color_image_as_bevy_image(&managed_tex.color_image);
+                        managed_tex.handle = image_assets.add(image);
+                    } else {
+                        log::warn!("Partial update of missing texture");
                     }
-                    Entry::Vacant(entry) => {
-                        let image = image_assets.add(egui_node::as_wgpu_image(&image_delta.image));
-                        entry.insert(image);
-                    }
-                };
+                } else {
+                    // full update
+                    let image = egui_node::color_image_as_bevy_image(&color_image);
+                    let handle = image_assets.add(image);
+                    egui_managed_textures.0.insert(
+                        (window_id, tex_id),
+                        EguiManagedTexture {
+                            handle,
+                            color_image,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    fn update_image_rect(dest: &mut egui::ColorImage, [x, y]: [usize; 2], src: &egui::ColorImage) {
+        for sy in 0..src.height() {
+            for sx in 0..src.width() {
+                dest[(x + sx, y + sy)] = src[(sx, sy)];
             }
         }
     }
@@ -514,9 +536,9 @@ fn free_egui_textures(
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
         for tex_id in free_textures {
             if let egui::TextureId::Managed(tex_id) = tex_id {
-                let handle = egui_managed_textures.0.remove(&(window_id, tex_id));
-                if let Some(handle) = handle {
-                    image_assets.remove(handle);
+                let managed_tex = egui_managed_textures.0.remove(&(window_id, tex_id));
+                if let Some(managed_tex) = managed_tex {
+                    image_assets.remove(managed_tex.handle);
                 }
             }
         }

@@ -395,49 +395,32 @@ impl Node for EguiNode {
     }
 }
 
-pub fn as_wgpu_image(image: &egui::ImageData) -> Image {
+pub fn as_color_image(image: &egui::ImageData) -> egui::ColorImage {
     match image {
-        egui::ImageData::Color(image) => color_image_as_wgpu_image(image),
-        egui::ImageData::Alpha(image) => alpha_image_as_wgpu_image(image),
+        egui::ImageData::Color(image) => image.clone(),
+        egui::ImageData::Alpha(image) => alpha_image_as_color_image(image),
     }
 }
 
-fn color_image_as_wgpu_image(egui_image: &egui::ColorImage) -> Image {
+pub fn alpha_image_as_color_image(image: &egui::AlphaImage) -> egui::ColorImage {
+    let gamma = 1.0;
+    egui::ColorImage {
+        size: image.size,
+        pixels: image.srgba_pixels(gamma).collect(),
+    }
+}
+
+pub fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image {
     let pixels = egui_image
         .pixels
         .iter()
         .flat_map(|color| color.to_array())
         .collect();
-    let [width, height] = egui_image.size;
 
     Image::new(
         Extent3d {
-            width: width as u32,
-            height: height as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        pixels,
-        TextureFormat::Rgba8UnormSrgb,
-    )
-}
-
-fn alpha_image_as_wgpu_image(egui_image: &egui::AlphaImage) -> Image {
-    let mut pixels = Vec::with_capacity(4 * egui_image.pixels.len());
-    for &alpha in egui_image.pixels.iter() {
-        pixels.extend(
-            egui::color::Color32::from_white_alpha(alpha)
-                .to_array()
-                .iter(),
-        );
-    }
-
-    let [width, height] = egui_image.size;
-
-    Image::new(
-        Extent3d {
-            width: width as u32,
-            height: height as u32,
+            width: egui_image.width() as u32,
+            height: egui_image.height() as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
