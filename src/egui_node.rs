@@ -1,5 +1,5 @@
 use bevy::{
-    core::{bytes_of, cast_slice},
+    core::cast_slice,
     prelude::{FromWorld, World},
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
@@ -95,7 +95,7 @@ impl FromWorld for EguiPipeline {
                     module: &shader_module,
                     entry_point: "vs_main",
                     buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: 32,
+                        array_stride: 20,
                         step_mode: VertexStepMode::Vertex,
                         attributes: &[
                             VertexAttribute {
@@ -109,7 +109,7 @@ impl FromWorld for EguiPipeline {
                                 shader_location: 1,
                             },
                             VertexAttribute {
-                                format: VertexFormat::Float32x4,
+                                format: VertexFormat::Unorm8x4,
                                 offset: 16,
                                 shader_location: 2,
                             },
@@ -231,14 +231,8 @@ impl Node for EguiNode {
                 continue;
             }
 
-            for vertex in &triangles.vertices {
-                self.vertex_data
-                    .extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
-                self.vertex_data
-                    .extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
-                self.vertex_data
-                    .extend_from_slice(bytes_of(&vertex.color.to_array().map(|c| c as f32)));
-            }
+            self.vertex_data
+                .extend_from_slice(cast_slice(triangles.vertices.as_slice()));
             let indices_with_offset = triangles
                 .indices
                 .iter()
