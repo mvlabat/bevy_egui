@@ -22,7 +22,7 @@ use wgpu::{BufferDescriptor, SamplerBindingType, ShaderModuleDescriptor, ShaderS
 
 use crate::render_systems::{
     EguiTexture, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
-    ExtractedEguiSettings, ExtractedShapes, ExtractedWindowSizes,
+    ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
 };
 
 pub struct EguiPipeline {
@@ -189,7 +189,7 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut shapes = world.get_resource_mut::<ExtractedShapes>().unwrap();
+        let mut shapes = world.get_resource_mut::<ExtractedRenderOutput>().unwrap();
         let shapes = match shapes.0.get_mut(&self.window_id) {
             Some(shapes) => shapes,
             None => return,

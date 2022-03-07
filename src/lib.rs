@@ -407,6 +407,17 @@ pub enum EguiSystem {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
+        let world = &mut app.world;
+        world.insert_resource(EguiSettings::default());
+        world.insert_resource(HashMap::<WindowId, EguiInput>::default());
+        world.insert_resource(HashMap::<WindowId, EguiOutput>::default());
+        world.insert_resource(HashMap::<WindowId, WindowSize>::default());
+        world.insert_resource(HashMap::<WindowId, EguiRenderOutput>::default());
+        world.insert_resource(EguiManagedTextures::default());
+        #[cfg(feature = "manage_clipboard")]
+        world.insert_resource(EguiClipboard::default());
+        world.insert_resource(EguiContext::new());
+
         app.add_startup_system_to_stage(
             StartupStage::PreStartup,
             init_contexts_on_startup.label(EguiStartupSystem::InitContexts),
@@ -430,17 +441,6 @@ impl Plugin for EguiPlugin {
         );
         app.add_system_to_stage(CoreStage::PostUpdate, update_egui_textures);
         app.add_system_to_stage(CoreStage::Last, free_egui_textures);
-
-        let world = &mut app.world;
-        world.get_resource_or_insert_with(EguiSettings::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, EguiInput>::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, EguiOutput>::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, WindowSize>::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, EguiRenderOutput>::default);
-        world.get_resource_or_insert_with(EguiManagedTextures::default);
-        #[cfg(feature = "manage_clipboard")]
-        world.get_resource_or_insert_with(EguiClipboard::default);
-        world.insert_resource(EguiContext::new());
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app.init_resource::<egui_node::EguiPipeline>();
@@ -473,37 +473,37 @@ fn update_egui_textures(
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
-    // log::info!("update_egui_textures");
-    egui_render_output
-        .iter_mut()
-        .for_each(|(&window_id, egui_render_output)| {
-            log::info!("update_egui_textures window_id: {}", window_id);
-            let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
+    log::info!(
+        "update_egui_textures egui_render_output {} at {:?}",
+        egui_render_output.len(),
+        &egui_render_output as *const _
+    );
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+        log::info!("update_egui_textures window_id: {}", window_id);
+        let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
-            log::info!("set_textures: {}", set_textures.len());
-            for (tex_id, image_delta) in set_textures {
-                log::info!("Uploading egui texture");
-                assert!(
-                    image_delta.pos.is_none(),
-                    "Partial texture updates not yet implemented!"
-                );
+        log::info!("set_textures: {}", set_textures.len());
+        for (tex_id, image_delta) in set_textures {
+            log::info!("Uploading egui texture");
+            assert!(
+                image_delta.pos.is_none(),
+                "Partial texture updates not yet implemented!"
+            );
 
-                if let egui::TextureId::Managed(tex_id) = tex_id {
-                    match egui_managed_textures.0.entry((window_id, tex_id)) {
-                        Entry::Occupied(mut entry) => {
-                            let image =
-                                image_assets.add(egui_node::as_wgpu_image(&image_delta.image));
-                            entry.insert(image);
-                        }
-                        Entry::Vacant(entry) => {
-                            let image =
-                                image_assets.add(egui_node::as_wgpu_image(&image_delta.image));
-                            entry.insert(image);
-                        }
-                    };
-                }
+            if let egui::TextureId::Managed(tex_id) = tex_id {
+                match egui_managed_textures.0.entry((window_id, tex_id)) {
+                    Entry::Occupied(mut entry) => {
+                        let image = image_assets.add(egui_node::as_wgpu_image(&image_delta.image));
+                        entry.insert(image);
+                    }
+                    Entry::Vacant(entry) => {
+                        let image = image_assets.add(egui_node::as_wgpu_image(&image_delta.image));
+                        entry.insert(image);
+                    }
+                };
             }
-        });
+        }
+    }
 }
 
 fn free_egui_textures(
@@ -514,19 +514,17 @@ fn free_egui_textures(
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    egui_render_output
-        .iter_mut()
-        .for_each(|(&window_id, egui_render_output)| {
-            let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
-            for tex_id in free_textures {
-                if let egui::TextureId::Managed(tex_id) = tex_id {
-                    let handle = egui_managed_textures.0.remove(&(window_id, tex_id));
-                    if let Some(handle) = handle {
-                        image_assets.remove(handle);
-                    }
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+        let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
+        for tex_id in free_textures {
+            if let egui::TextureId::Managed(tex_id) = tex_id {
+                let handle = egui_managed_textures.0.remove(&(window_id, tex_id));
+                if let Some(handle) = handle {
+                    image_assets.remove(handle);
                 }
             }
-        });
+        }
+    }
 
     for image_event in image_events.iter() {
         if let AssetEvent::Removed { handle } = image_event {

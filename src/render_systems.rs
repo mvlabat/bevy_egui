@@ -16,7 +16,7 @@ use crate::{
     WindowSize,
 };
 
-pub(crate) struct ExtractedShapes(pub HashMap<WindowId, EguiRenderOutput>);
+pub(crate) struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
 pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
 pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
 pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
@@ -49,13 +49,13 @@ impl ExtractedEguiTextures {
 
 pub(crate) fn extract_egui_render_data(
     mut commands: Commands,
-    mut shapes: ResMut<HashMap<WindowId, EguiRenderOutput>>,
+    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
     window_sizes: ResMut<HashMap<WindowId, WindowSize>>,
     egui_settings: Res<EguiSettings>,
     egui_context: Res<EguiContext>,
 ) {
-    let shapes = std::mem::take(&mut *shapes);
-    commands.insert_resource(ExtractedShapes(shapes));
+    let render_output = std::mem::take(&mut *egui_render_output);
+    commands.insert_resource(ExtractedRenderOutput(render_output));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedEguiContext(egui_context.ctx.clone()));
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
