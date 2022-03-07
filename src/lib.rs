@@ -439,7 +439,10 @@ impl Plugin for EguiPlugin {
             CoreStage::PostUpdate,
             process_output.label(EguiSystem::ProcessOutput),
         );
-        app.add_system_to_stage(CoreStage::PostUpdate, update_egui_textures);
+        app.add_system_to_stage(
+            CoreStage::PostUpdate,
+            update_egui_textures.after(EguiSystem::ProcessOutput),
+        );
         app.add_system_to_stage(CoreStage::Last, free_egui_textures);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
@@ -473,16 +476,9 @@ fn update_egui_textures(
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
-    log::info!(
-        "update_egui_textures egui_render_output {} at {:?}",
-        egui_render_output.len(),
-        &egui_render_output as *const _
-    );
     for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
-        log::info!("update_egui_textures window_id: {}", window_id);
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
-        log::info!("set_textures: {}", set_textures.len());
         for (tex_id, image_delta) in set_textures {
             log::info!("Uploading egui texture");
             assert!(

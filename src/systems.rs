@@ -350,11 +350,6 @@ pub fn process_output(
             needs_repaint: _, // TODO: only repaint if needed
         } = full_output;
 
-        log::info!(
-            "Updating egui_render_output for window_id {}, egui_render_output = {:?}",
-            window_id,
-            &egui_render_output as *const _
-        );
         let egui_render_output = egui_render_output.entry(window_id).or_default();
         egui_render_output.shapes = shapes;
         egui_render_output.textures_delta.append(textures_delta);
