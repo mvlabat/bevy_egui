@@ -249,7 +249,7 @@ impl Node for EguiNode {
             index_offset += triangles.vertices.len() as u32;
 
             let texture_handle = match triangles.texture_id {
-                egui::TextureId::Egui => EguiTexture::Font(self.window_id),
+                egui::TextureId::Managed(id) => EguiTexture::Managed(self.window_id, id),
                 egui::TextureId::User(id) => EguiTexture::User(id),
             };
 
@@ -395,9 +395,36 @@ impl Node for EguiNode {
     }
 }
 
-pub fn as_wgpu_image(egui_texture: &egui::FontImage) -> Image {
-    let mut pixels = Vec::with_capacity(4 * egui_texture.pixels.len());
-    for &alpha in egui_texture.pixels.iter() {
+pub fn as_wgpu_image(image: &egui::ImageData) -> Image {
+    match image {
+        egui::ImageData::Color(image) => color_image_as_wgpu_image(image),
+        egui::ImageData::Alpha(image) => alpha_image_as_wgpu_image(image),
+    }
+}
+
+fn color_image_as_wgpu_image(egui_image: &egui::ColorImage) -> Image {
+    let pixels = egui_image
+        .pixels
+        .iter()
+        .flat_map(|color| color.to_array())
+        .collect();
+    let [width, height] = egui_image.size;
+
+    Image::new(
+        Extent3d {
+            width: width as u32,
+            height: height as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        pixels,
+        TextureFormat::Rgba8UnormSrgb,
+    )
+}
+
+fn alpha_image_as_wgpu_image(egui_image: &egui::AlphaImage) -> Image {
+    let mut pixels = Vec::with_capacity(4 * egui_image.pixels.len());
+    for &alpha in egui_image.pixels.iter() {
         pixels.extend(
             egui::color::Color32::from_white_alpha(alpha)
                 .to_array()
@@ -405,10 +432,12 @@ pub fn as_wgpu_image(egui_texture: &egui::FontImage) -> Image {
         );
     }
 
+    let [width, height] = egui_image.size;
+
     Image::new(
         Extent3d {
-            width: egui_texture.width as u32,
-            height: egui_texture.height as u32,
+            width: width as u32,
+            height: height as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,

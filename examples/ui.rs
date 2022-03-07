@@ -36,7 +36,7 @@ fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) 
 
 fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
     egui_ctx.ctx_mut().set_visuals(egui::Visuals {
-        window_corner_radius: 0.0,
+        window_rounding: 0.0.into(),
         ..Default::default()
     });
 }

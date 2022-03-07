@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{EguiContext, EguiInput, EguiOutput, EguiSettings, EguiShapes, WindowSize};
+use crate::{EguiContext, EguiInput, EguiOutput, EguiRenderOutput, EguiSettings, WindowSize};
 #[cfg(feature = "open_url")]
 use bevy::log;
 use bevy::{
@@ -336,25 +336,36 @@ pub fn begin_frame(
 pub fn process_output(
     mut egui_context: ResMut<EguiContext>,
     mut egui_output: ResMut<HashMap<WindowId, EguiOutput>>,
-    mut egui_shapes: ResMut<HashMap<WindowId, EguiShapes>>,
+    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     winit_windows: Option<Res<WinitWindows>>,
 ) {
     let window_ids: Vec<_> = egui_context.ctx.keys().copied().collect();
     for window_id in window_ids {
-        let (output, shapes) = egui_context.ctx_for_window_mut(window_id).end_frame();
-        egui_shapes.entry(window_id).or_default().shapes = shapes;
-        egui_output.entry(window_id).or_default().output = output.clone();
+        let full_output = egui_context.ctx_for_window_mut(window_id).end_frame();
+        let egui::FullOutput {
+            platform_output,
+            shapes,
+            textures_delta,
+            needs_repaint: _, // TODO: only repaint if needed
+        } = full_output;
+
+        log::info!("Updating egui_render_output for window_id {}", window_id);
+        let egui_render_output = egui_render_output.entry(window_id).or_default();
+        egui_render_output.shapes = shapes;
+        egui_render_output.textures_delta.append(textures_delta);
+
+        egui_output.entry(window_id).or_default().platform_output = platform_output.clone();
 
         #[cfg(feature = "manage_clipboard")]
-        if !output.copied_text.is_empty() {
-            egui_clipboard.set_contents(&output.copied_text);
+        if !platform_output.copied_text.is_empty() {
+            egui_clipboard.set_contents(&platform_output.copied_text);
         }
 
         if let Some(ref winit_windows) = winit_windows {
             if let Some(winit_window) = winit_windows.get_window(window_id) {
                 winit_window.set_cursor_icon(
-                    egui_to_winit_cursor_icon(output.cursor_icon)
+                    egui_to_winit_cursor_icon(platform_output.cursor_icon)
                         .unwrap_or(winit::window::CursorIcon::Default),
                 );
             }
@@ -365,7 +376,7 @@ pub fn process_output(
         if let Some(egui::output::OpenUrl {
             url,
             new_tab: _new_tab,
-        }) = output.open_url
+        }) = platform_output.open_url
         {
             if let Err(err) = webbrowser::open(&url) {
                 log::error!("Failed to open '{}': {:?}", url, err);
