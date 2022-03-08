@@ -1,4 +1,4 @@
-use bevy::{prelude::*, winit::WinitSettings};
+use bevy::{prelude::*, window::PresentMode, winit::WinitSettings};
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 
 struct Images {
@@ -28,6 +28,10 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .insert_resource(WinitSettings::desktop_app())
         .add_plugin(EguiPlugin)
+        .insert_resource(WindowDescriptor {
+            present_mode: PresentMode::Mailbox,
+            ..Default::default()
+        })
         .add_startup_system(configure_visuals)
         .add_system(update_ui_scale_factor)
         .add_system(ui_example)

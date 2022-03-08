@@ -1,10 +1,14 @@
-use bevy::{prelude::*, winit::WinitSettings};
+use bevy::{prelude::*, window::PresentMode, winit::WinitSettings};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(WinitSettings::desktop_app())
+        .insert_resource(WindowDescriptor {
+            present_mode: PresentMode::Mailbox,
+            ..Default::default()
+        })
         .add_plugin(EguiPlugin)
         .add_system(ui_example)
         .run();
