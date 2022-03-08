@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, winit::WinitSettings};
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 
 struct Images {
@@ -26,6 +26,7 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
+        .insert_resource(WinitSettings::desktop_app())
         .add_plugin(EguiPlugin)
         .add_startup_system(configure_visuals)
         .add_system(update_ui_scale_factor)

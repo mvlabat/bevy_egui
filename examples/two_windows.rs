@@ -2,13 +2,14 @@ use bevy::{
     core_pipeline::{draw_3d_graph, node, AlphaMask3d, Opaque3d, Transparent3d},
     prelude::*,
     render::{
-        camera::{ActiveCameras, ExtractedCameraNames},
+        camera::{ActiveCameras, ExtractedCameraNames, RenderTarget},
         render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext, SlotValue},
         render_phase::RenderPhase,
         renderer::RenderContext,
         RenderApp, RenderStage,
     },
-    window::{CreateWindow, WindowId},
+    window::{CreateWindow, PresentMode, WindowId},
+    winit::WinitSettings,
 };
 use bevy_egui::{EguiContext, EguiPlugin};
 use once_cell::sync::Lazy;
@@ -22,6 +23,7 @@ struct Images {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
+        .insert_resource(WinitSettings::desktop_app())
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
         .add_startup_system(load_assets)
@@ -75,7 +77,7 @@ fn create_new_window(
         descriptor: WindowDescriptor {
             width: 800.,
             height: 600.,
-            vsync: false,
+            present_mode: PresentMode::Mailbox,
             title: "Second window".to_string(),
             ..Default::default()
         },
@@ -83,7 +85,7 @@ fn create_new_window(
     // second window camera
     commands.spawn_bundle(PerspectiveCameraBundle {
         camera: Camera {
-            window: *SECOND_WINDOW_ID,
+            target: RenderTarget::Window(*SECOND_WINDOW_ID),
             name: Some(SECONDARY_CAMERA_NAME.into()),
             ..Default::default()
         },

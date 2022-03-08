@@ -1,9 +1,10 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, winit::WinitSettings};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .insert_resource(WinitSettings::desktop_app())
         .add_plugin(EguiPlugin)
         .add_system(ui_example)
         .run();
