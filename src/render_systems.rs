@@ -1,4 +1,5 @@
 use bevy::{
+    asset::HandleId,
     prelude::*,
     render::{
         render_asset::RenderAssets,
@@ -31,20 +32,20 @@ pub(crate) enum EguiTexture {
 
 pub(crate) struct ExtractedEguiTextures {
     pub(crate) egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
-    pub(crate) user_textures: HashMap<u64, Handle<Image>>,
+    pub(crate) user_textures: HashMap<HandleId, u64>,
 }
 
 impl ExtractedEguiTextures {
-    pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, &Handle<Image>)> {
+    pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, HandleId)> + '_ {
         self.egui_textures
             .iter()
             .map(|(&(window, texture_id), handle)| {
-                (EguiTexture::Managed(window, texture_id), handle)
+                (EguiTexture::Managed(window, texture_id), handle.id)
             })
             .chain(
                 self.user_textures
                     .iter()
-                    .map(|(&id, handle)| (EguiTexture::User(id), handle)),
+                    .map(|(handle, id)| (EguiTexture::User(*id), *handle)),
             )
     }
 }
@@ -72,7 +73,9 @@ pub(crate) fn extract_egui_textures(
         egui_textures: egui_managed_textures
             .0
             .iter()
-            .map(|(&window_id, managed_texture)| (window_id, managed_texture.handle.clone()))
+            .map(|(&(window_id, texture_id), managed_texture)| {
+                ((window_id, texture_id), managed_texture.handle.clone())
+            })
             .collect(),
         user_textures: egui_context.user_textures.clone(),
     });
@@ -157,8 +160,8 @@ pub(crate) fn queue_bind_groups(
 ) {
     let bind_groups = egui_textures
         .handles()
-        .filter_map(|(texture, handle)| {
-            let gpu_image = gpu_images.get(handle)?;
+        .filter_map(|(texture, handle_id)| {
+            let gpu_image = gpu_images.get(&Handle::weak(handle_id))?;
             let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
                 label: None,
                 layout: &egui_pipeline.texture_bind_group_layout,
