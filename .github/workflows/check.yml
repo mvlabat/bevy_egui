@@ -54,16 +54,13 @@ jobs:
           restore-keys: |
             cache-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-${{ runner.os }}-cargo
-      - name: Simple example
-        uses: actions-rs/cargo@v1
+      - name: Install dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+      - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --example simple --no-default-features --features=${{ matrix.features }} -- -D warnings
-      - name: UI example
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --example ui --no-default-features --features=${{ matrix.features }} -- -D warnings
+          args: --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
 
   clippy_wasm32:
     name: Clippy check (wasm32)
@@ -99,7 +96,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --no-default-features --target=wasm32-unknown-unknown --features=${{ matrix.features }} -- -D warnings
+          args: --no-default-features --target=wasm32-unknown-unknown --all-targets --features=${{ matrix.features }} -- -D warnings
 
   doc:
     name: Check documentation
