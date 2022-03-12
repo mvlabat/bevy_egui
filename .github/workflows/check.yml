@@ -54,11 +54,6 @@ jobs:
           restore-keys: |
             cache-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-${{ runner.os }}-cargo
-      - name: Work around MacOS + Cargo + Github Actions cache bug # Stolen from https://github.com/denoland/deno/commit/265c25754b56c60f72dd2a67cbb4c12696c7b3bb
-        if: runner.os == 'macOS'
-        uses: actions-rs/cargo@v1
-        with:
-          command: clean
       - name: Simple example
         uses: actions-rs/cargo@v1
         with:
