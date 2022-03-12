@@ -62,11 +62,14 @@ use render_systems::EguiTransforms;
 use crate::systems::*;
 use bevy::{
     app::{App, CoreStage, Plugin, StartupStage},
-    asset::Handle,
-    ecs::schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
+    asset::{AssetEvent, Assets, Handle},
+    ecs::{
+        event::EventReader,
+        schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
+        system::ResMut,
+    },
     input::InputSystem,
     log,
-    prelude::{AssetEvent, Assets, Commands, EventReader, ResMut},
     render::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
     utils::HashMap,
     window::WindowId,
@@ -75,7 +78,6 @@ use bevy::{
 use clipboard::{ClipboardContext, ClipboardProvider};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
-use std::collections::hash_map::Entry;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -189,25 +191,28 @@ impl EguiClipboard {
 
 /// Is used for storing Egui shapes. The actual resource is `HashMap<WindowId, EguiShapes>`.
 #[derive(Clone, Default, Debug)]
-pub struct EguiShapes {
+pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
     /// The field gets populated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`] and reset during `EguiNode::update`.
     pub shapes: Vec<egui::epaint::ClippedShape>,
+
+    /// The change in egui textures since last frame.
+    pub textures_delta: egui::TexturesDelta,
 }
 
 /// Is used for storing Egui output. The actual resource is `HashMap<WindowId, EguiOutput>`.
 #[derive(Clone, Default)]
 pub struct EguiOutput {
     /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
-    pub output: egui::Output,
+    pub platform_output: egui::PlatformOutput,
 }
 
 /// A resource for storing `bevy_egui` context.
 #[derive(Clone)]
 pub struct EguiContext {
-    ctx: HashMap<WindowId, egui::CtxRef>,
-    egui_textures: HashMap<u64, Handle<Image>>,
+    ctx: HashMap<WindowId, egui::Context>,
+    user_textures: HashMap<u64, Handle<Image>>,
     mouse_position: Option<(WindowId, egui::Vec2)>,
 }
 
@@ -215,7 +220,7 @@ impl EguiContext {
     fn new() -> Self {
         Self {
             ctx: HashMap::default(),
-            egui_textures: Default::default(),
+            user_textures: Default::default(),
             mouse_position: None,
         }
     }
@@ -226,7 +231,7 @@ impl EguiContext {
     /// The preferable way is to use `ctx_mut` to avoid unpredictable blocking inside UI systems.
     #[cfg(feature = "multi_threaded")]
     #[track_caller]
-    pub fn ctx(&self) -> &egui::CtxRef {
+    pub fn ctx(&self) -> &egui::Context {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
     }
 
@@ -239,7 +244,7 @@ impl EguiContext {
     /// systems.
     #[cfg(feature = "multi_threaded")]
     #[track_caller]
-    pub fn ctx_for_window(&self, window: WindowId) -> &egui::CtxRef {
+    pub fn ctx_for_window(&self, window: WindowId) -> &egui::Context {
         self.ctx
             .get(&window)
             .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
@@ -252,13 +257,13 @@ impl EguiContext {
     /// The preferable way is to use `try_ctx_for_window_mut` to avoid unpredictable blocking inside
     /// UI systems.
     #[cfg(feature = "multi_threaded")]
-    pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::CtxRef> {
+    pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
     }
 
     /// Egui context of the primary window.
     #[track_caller]
-    pub fn ctx_mut(&mut self) -> &egui::CtxRef {
+    pub fn ctx_mut(&mut self) -> &egui::Context {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
     }
 
@@ -266,7 +271,7 @@ impl EguiContext {
     /// If you want to display UI on a non-primary window, make sure to set up the render graph by
     /// calling [`setup_pipeline`].
     #[track_caller]
-    pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::CtxRef {
+    pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
         self.ctx
             .get(&window)
             .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
@@ -274,7 +279,7 @@ impl EguiContext {
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
     /// graph by calling [`setup_pipeline`].
-    pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::CtxRef> {
+    pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
     }
 
@@ -287,7 +292,7 @@ impl EguiContext {
     pub fn ctx_for_windows_mut<const N: usize>(
         &mut self,
         ids: [WindowId; N],
-    ) -> [&egui::CtxRef; N] {
+    ) -> [&egui::Context; N] {
         let mut unique_ids = std::collections::HashSet::new();
         assert!(
             ids.iter().all(move |id| unique_ids.insert(id)),
@@ -306,7 +311,7 @@ impl EguiContext {
     pub fn try_ctx_for_windows_mut<const N: usize>(
         &mut self,
         ids: [WindowId; N],
-    ) -> [Option<&egui::CtxRef>; N] {
+    ) -> [Option<&egui::Context>; N] {
         let mut unique_ids = std::collections::HashSet::new();
         assert!(
             ids.iter().all(move |id| unique_ids.insert(id)),
@@ -325,20 +330,20 @@ impl EguiContext {
     /// handle copies stored anywhere else.
     pub fn set_egui_texture(&mut self, id: u64, texture: Handle<Image>) {
         log::debug!("Set egui texture: {:?}", texture);
-        self.egui_textures.insert(id, texture);
+        self.user_textures.insert(id, texture);
     }
 
     /// Removes a texture handle associated with the id.
     pub fn remove_egui_texture(&mut self, id: u64) {
-        let texture_handle = self.egui_textures.remove(&id);
+        let texture_handle = self.user_textures.remove(&id);
         log::debug!("Remove egui texture: {:?}", texture_handle);
     }
 
     // Is called when we get an event that a texture asset is removed.
     fn remove_texture(&mut self, texture_handle: &Handle<Image>) {
         log::debug!("Removing egui handles: {:?}", texture_handle);
-        self.egui_textures = self
-            .egui_textures
+        self.user_textures = self
+            .user_textures
             .iter()
             .map(|(id, texture)| (*id, texture.clone()))
             .filter(|(_, texture)| texture != texture_handle)
@@ -404,6 +409,17 @@ pub enum EguiSystem {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
+        let world = &mut app.world;
+        world.insert_resource(EguiSettings::default());
+        world.insert_resource(HashMap::<WindowId, EguiInput>::default());
+        world.insert_resource(HashMap::<WindowId, EguiOutput>::default());
+        world.insert_resource(HashMap::<WindowId, WindowSize>::default());
+        world.insert_resource(HashMap::<WindowId, EguiRenderOutput>::default());
+        world.insert_resource(EguiManagedTextures::default());
+        #[cfg(feature = "manage_clipboard")]
+        world.insert_resource(EguiClipboard::default());
+        world.insert_resource(EguiContext::new());
+
         app.add_startup_system_to_stage(
             StartupStage::PreStartup,
             init_contexts_on_startup.label(EguiStartupSystem::InitContexts),
@@ -425,18 +441,11 @@ impl Plugin for EguiPlugin {
             CoreStage::PostUpdate,
             process_output.label(EguiSystem::ProcessOutput),
         );
-        app.add_system_to_stage(CoreStage::PostUpdate, update_egui_textures);
-
-        let world = &mut app.world;
-        world.get_resource_or_insert_with(EguiSettings::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, EguiInput>::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, EguiOutput>::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, WindowSize>::default);
-        world.get_resource_or_insert_with(HashMap::<WindowId, EguiShapes>::default);
-        world.get_resource_or_insert_with(EguiFontTextures::default);
-        #[cfg(feature = "manage_clipboard")]
-        world.get_resource_or_insert_with(EguiClipboard::default);
-        world.insert_resource(EguiContext::new());
+        app.add_system_to_stage(
+            CoreStage::PostUpdate,
+            update_egui_textures.after(EguiSystem::ProcessOutput),
+        );
+        app.add_system_to_stage(CoreStage::Last, free_egui_textures);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app.init_resource::<egui_node::EguiPipeline>();
@@ -461,30 +470,84 @@ impl Plugin for EguiPlugin {
 }
 
 #[derive(Default)]
-pub(crate) struct EguiFontTextures(HashMap<WindowId, (Handle<Image>, u64)>);
+pub(crate) struct EguiManagedTextures(HashMap<(WindowId, u64), EguiManagedTexture>);
+
+pub(crate) struct EguiManagedTexture {
+    handle: Handle<Image>,
+    /// Stored in full so we can do partial updates (which bevy doesn't support).
+    color_image: egui::ColorImage,
+}
 
 fn update_egui_textures(
-    _commands: Commands,
+    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
+    mut egui_managed_textures: ResMut<EguiManagedTextures>,
+    mut image_assets: ResMut<Assets<Image>>,
+) {
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+        let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
+
+        for (texture_id, image_delta) in set_textures {
+            let color_image = egui_node::as_color_image(&image_delta.image);
+
+            let texture_id = match texture_id {
+                egui::TextureId::Managed(texture_id) => texture_id,
+                egui::TextureId::User(_) => continue,
+            };
+
+            if let Some(pos) = image_delta.pos {
+                // Partial update.
+                if let Some(managed_texture) =
+                    egui_managed_textures.0.get_mut(&(window_id, texture_id))
+                {
+                    // TODO: when bevy supports it, only update the part of the texture that changes.
+                    update_image_rect(&mut managed_texture.color_image, pos, &color_image);
+                    let image = egui_node::color_image_as_bevy_image(&managed_texture.color_image);
+                    managed_texture.handle = image_assets.add(image);
+                } else {
+                    log::warn!("Partial update of a missing texture (id: {:?})", texture_id);
+                }
+            } else {
+                // Full update.
+                let image = egui_node::color_image_as_bevy_image(&color_image);
+                let handle = image_assets.add(image);
+                egui_managed_textures.0.insert(
+                    (window_id, texture_id),
+                    EguiManagedTexture {
+                        handle,
+                        color_image,
+                    },
+                );
+            }
+        }
+    }
+
+    fn update_image_rect(dest: &mut egui::ColorImage, [x, y]: [usize; 2], src: &egui::ColorImage) {
+        for sy in 0..src.height() {
+            for sx in 0..src.width() {
+                dest[(x + sx, y + sy)] = src[(sx, sy)];
+            }
+        }
+    }
+}
+
+fn free_egui_textures(
     mut egui_context: ResMut<EguiContext>,
-    mut egui_font_textures: ResMut<EguiFontTextures>,
+    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
+    mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    egui_context.ctx.iter().for_each(|(&window_id, ctx)| {
-        let texture = ctx.font_image();
-
-        match egui_font_textures.0.entry(window_id) {
-            Entry::Occupied(entry) if entry.get().1 == texture.version => {}
-            Entry::Occupied(mut entry) => {
-                let image = image_assets.add(egui_node::as_wgpu_image(&texture));
-                entry.insert((image, texture.version));
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+        let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
+        for texture_id in free_textures {
+            if let egui::TextureId::Managed(texture_id) = texture_id {
+                let managed_texture = egui_managed_textures.0.remove(&(window_id, texture_id));
+                if let Some(managed_texture) = managed_texture {
+                    image_assets.remove(managed_texture.handle);
+                }
             }
-            Entry::Vacant(entry) => {
-                let image = image_assets.add(egui_node::as_wgpu_image(&texture));
-                entry.insert((image, texture.version));
-            }
-        };
-    });
+        }
+    }
 
     for image_event in image_events.iter() {
         if let AssetEvent::Removed { handle } = image_event {
@@ -514,11 +577,7 @@ impl Default for RenderGraphConfig {
 ///
 /// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
 /// so you'll only need to manually call this if you want to use multiple windows.
-pub fn setup_pipeline(
-    render_graph: &mut RenderGraph,
-    config: RenderGraphConfig,
-    //msaa: &Msaa,
-) {
+pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig) {
     render_graph.add_node(config.egui_pass, EguiNode::new(config.window_id));
 
     render_graph

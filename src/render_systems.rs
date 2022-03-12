@@ -12,29 +12,35 @@ use bevy::{
 use wgpu::{BindGroupDescriptor, BindGroupEntry, BindingResource};
 
 use crate::{
-    egui_node::EguiPipeline, EguiContext, EguiFontTextures, EguiSettings, EguiShapes, WindowSize,
+    egui_node::EguiPipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings,
+    WindowSize,
 };
 
-pub(crate) struct ExtractedShapes(pub HashMap<WindowId, EguiShapes>);
+pub(crate) struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
 pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
 pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
-pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::CtxRef>);
+pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub(crate) enum EguiTexture {
-    Font(WindowId),
+    /// Textures allocated via egui.
+    Managed(WindowId, u64),
+    /// Textures allocated via bevy.
     User(u64),
 }
 
 pub(crate) struct ExtractedEguiTextures {
-    pub(crate) font_textures: HashMap<WindowId, Handle<Image>>,
+    pub(crate) egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
     pub(crate) user_textures: HashMap<u64, Handle<Image>>,
 }
+
 impl ExtractedEguiTextures {
     pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, &Handle<Image>)> {
-        self.font_textures
+        self.egui_textures
             .iter()
-            .map(|(&window, handle)| (EguiTexture::Font(window), handle))
+            .map(|(&(window, texture_id), handle)| {
+                (EguiTexture::Managed(window, texture_id), handle)
+            })
             .chain(
                 self.user_textures
                     .iter()
@@ -45,13 +51,13 @@ impl ExtractedEguiTextures {
 
 pub(crate) fn extract_egui_render_data(
     mut commands: Commands,
-    mut shapes: ResMut<HashMap<WindowId, EguiShapes>>,
+    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
     window_sizes: ResMut<HashMap<WindowId, WindowSize>>,
     egui_settings: Res<EguiSettings>,
     egui_context: Res<EguiContext>,
 ) {
-    let shapes = std::mem::take(&mut *shapes);
-    commands.insert_resource(ExtractedShapes(shapes));
+    let render_output = std::mem::take(&mut *egui_render_output);
+    commands.insert_resource(ExtractedRenderOutput(render_output));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedEguiContext(egui_context.ctx.clone()));
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
@@ -60,16 +66,15 @@ pub(crate) fn extract_egui_render_data(
 pub(crate) fn extract_egui_textures(
     mut commands: Commands,
     egui_context: Res<EguiContext>,
-    egui_font_textures: ResMut<EguiFontTextures>,
-    _image_assets: ResMut<Assets<Image>>,
+    egui_managed_textures: ResMut<EguiManagedTextures>,
 ) {
     commands.insert_resource(ExtractedEguiTextures {
-        font_textures: egui_font_textures
+        egui_textures: egui_managed_textures
             .0
             .iter()
-            .map(|(&window_id, (handle, _))| (window_id, handle.clone()))
+            .map(|(&window_id, managed_texture)| (window_id, managed_texture.handle.clone()))
             .collect(),
-        user_textures: egui_context.egui_textures.clone(),
+        user_textures: egui_context.user_textures.clone(),
     });
 }
 
@@ -77,7 +82,6 @@ pub(crate) fn extract_egui_textures(
 pub(crate) struct EguiTransforms {
     pub buffer: DynamicUniformVec<EguiTransform>,
     pub offsets: HashMap<WindowId, u32>,
-
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
 

@@ -1,6 +1,6 @@
 use bevy::{
-    core::{bytes_of, cast_slice},
-    prelude::{FromWorld, World},
+    core::cast_slice,
+    ecs::world::{FromWorld, World},
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
@@ -22,7 +22,7 @@ use wgpu::{BufferDescriptor, SamplerBindingType, ShaderModuleDescriptor, ShaderS
 
 use crate::render_systems::{
     EguiTexture, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
-    ExtractedEguiSettings, ExtractedShapes, ExtractedWindowSizes,
+    ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
 };
 
 pub struct EguiPipeline {
@@ -95,7 +95,7 @@ impl FromWorld for EguiPipeline {
                     module: &shader_module,
                     entry_point: "vs_main",
                     buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: 32,
+                        array_stride: 20,
                         step_mode: VertexStepMode::Vertex,
                         attributes: &[
                             VertexAttribute {
@@ -109,7 +109,7 @@ impl FromWorld for EguiPipeline {
                                 shader_location: 1,
                             },
                             VertexAttribute {
-                                format: VertexFormat::Float32x4,
+                                format: VertexFormat::Unorm8x4,
                                 offset: 16,
                                 shader_location: 2,
                             },
@@ -189,7 +189,7 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut shapes = world.get_resource_mut::<ExtractedShapes>().unwrap();
+        let mut shapes = world.get_resource_mut::<ExtractedRenderOutput>().unwrap();
         let shapes = match shapes.0.get_mut(&self.window_id) {
             Some(shapes) => shapes,
             None => return,
@@ -231,14 +231,8 @@ impl Node for EguiNode {
                 continue;
             }
 
-            for vertex in &triangles.vertices {
-                self.vertex_data
-                    .extend_from_slice(bytes_of(&[vertex.pos.x, vertex.pos.y]));
-                self.vertex_data
-                    .extend_from_slice(bytes_of(&[vertex.uv.x, vertex.uv.y]));
-                self.vertex_data
-                    .extend_from_slice(bytes_of(&vertex.color.to_array().map(|c| c as f32)));
-            }
+            self.vertex_data
+                .extend_from_slice(cast_slice(triangles.vertices.as_slice()));
             let indices_with_offset = triangles
                 .indices
                 .iter()
@@ -249,7 +243,7 @@ impl Node for EguiNode {
             index_offset += triangles.vertices.len() as u32;
 
             let texture_handle = match triangles.texture_id {
-                egui::TextureId::Egui => EguiTexture::Font(self.window_id),
+                egui::TextureId::Managed(id) => EguiTexture::Managed(self.window_id, id),
                 egui::TextureId::User(id) => EguiTexture::User(id),
             };
 
@@ -395,20 +389,32 @@ impl Node for EguiNode {
     }
 }
 
-pub fn as_wgpu_image(egui_texture: &egui::FontImage) -> Image {
-    let mut pixels = Vec::with_capacity(4 * egui_texture.pixels.len());
-    for &alpha in egui_texture.pixels.iter() {
-        pixels.extend(
-            egui::color::Color32::from_white_alpha(alpha)
-                .to_array()
-                .iter(),
-        );
+pub fn as_color_image(image: &egui::ImageData) -> egui::ColorImage {
+    match image {
+        egui::ImageData::Color(image) => image.clone(),
+        egui::ImageData::Alpha(image) => alpha_image_as_color_image(image),
     }
+}
+
+pub fn alpha_image_as_color_image(image: &egui::AlphaImage) -> egui::ColorImage {
+    let gamma = 1.0;
+    egui::ColorImage {
+        size: image.size,
+        pixels: image.srgba_pixels(gamma).collect(),
+    }
+}
+
+pub fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image {
+    let pixels = egui_image
+        .pixels
+        .iter()
+        .flat_map(|color| color.to_array())
+        .collect();
 
     Image::new(
         Extent3d {
-            width: egui_texture.width as u32,
-            height: egui_texture.height as u32,
+            width: egui_image.width() as u32,
+            height: egui_image.height() as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
