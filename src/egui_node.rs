@@ -1,6 +1,6 @@
 use bevy::{
     core::cast_slice,
-    prelude::{FromWorld, World},
+    ecs::world::{FromWorld, World},
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{

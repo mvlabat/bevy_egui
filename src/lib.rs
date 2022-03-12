@@ -62,11 +62,14 @@ use render_systems::EguiTransforms;
 use crate::systems::*;
 use bevy::{
     app::{App, CoreStage, Plugin, StartupStage},
-    asset::Handle,
-    ecs::schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
+    asset::{AssetEvent, Assets, Handle},
+    ecs::{
+        event::EventReader,
+        schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
+        system::ResMut,
+    },
     input::InputSystem,
     log,
-    prelude::{AssetEvent, Assets, Commands, EventReader, ResMut},
     render::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
     utils::HashMap,
     window::WindowId,
@@ -471,12 +474,11 @@ pub(crate) struct EguiManagedTextures(HashMap<(WindowId, u64), EguiManagedTextur
 
 pub(crate) struct EguiManagedTexture {
     handle: Handle<Image>,
-    /// stored in full so we can do partial updates (which bevy doesn't support).
+    /// Stored in full so we can do partial updates (which bevy doesn't support).
     color_image: egui::ColorImage,
 }
 
 fn update_egui_textures(
-    _commands: Commands,
     mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
@@ -484,33 +486,37 @@ fn update_egui_textures(
     for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
-        for (tex_id, image_delta) in set_textures {
+        for (texture_id, image_delta) in set_textures {
             let color_image = egui_node::as_color_image(&image_delta.image);
 
-            if let egui::TextureId::Managed(tex_id) = tex_id {
-                if let Some(pos) = image_delta.pos {
-                    // partial update
-                    if let Some(managed_tex) = egui_managed_textures.0.get_mut(&(window_id, tex_id))
-                    {
-                        // TODO: when bevy supports it, only update the part of the texture that changes.
-                        update_image_rect(&mut managed_tex.color_image, pos, &color_image);
-                        let image = egui_node::color_image_as_bevy_image(&managed_tex.color_image);
-                        managed_tex.handle = image_assets.add(image);
-                    } else {
-                        log::warn!("Partial update of missing texture");
-                    }
+            let texture_id = match texture_id {
+                egui::TextureId::Managed(texture_id) => texture_id,
+                egui::TextureId::User(_) => continue,
+            };
+
+            if let Some(pos) = image_delta.pos {
+                // Partial update.
+                if let Some(managed_texture) =
+                    egui_managed_textures.0.get_mut(&(window_id, texture_id))
+                {
+                    // TODO: when bevy supports it, only update the part of the texture that changes.
+                    update_image_rect(&mut managed_texture.color_image, pos, &color_image);
+                    let image = egui_node::color_image_as_bevy_image(&managed_texture.color_image);
+                    managed_texture.handle = image_assets.add(image);
                 } else {
-                    // full update
-                    let image = egui_node::color_image_as_bevy_image(&color_image);
-                    let handle = image_assets.add(image);
-                    egui_managed_textures.0.insert(
-                        (window_id, tex_id),
-                        EguiManagedTexture {
-                            handle,
-                            color_image,
-                        },
-                    );
+                    log::warn!("Partial update of a missing texture (id: {:?})", texture_id);
                 }
+            } else {
+                // Full update.
+                let image = egui_node::color_image_as_bevy_image(&color_image);
+                let handle = image_assets.add(image);
+                egui_managed_textures.0.insert(
+                    (window_id, texture_id),
+                    EguiManagedTexture {
+                        handle,
+                        color_image,
+                    },
+                );
             }
         }
     }
@@ -525,7 +531,6 @@ fn update_egui_textures(
 }
 
 fn free_egui_textures(
-    _commands: Commands,
     mut egui_context: ResMut<EguiContext>,
     mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
@@ -534,11 +539,11 @@ fn free_egui_textures(
 ) {
     for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
-        for tex_id in free_textures {
-            if let egui::TextureId::Managed(tex_id) = tex_id {
-                let managed_tex = egui_managed_textures.0.remove(&(window_id, tex_id));
-                if let Some(managed_tex) = managed_tex {
-                    image_assets.remove(managed_tex.handle);
+        for texture_id in free_textures {
+            if let egui::TextureId::Managed(texture_id) = texture_id {
+                let managed_texture = egui_managed_textures.0.remove(&(window_id, texture_id));
+                if let Some(managed_texture) = managed_texture {
+                    image_assets.remove(managed_texture.handle);
                 }
             }
         }
@@ -572,11 +577,7 @@ impl Default for RenderGraphConfig {
 ///
 /// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
 /// so you'll only need to manually call this if you want to use multiple windows.
-pub fn setup_pipeline(
-    render_graph: &mut RenderGraph,
-    config: RenderGraphConfig,
-    //msaa: &Msaa,
-) {
+pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig) {
     render_graph.add_node(config.egui_pass, EguiNode::new(config.window_id));
 
     render_graph

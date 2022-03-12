@@ -27,7 +27,7 @@ struct UiState {
     value: f32,
     painting: Painting,
     inverted: bool,
-    egui_tex_handle: Option<egui::TextureHandle>,
+    egui_texture_handle: Option<egui::TextureHandle>,
 }
 
 fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
@@ -67,8 +67,8 @@ fn ui_example(
     mut ui_state: ResMut<UiState>,
     assets: Res<AssetServer>,
 ) {
-    let egui_tex_handle = ui_state
-        .egui_tex_handle
+    let egui_texture_handle = ui_state
+        .egui_texture_handle
         .get_or_insert_with(|| {
             egui_ctx
                 .ctx_mut()
@@ -91,8 +91,8 @@ fn ui_example(
             });
 
             ui.add(egui::widgets::Image::new(
-                egui_tex_handle.id(),
-                egui_tex_handle.size_vec2(),
+                egui_texture_handle.id(),
+                egui_texture_handle.size_vec2(),
             ));
 
             ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));

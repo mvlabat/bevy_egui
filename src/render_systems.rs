@@ -38,7 +38,9 @@ impl ExtractedEguiTextures {
     pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, &Handle<Image>)> {
         self.egui_textures
             .iter()
-            .map(|(&(window, tex_id), handle)| (EguiTexture::Managed(window, tex_id), handle))
+            .map(|(&(window, texture_id), handle)| {
+                (EguiTexture::Managed(window, texture_id), handle)
+            })
             .chain(
                 self.user_textures
                     .iter()
@@ -65,13 +67,12 @@ pub(crate) fn extract_egui_textures(
     mut commands: Commands,
     egui_context: Res<EguiContext>,
     egui_managed_textures: ResMut<EguiManagedTextures>,
-    _image_assets: ResMut<Assets<Image>>,
 ) {
     commands.insert_resource(ExtractedEguiTextures {
         egui_textures: egui_managed_textures
             .0
             .iter()
-            .map(|(&window_id, managed_tex)| (window_id, managed_tex.handle.clone()))
+            .map(|(&window_id, managed_texture)| (window_id, managed_texture.handle.clone()))
             .collect(),
         user_textures: egui_context.user_textures.clone(),
     });
@@ -81,7 +82,6 @@ pub(crate) fn extract_egui_textures(
 pub(crate) struct EguiTransforms {
     pub buffer: DynamicUniformVec<EguiTransform>,
     pub offsets: HashMap<WindowId, u32>,
-
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
 
