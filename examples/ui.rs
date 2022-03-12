@@ -73,7 +73,7 @@ fn ui_example(
     // You are not required to store Egui texture ids in systems. We store this one here just to
     // demonstrate that rendering by using a texture id of a removed image is handled without
     // making bevy_egui panic.
-    mut rendered_texture_id: Local<u64>,
+    mut rendered_texture_id: Local<egui::TextureId>,
     mut is_initialized: Local<bool>,
     images: Res<Images>,
 ) {
@@ -123,7 +123,7 @@ fn ui_example(
             });
 
             ui.add(egui::widgets::Image::new(
-                egui::TextureId::User(*rendered_texture_id),
+                *rendered_texture_id,
                 [256.0, 256.0],
             ));
 

@@ -330,13 +330,14 @@ impl EguiContext {
     ///
     /// You'll want to pass a strong handle if a texture is used only in Egui and there's no
     /// handle copies stored anywhere else.
-    pub fn add_image(&mut self, image: Handle<Image>) -> u64 {
-        *self.user_textures.entry(image.id).or_insert_with(|| {
+    pub fn add_image(&mut self, image: Handle<Image>) -> egui::TextureId {
+        let id = *self.user_textures.entry(image.id).or_insert_with(|| {
             let id = self.last_texture_id;
             log::debug!("Add a new image (id: {}, handle: {:?})", id, image);
             self.last_texture_id += 1;
             id
-        })
+        });
+        egui::TextureId::User(id)
     }
 
     /// Removes the image handle and an Egui texture id associated with it.
