@@ -341,10 +341,10 @@ impl EguiContext {
     }
 
     /// Removes the image handle and an Egui texture id associated with it.
-    pub fn remove_image(&mut self, image: &Handle<Image>) -> Option<u64> {
+    pub fn remove_image(&mut self, image: &Handle<Image>) -> Option<egui::TextureId> {
         let id = self.user_textures.remove(&image.id);
         log::debug!("Remove image (id: {:?}, handle: {:?})", id, image);
-        id
+        id.map(egui::TextureId::User)
     }
 }
 
