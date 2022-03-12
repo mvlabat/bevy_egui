@@ -77,6 +77,8 @@ fn ui_example(
     // making bevy_egui panic.
     mut rendered_texture_id: Local<egui::TextureId>,
     mut is_initialized: Local<bool>,
+    // If you need to access the ids from multiple systems, you can also initialize the `Images`
+    // resource while building the app and use `Res<Images>` instead.
     images: Local<Images>,
 ) {
     let egui_texture_handle = ui_state
