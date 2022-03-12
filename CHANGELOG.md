@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 12-Mar-2022
+
+### Added
+
+- Upgrade Egui to 0.17 ([#78](https://github.com/mvlabat/bevy_egui/pull/78) by @emilk).
+- Add side panel example ([#73](https://github.com/mvlabat/bevy_egui/pull/73)).
+
+### Changed
+
+- User texture ids are now tracked internally ([#71](https://github.com/mvlabat/bevy_egui/pull/71)).
+  - Instead of using `set_egui_texture`, you can now use `add_image` which returns a texture id itself
+  (see the updated [ui](https://github.com/mvlabat/bevy_egui/blob/c611671603a70e5956ba06f77bb94851c7ced659/examples/ui.rs) example).
+- Switch to `arboard` for managing clipboard ([#72](https://github.com/mvlabat/bevy_egui/pull/72)).
+
 ## [0.11.1] - 4-Feb-2022
 
 ### Added
