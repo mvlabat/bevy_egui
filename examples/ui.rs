@@ -6,6 +6,16 @@ struct Images {
     bevy_icon_inverted: Handle<Image>,
 }
 
+impl FromWorld for Images {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.get_resource_mut::<AssetServer>().unwrap();
+        Self {
+            bevy_icon: asset_server.load("icon.png"),
+            bevy_icon_inverted: asset_server.load("icon_inverted.png"),
+        }
+    }
+}
+
 /// This example demonstrates the following functionality and use-cases of bevy_egui:
 /// - rendering loaded assets;
 /// - toggling hidpi scaling (by pressing '/' button);
@@ -17,7 +27,6 @@ fn main() {
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_startup_system(load_assets)
         .add_startup_system(configure_visuals)
         .add_system(update_ui_scale_factor)
         .add_system(ui_example)
@@ -31,13 +40,6 @@ struct UiState {
     painting: Painting,
     inverted: bool,
     egui_texture_handle: Option<egui::TextureHandle>,
-}
-
-fn load_assets(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.insert_resource(Images {
-        bevy_icon: assets.load("icon.png"),
-        bevy_icon_inverted: assets.load("icon_inverted.png"),
-    });
 }
 
 fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
@@ -75,7 +77,7 @@ fn ui_example(
     // making bevy_egui panic.
     mut rendered_texture_id: Local<egui::TextureId>,
     mut is_initialized: Local<bool>,
-    images: Res<Images>,
+    images: Local<Images>,
 ) {
     let egui_texture_handle = ui_state
         .egui_texture_handle
