@@ -138,6 +138,7 @@ impl EguiClipboard {
     }
 
     /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
+    #[must_use]
     pub fn get_contents(&self) -> Option<String> {
         self.get_contents_impl()
     }
@@ -232,6 +233,7 @@ impl EguiContext {
     /// This function is only available when the `multi_threaded` feature is enabled.
     /// The preferable way is to use `ctx_mut` to avoid unpredictable blocking inside UI systems.
     #[cfg(feature = "multi_threaded")]
+    #[must_use]
     #[track_caller]
     pub fn ctx(&self) -> &egui::Context {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
@@ -245,6 +247,7 @@ impl EguiContext {
     /// The preferable way is to use `ctx_for_window_mut` to avoid unpredictable blocking inside UI
     /// systems.
     #[cfg(feature = "multi_threaded")]
+    #[must_use]
     #[track_caller]
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::Context {
         self.ctx
@@ -259,11 +262,13 @@ impl EguiContext {
     /// The preferable way is to use `try_ctx_for_window_mut` to avoid unpredictable blocking inside
     /// UI systems.
     #[cfg(feature = "multi_threaded")]
+    #[must_use]
     pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
     }
 
     /// Egui context of the primary window.
+    #[must_use]
     #[track_caller]
     pub fn ctx_mut(&mut self) -> &egui::Context {
         self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
@@ -272,6 +277,7 @@ impl EguiContext {
     /// Egui context for a specific window.
     /// If you want to display UI on a non-primary window, make sure to set up the render graph by
     /// calling [`setup_pipeline`].
+    #[must_use]
     #[track_caller]
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
         self.ctx
@@ -281,6 +287,7 @@ impl EguiContext {
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
     /// graph by calling [`setup_pipeline`].
+    #[must_use]
     pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
     }
@@ -291,6 +298,8 @@ impl EguiContext {
     /// # Panics
     ///
     /// Panics if the passed window ids aren't unique.
+    #[must_use]
+    #[track_caller]
     pub fn ctx_for_windows_mut<const N: usize>(
         &mut self,
         ids: [WindowId; N],
@@ -310,6 +319,7 @@ impl EguiContext {
     /// # Panics
     ///
     /// Panics if the passed window ids aren't unique.
+    #[must_use]
     pub fn try_ctx_for_windows_mut<const N: usize>(
         &mut self,
         ids: [WindowId; N],
@@ -347,7 +357,7 @@ impl EguiContext {
         id
     }
 
-    /// Returns associated Egui texture id.
+    /// Returns an associated Egui texture id.
     #[must_use]
     pub fn image_id(&self, image: &Handle<Image>) -> Option<egui::TextureId> {
         self.user_textures
@@ -637,7 +647,7 @@ mod tests {
         let mut egui_context = EguiContext::new();
         let primary_window = WindowId::primary();
         egui_context.ctx.insert(primary_window, Default::default());
-        egui_context.ctx_for_windows_mut([primary_window, primary_window]);
+        let _ = egui_context.ctx_for_windows_mut([primary_window, primary_window]);
     }
 
     #[test]
@@ -662,6 +672,6 @@ mod tests {
         let mut egui_context = EguiContext::new();
         let primary_window = WindowId::primary();
         egui_context.ctx.insert(primary_window, Default::default());
-        egui_context.try_ctx_for_windows_mut([primary_window, primary_window]);
+        let _ = egui_context.try_ctx_for_windows_mut([primary_window, primary_window]);
     }
 }
