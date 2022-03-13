@@ -346,6 +346,14 @@ impl EguiContext {
         log::debug!("Remove image (id: {:?}, handle: {:?})", id, image);
         id
     }
+
+    /// Returns associated Egui texture id.
+    #[must_use]
+    pub fn image_id(&self, image: &Handle<Image>) -> Option<egui::TextureId> {
+        self.user_textures
+            .get(&image.id)
+            .map(|&id| egui::TextureId::User(id))
+    }
 }
 
 #[doc(hidden)]
