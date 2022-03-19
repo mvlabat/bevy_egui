@@ -318,8 +318,7 @@ impl Node for EguiNode {
         let swap_chain_texture = extracted_window
             .swap_chain_texture
             .as_ref()
-            .unwrap()
-            .clone();
+            .unwrap();
 
         let mut render_pass =
             render_context
