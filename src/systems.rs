@@ -325,14 +325,9 @@ pub fn begin_frame(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<HashMap<WindowId, EguiInput>>,
 ) {
-    let ids: Vec<_> = egui_context.ctx.keys().copied().collect();
-    for id in ids {
-        let raw_input = egui_input.get_mut(&id).unwrap().raw_input.take();
-        egui_context
-            .ctx
-            .get_mut(&id)
-            .unwrap()
-            .begin_frame(raw_input);
+    for (id, ctx) in egui_context.ctx.iter_mut() {
+        let raw_input = egui_input.get_mut(id).unwrap().raw_input.take();
+        ctx.begin_frame(raw_input);
     }
 }
 
@@ -343,9 +338,8 @@ pub fn process_output(
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     winit_windows: Option<Res<WinitWindows>>,
 ) {
-    let window_ids: Vec<_> = egui_context.ctx.keys().copied().collect();
-    for window_id in window_ids {
-        let full_output = egui_context.ctx_for_window_mut(window_id).end_frame();
+    for (window_id, ctx) in egui_context.ctx.iter_mut() {
+        let full_output = ctx.end_frame();
         let egui::FullOutput {
             platform_output,
             shapes,
@@ -353,11 +347,11 @@ pub fn process_output(
             needs_repaint: _, // TODO: only repaint if needed
         } = full_output;
 
-        let egui_render_output = egui_render_output.entry(window_id).or_default();
+        let egui_render_output = egui_render_output.entry(*window_id).or_default();
         egui_render_output.shapes = shapes;
         egui_render_output.textures_delta.append(textures_delta);
 
-        egui_output.entry(window_id).or_default().platform_output = platform_output.clone();
+        egui_output.entry(*window_id).or_default().platform_output = platform_output.clone();
 
         #[cfg(feature = "manage_clipboard")]
         if !platform_output.copied_text.is_empty() {
@@ -365,7 +359,7 @@ pub fn process_output(
         }
 
         if let Some(ref winit_windows) = winit_windows {
-            if let Some(winit_window) = winit_windows.get_window(window_id) {
+            if let Some(winit_window) = winit_windows.get_window(*window_id) {
                 winit_window.set_cursor_icon(
                     egui_to_winit_cursor_icon(platform_output.cursor_icon)
                         .unwrap_or(winit::window::CursorIcon::Default),
