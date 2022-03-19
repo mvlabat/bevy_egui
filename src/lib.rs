@@ -492,7 +492,7 @@ fn update_egui_textures(
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (texture_id, image_delta) in set_textures {
-            let color_image = egui_node::as_color_image(&image_delta.image);
+            let color_image = egui_node::as_color_image(image_delta.image);
 
             let texture_id = match texture_id {
                 egui::TextureId::Managed(texture_id) => texture_id,

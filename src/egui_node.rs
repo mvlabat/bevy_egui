@@ -389,10 +389,10 @@ impl Node for EguiNode {
     }
 }
 
-pub fn as_color_image(image: &egui::ImageData) -> egui::ColorImage {
+pub fn as_color_image(image: egui::ImageData) -> egui::ColorImage {
     match image {
-        egui::ImageData::Color(image) => image.clone(),
-        egui::ImageData::Alpha(image) => alpha_image_as_color_image(image),
+        egui::ImageData::Color(image) => image,
+        egui::ImageData::Alpha(image) => alpha_image_as_color_image(&image),
     }
 }
 
