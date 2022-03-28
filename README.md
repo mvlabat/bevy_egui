@@ -2,7 +2,7 @@
 
 # Please support the Ukrainian army!
 
-https://savelife.in.ua/en/donate/
+https://www.comebackalive.in.ua/donate
 
 [![Crates.io](https://img.shields.io/crates/v/bevy_egui.svg)](https://crates.io/crates/bevy_egui)
 [![Documentation](https://docs.rs/bevy_egui/badge.svg)](https://docs.rs/bevy_egui)
