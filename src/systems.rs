@@ -4,7 +4,6 @@ use crate::{EguiContext, EguiInput, EguiOutput, EguiRenderOutput, EguiSettings, 
 #[cfg(feature = "open_url")]
 use bevy::log;
 use bevy::{
-    app::EventReader,
     core::Time,
     ecs::system::{Local, Res, ResMut, SystemParam},
     input::{
@@ -12,6 +11,7 @@ use bevy::{
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         ElementState, Input,
     },
+    prelude::{EventReader, NonSend},
     utils::HashMap,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, WindowCreated, WindowFocused,
@@ -341,7 +341,7 @@ pub fn process_output(
     mut egui_output: ResMut<HashMap<WindowId, EguiOutput>>,
     mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
-    winit_windows: Option<Res<WinitWindows>>,
+    winit_windows: Option<NonSend<WinitWindows>>,
 ) {
     let window_ids: Vec<_> = egui_context.ctx.keys().copied().collect();
     for window_id in window_ids {
