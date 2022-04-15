@@ -11,7 +11,7 @@ use bevy::{
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         ElementState, Input,
     },
-    prelude::{EventReader, EventWriter, NonSend},
+    prelude::{EventReader, NonSend},
     utils::HashMap,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
