@@ -1,7 +1,8 @@
 use bevy::{
     prelude::*,
     render::{camera::RenderTarget, render_graph::RenderGraph, RenderApp},
-    window::{CreateWindow, WindowId},
+    window::{CreateWindow, PresentMode, WindowId},
+    winit::WinitSettings,
 };
 use bevy_egui::{EguiContext, EguiPlugin};
 use once_cell::sync::Lazy;

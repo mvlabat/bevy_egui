@@ -5,7 +5,10 @@ use crate::{EguiContext, EguiInput, EguiOutput, EguiRenderOutput, EguiSettings, 
 use bevy::log;
 use bevy::{
     core::Time,
-    ecs::system::{Local, Res, ResMut, SystemParam},
+    ecs::{
+        event::EventWriter,
+        system::{Local, Res, ResMut, SystemParam},
+    },
     input::{
         keyboard::{KeyCode, KeyboardInput},
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
