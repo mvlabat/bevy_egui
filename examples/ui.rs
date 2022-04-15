@@ -24,6 +24,7 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .insert_resource(Msaa { samples: 4 })
+        .insert_resource(WinitSettings::desktop_app())
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .insert_resource(WinitSettings::desktop_app())

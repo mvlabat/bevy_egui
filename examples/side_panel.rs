@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, winit::WinitSettings};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 #[derive(Default)]
@@ -17,6 +17,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
+        .insert_resource(WinitSettings::desktop_app())
         .init_resource::<OccupiedScreenSpace>()
         .add_startup_system(setup_system)
         .add_system(ui_example_system)
