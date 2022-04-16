@@ -1,14 +1,8 @@
 use bevy::{
-    core_pipeline::{draw_3d_graph, node, AlphaMask3d, Opaque3d, Transparent3d},
     prelude::*,
-    render::{
-        camera::{ActiveCameras, ExtractedCameraNames},
-        render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext, SlotValue},
-        render_phase::RenderPhase,
-        renderer::RenderContext,
-        RenderApp, RenderStage,
-    },
-    window::{CreateWindow, WindowId},
+    render::{camera::RenderTarget, render_graph::RenderGraph, RenderApp},
+    window::{CreateWindow, PresentMode, WindowId},
+    winit::WinitSettings,
 };
 use bevy_egui::{EguiContext, EguiPlugin};
 use once_cell::sync::Lazy;
@@ -22,6 +16,12 @@ struct Images {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
+        // Optimal power saving and present mode settings for desktop apps.
+        .insert_resource(WinitSettings::desktop_app())
+        .insert_resource(WindowDescriptor {
+            present_mode: PresentMode::Mailbox,
+            ..Default::default()
+        })
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
         .add_startup_system(load_assets)
@@ -30,12 +30,7 @@ fn main() {
         .add_system(ui_second_window);
 
     let render_app = app.sub_app_mut(RenderApp);
-    render_app.add_system_to_stage(RenderStage::Extract, extract_secondary_camera_phases);
     let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-    graph.add_node(SECONDARY_PASS_DRIVER, SecondaryCameraDriver);
-    graph
-        .add_node_edge(node::MAIN_PASS_DEPENDENCIES, SECONDARY_PASS_DRIVER)
-        .unwrap();
 
     bevy_egui::setup_pipeline(
         &mut graph,
@@ -48,34 +43,16 @@ fn main() {
     app.run();
 }
 
-fn extract_secondary_camera_phases(mut commands: Commands, active_cameras: Res<ActiveCameras>) {
-    if let Some(secondary) = active_cameras.get(SECONDARY_CAMERA_NAME) {
-        if let Some(entity) = secondary.entity {
-            commands.get_or_spawn(entity).insert_bundle((
-                RenderPhase::<Opaque3d>::default(),
-                RenderPhase::<AlphaMask3d>::default(),
-                RenderPhase::<Transparent3d>::default(),
-            ));
-        }
-    }
-}
-
-const SECONDARY_CAMERA_NAME: &str = "Secondary";
-const SECONDARY_PASS_DRIVER: &str = "secondary_pass_driver";
 const SECONDARY_EGUI_PASS: &str = "secondary_egui_pass";
 
-fn create_new_window(
-    mut create_window_events: EventWriter<CreateWindow>,
-    mut commands: Commands,
-    mut active_cameras: ResMut<ActiveCameras>,
-) {
+fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut commands: Commands) {
     // sends out a "CreateWindow" event, which will be received by the windowing backend
     create_window_events.send(CreateWindow {
         id: *SECOND_WINDOW_ID,
         descriptor: WindowDescriptor {
             width: 800.,
             height: 600.,
-            vsync: false,
+            present_mode: PresentMode::Mailbox,
             title: "Second window".to_string(),
             ..Default::default()
         },
@@ -83,40 +60,18 @@ fn create_new_window(
     // second window camera
     commands.spawn_bundle(PerspectiveCameraBundle {
         camera: Camera {
-            window: *SECOND_WINDOW_ID,
-            name: Some(SECONDARY_CAMERA_NAME.into()),
+            target: RenderTarget::Window(*SECOND_WINDOW_ID),
             ..Default::default()
         },
         transform: Transform::from_xyz(6.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..Default::default()
     });
-
-    active_cameras.add(SECONDARY_CAMERA_NAME);
 }
 
 fn load_assets(mut commands: Commands, assets: Res<AssetServer>) {
     commands.insert_resource(Images {
         bevy_icon: assets.load("icon.png"),
     });
-}
-
-struct SecondaryCameraDriver;
-impl Node for SecondaryCameraDriver {
-    fn run(
-        &self,
-        graph: &mut RenderGraphContext,
-        _render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let extracted_cameras = world.get_resource::<ExtractedCameraNames>().unwrap();
-        if let Some(camera_3d) = extracted_cameras.entities.get(SECONDARY_CAMERA_NAME) {
-            graph.run_sub_graph(
-                crate::draw_3d_graph::NAME,
-                vec![SlotValue::Entity(*camera_3d)],
-            )?;
-        }
-        Ok(())
-    }
 }
 
 #[derive(Default)]
