@@ -315,10 +315,7 @@ impl Node for EguiNode {
 
         let extracted_window =
             &world.get_resource::<ExtractedWindows>().unwrap().windows[&self.window_id];
-        let swap_chain_texture = extracted_window
-            .swap_chain_texture
-            .as_ref()
-            .unwrap();
+        let swap_chain_texture = extracted_window.swap_chain_texture.as_ref().unwrap();
 
         let mut render_pass =
             render_context
@@ -326,7 +323,7 @@ impl Node for EguiNode {
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("egui render pass"),
                     color_attachments: &[RenderPassColorAttachment {
-                        view: &swap_chain_texture,
+                        view: swap_chain_texture,
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,
