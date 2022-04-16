@@ -1,15 +1,12 @@
-use bevy::{prelude::*, window::PresentMode, winit::WinitSettings};
+use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(WinitSettings::desktop_app())
-        .insert_resource(WindowDescriptor {
-            present_mode: PresentMode::Mailbox,
-            ..Default::default()
-        })
         .add_plugin(EguiPlugin)
+        // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
+        // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
         .add_system(ui_example)
         .run();
 }

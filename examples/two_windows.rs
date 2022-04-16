@@ -16,7 +16,12 @@ struct Images {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
+        // Optimal power saving and present mode settings for desktop apps.
         .insert_resource(WinitSettings::desktop_app())
+        .insert_resource(WindowDescriptor {
+            present_mode: PresentMode::Mailbox,
+            ..Default::default()
+        })
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
         .add_startup_system(load_assets)

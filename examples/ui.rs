@@ -24,15 +24,15 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .insert_resource(Msaa { samples: 4 })
+        // Optimal power saving and present mode settings for desktop apps.
         .insert_resource(WinitSettings::desktop_app())
-        .init_resource::<UiState>()
-        .add_plugins(DefaultPlugins)
-        .insert_resource(WinitSettings::desktop_app())
-        .add_plugin(EguiPlugin)
         .insert_resource(WindowDescriptor {
             present_mode: PresentMode::Mailbox,
             ..Default::default()
         })
+        .init_resource::<UiState>()
+        .add_plugins(DefaultPlugins)
+        .add_plugin(EguiPlugin)
         .add_startup_system(configure_visuals)
         .add_system(update_ui_scale_factor)
         .add_system(ui_example)
