@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 16-Apr-2022
+
+### Added
+
+- Upgrade Bevy to 0.7 ([#79](https://github.com/mvlabat/bevy_egui/pull/79) by @aevyrie and @forbjok).
+
+### Changed
+
+- Return egui::TextureId on removal ([#81](https://github.com/mvlabat/bevy_egui/pull/81) by @Shatur).
+- Add `must_use` attributes to methods ([#82](https://github.com/mvlabat/bevy_egui/pull/82)).
+
+### Fixed
+
+- Remove unnecessary image clone allocation ([#84](https://github.com/mvlabat/bevy_egui/pull/84) by @frewsxcv).
+- Avoid allocations by utilizing `HashMap::iter_mut` ([#83](https://github.com/mvlabat/bevy_egui/pull/83) by @frewsxcv).
+- Remove unnecessary swap texture clone ([#85](https://github.com/mvlabat/bevy_egui/pull/85) by @frewsxcv).
+
 ## [0.12.1] - 13-Mar-2022
 
 ### Added
