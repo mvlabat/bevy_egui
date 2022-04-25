@@ -25,7 +25,7 @@ bevy = { version = "0.7", default-features = false, features = [
     "bevy_core_pipeline",
 ] }
 egui = { version = "0.17", features = ["convert_bytemuck"] }
-webbrowser = { version = "0.6.0", optional = true }
+webbrowser = { version = "0.7.0", optional = true }
 winit = { version = "0.26.0", features = ["x11"], default-features = false }
 bytemuck = { version = "1.7.0", features = ["derive"] }
 wgpu = "0.12.0"
