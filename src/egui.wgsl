@@ -29,7 +29,7 @@ fn linear_from_srgb(srgb: vec3<f32>) -> vec3<f32> {
 [[stage(vertex)]]
 fn vs_main(in: VertexInput) -> VertexOutput {
     let position = in.position * transform.scale + transform.translation;
-    let color = vec4<f32>(linear_from_srgba(in.color.rgb), in.color.a);
+    let color = vec4<f32>(linear_from_srgb(in.color.rgb), in.color.a);
     return VertexOutput(vec4<f32>(position, 0.0, 1.0), color, in.uv);
 }
 
