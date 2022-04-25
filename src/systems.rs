@@ -375,7 +375,6 @@ pub fn process_output(
             event.send(RequestRedraw)
         }
 
-        // TODO: see if we can support `new_tab`.
         #[cfg(feature = "open_url")]
         if let Some(egui::output::OpenUrl { url, new_tab }) = platform_output.open_url {
             let target = if new_tab { "_blank" } else { "_self" };
