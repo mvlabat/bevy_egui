@@ -9,26 +9,20 @@ repository = "https://github.com/mvlabat/bevy_egui"
 exclude = ["assets/**/*", ".github/**/*"]
 
 [package.metadata.docs.rs]
+features = ["bevy/x11"]
 all-features = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 default = ["manage_clipboard", "open_url"]
+immutable_ctx = []
 manage_clipboard = ["arboard", "thread_local"]
-multi_threaded = ["egui/multi_threaded"]
 open_url = ["webbrowser"]
 
 [dependencies]
-bevy = { version = "0.7", default-features = false, features = [
-    "bevy_render",
-    "bevy_winit",
-    "bevy_core_pipeline",
-] }
-egui = { version = "0.17", features = ["convert_bytemuck"] }
-webbrowser = { version = "0.7.0", optional = true }
-winit = { version = "0.26.0", features = ["x11"], default-features = false }
-bytemuck = { version = "1.7.0", features = ["derive"] }
-wgpu = "0.12.0"
+bevy = { version = "0.7", default-features = false, features = ["bevy_render", "bevy_core_pipeline"] }
+egui = { version = "0.18", features = ["bytemuck"] }
+webbrowser = { version = "0.7", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 arboard = { version = "2.0.1", optional = true }

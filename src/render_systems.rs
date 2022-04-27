@@ -1,20 +1,21 @@
+use crate::{
+    egui_node::EguiPipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings,
+    WindowSize,
+};
 use bevy::{
     asset::HandleId,
     prelude::*,
     render::{
         render_asset::RenderAssets,
-        render_resource::{std140::AsStd140, BindGroup, BufferId, DynamicUniformVec},
+        render_resource::{
+            std140::AsStd140, BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
+            BufferId, DynamicUniformVec,
+        },
         renderer::{RenderDevice, RenderQueue},
         texture::Image,
     },
     utils::HashMap,
     window::WindowId,
-};
-use wgpu::{BindGroupDescriptor, BindGroupEntry, BindingResource};
-
-use crate::{
-    egui_node::EguiPipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings,
-    WindowSize,
 };
 
 pub(crate) struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
