@@ -463,7 +463,6 @@ impl Plugin for EguiPlugin {
         app.add_system_to_stage(CoreStage::Last, free_egui_textures);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.init_resource::<egui_node::EguiPipeline>();
             render_app
                 .init_resource::<egui_node::EguiPipeline>()
                 .init_resource::<EguiTransforms>()
