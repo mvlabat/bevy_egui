@@ -396,14 +396,14 @@ impl Node for EguiNode {
     }
 }
 
-pub fn as_color_image(image: egui::ImageData) -> egui::ColorImage {
+pub(crate) fn as_color_image(image: egui::ImageData) -> egui::ColorImage {
     match image {
         egui::ImageData::Color(image) => image,
         egui::ImageData::Font(image) => alpha_image_as_color_image(&image),
     }
 }
 
-pub fn alpha_image_as_color_image(image: &egui::FontImage) -> egui::ColorImage {
+fn alpha_image_as_color_image(image: &egui::FontImage) -> egui::ColorImage {
     let gamma = 1.0;
     egui::ColorImage {
         size: image.size,
@@ -411,11 +411,14 @@ pub fn alpha_image_as_color_image(image: &egui::FontImage) -> egui::ColorImage {
     }
 }
 
-pub fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image {
+pub(crate) fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image {
     let pixels = egui_image
         .pixels
         .iter()
-        .flat_map(|color| color.to_array())
+        // We unmultiply Egui textures to premultiply them later in the fragment shader.
+        // As user textures loaded as Bevy assets are not premultiplied (and there seems to be no
+        // convenient way to convert them to premultiplied ones), we do the this with Egui ones.
+        .flat_map(|color| color.to_srgba_unmultiplied())
         .collect();
 
     Image::new(
