@@ -5,11 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 1-May-2022
+
+### Added
+
+- Add new_tab support for open_url ([#96](https://github.com/mvlabat/bevy_egui/pull/96) by @Azorlogh).
+  - `EguiSettings` has also got the `default_open_url_target` parameter to make the default behaviour on left mouse click configurable.
+- Update Egui to 0.18 ([#99](https://github.com/mvlabat/bevy_egui/pull/99)).
+
+### Changed
+
+- The `multi_threaded` feature was renamed to `immutable_ctx`.
+
+### Fixed
+
+- Improve wgsl readability and introduce minor optimisations ([#95](https://github.com/mvlabat/bevy_egui/pull/95) by @lain-dono).
+- Remove duplicate EguiPipeline resource initialization ([#98](https://github.com/mvlabat/bevy_egui/pull/98) by @lain-dono).
+- Fix color blending for user textures ([#100](https://github.com/mvlabat/bevy_egui/pull/100)).
+
 ## [0.13.0] - 16-Apr-2022
 
 ### Added
 
-- Upgrade Bevy to 0.7 ([#79](https://github.com/mvlabat/bevy_egui/pull/79) by @aevyrie and @forbjok).
+- Update Bevy to 0.7 ([#79](https://github.com/mvlabat/bevy_egui/pull/79) by @aevyrie and @forbjok).
 
 ### Changed
 
@@ -32,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Upgrade Egui to 0.17 ([#78](https://github.com/mvlabat/bevy_egui/pull/78) by @emilk).
+- Update Egui to 0.17 ([#78](https://github.com/mvlabat/bevy_egui/pull/78) by @emilk).
 - Add side panel example ([#73](https://github.com/mvlabat/bevy_egui/pull/73)).
 
 ### Changed
@@ -92,19 +110,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Upgrade Bevy to 0.6 ([#25](https://github.com/mvlabat/bevy_egui/pull/25) by @jakobhellermann).
+- Update Bevy to 0.6 ([#25](https://github.com/mvlabat/bevy_egui/pull/25) by @jakobhellermann).
 
 ## [0.9.0] - 1-Jan-2022
 
 ### Added
 
-- Upgrade Egui to 0.16 ([#49](https://github.com/mvlabat/bevy_egui/pull/49) by @Meshiest).
+- Update Egui to 0.16 ([#49](https://github.com/mvlabat/bevy_egui/pull/49) by @Meshiest).
 
 ## [0.8.0] - 27-Nov-2021
 
 ### Added
 
-- Upgrade Egui to 0.15.0 ([#45](https://github.com/mvlabat/bevy_egui/pull/45)).
+- Update Egui to 0.15.0 ([#45](https://github.com/mvlabat/bevy_egui/pull/45)).
 
 ## [0.7.1] - 06-Oct-2021
 
@@ -120,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Upgrade Egui to 0.14.0 ([#38](https://github.com/mvlabat/bevy_egui/pull/38)).
+- Update Egui to 0.14.0 ([#38](https://github.com/mvlabat/bevy_egui/pull/38)).
 
 ## [0.6.2] - 15-Aug-2021
 
@@ -138,13 +156,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Upgrade Egui to 0.13.0.
+- Update Egui to 0.13.0.
 
 ## [0.5.0] - 22-May-2021
 
 ### Added
 
-- Upgrade Egui to 0.12.0.
+- Update Egui to 0.12.0.
 
 ## [0.4.2] - 03-May-2021
 
@@ -172,7 +190,7 @@ Huge thanks to @jakobhellermann and @Weasy666 for contributing to this release!
 
 ### Added
 
-- Upgrade Egui to 0.10.0.
+- Update Egui to 0.10.0.
 
 ## [0.2.0] - 08-Feb-2021
 
