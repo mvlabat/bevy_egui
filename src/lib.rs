@@ -101,11 +101,19 @@ pub struct EguiSettings {
     /// }
     /// ```
     pub scale_factor: f64,
+    /// Will be used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
+    /// If not specified, `_self` will be used. Only matters in a web browser.
+    #[cfg(feature = "open_url")]
+    pub default_open_url_target: Option<String>,
 }
 
 impl Default for EguiSettings {
     fn default() -> Self {
-        Self { scale_factor: 1.0 }
+        Self {
+            scale_factor: 1.0,
+            #[cfg(feature = "open_url")]
+            default_open_url_target: None,
+        }
     }
 }
 

@@ -327,6 +327,9 @@ pub fn begin_frame(
 }
 
 pub fn process_output(
+    #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
+        EguiSettings,
+    >,
     mut egui_context: ResMut<EguiContext>,
     mut egui_output: ResMut<HashMap<WindowId, EguiOutput>>,
     mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
@@ -369,7 +372,14 @@ pub fn process_output(
 
         #[cfg(feature = "open_url")]
         if let Some(egui::output::OpenUrl { url, new_tab }) = platform_output.open_url {
-            let target = if new_tab { "_blank" } else { "_self" };
+            let target = if new_tab {
+                "_blank"
+            } else {
+                egui_settings
+                    .default_open_url_target
+                    .as_deref()
+                    .unwrap_or("_self")
+            };
             if let Err(err) = webbrowser::open_browser_with_options(
                 webbrowser::Browser::Default,
                 &url,
