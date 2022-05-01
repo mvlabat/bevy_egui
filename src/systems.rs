@@ -119,13 +119,6 @@ pub fn process_input(
 
     let mut cursor_left_window = None;
     if let Some(cursor_left) = input_events.ev_cursor_left.iter().next_back() {
-        input_resources
-            .egui_input
-            .get_mut(&cursor_left.id)
-            .unwrap()
-            .raw_input
-            .events
-            .push(egui::Event::PointerGone);
         cursor_left_window = Some(cursor_left.id);
     }
     let cursor_entered_window = input_events
