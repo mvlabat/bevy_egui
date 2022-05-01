@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 1-May-2022
+
+### Added
+
+- Add new_tab support for open_url ([#96](https://github.com/mvlabat/bevy_egui/pull/96) by @Azorlogh).
+  - `EguiSettings` has also got the `default_open_url_target` parameter to make the default behaviour on left mouse click configurable.
+- Upgrade Egui to 0.18 ([#99](https://github.com/mvlabat/bevy_egui/pull/99)).
+
+### Changed
+
+- The `multi_threaded` feature was renamed to `immutable_ctx`.
+
+### Fixed
+
+- Improve wgsl readability and introduce minor optimisations ([#95](https://github.com/mvlabat/bevy_egui/pull/95) by @lain-dono).
+- Remove duplicate EguiPipeline resource initialization ([#98](https://github.com/mvlabat/bevy_egui/pull/98) by @lain-dono).
+- Fix color blending for user textures ([#100](https://github.com/mvlabat/bevy_egui/pull/100))
+
 ## [0.13.0] - 16-Apr-2022
 
 ### Added
