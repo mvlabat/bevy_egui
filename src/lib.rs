@@ -230,9 +230,9 @@ impl EguiContext {
 
     /// Egui context of the primary window.
     ///
-    /// This function is only available when the `multi_threaded` feature is enabled.
+    /// This function is only available when the `immutable_ctx` feature is enabled.
     /// The preferable way is to use `ctx_mut` to avoid unpredictable blocking inside UI systems.
-    #[cfg(feature = "multi_threaded")]
+    #[cfg(feature = "immutable_ctx")]
     #[must_use]
     #[track_caller]
     pub fn ctx(&self) -> &egui::Context {
@@ -243,10 +243,10 @@ impl EguiContext {
     /// If you want to display UI on a non-primary window, make sure to set up the render graph by
     /// calling [`setup_pipeline`].
     ///
-    /// This function is only available when the `multi_threaded` feature is enabled.
+    /// This function is only available when the `immutable_ctx` feature is enabled.
     /// The preferable way is to use `ctx_for_window_mut` to avoid unpredictable blocking inside UI
     /// systems.
-    #[cfg(feature = "multi_threaded")]
+    #[cfg(feature = "immutable_ctx")]
     #[must_use]
     #[track_caller]
     pub fn ctx_for_window(&self, window: WindowId) -> &egui::Context {
@@ -258,10 +258,10 @@ impl EguiContext {
     /// Fallible variant of [`EguiContext::ctx_for_window`]. Make sure to set up the render graph by
     /// calling [`setup_pipeline`].
     ///
-    /// This function is only available when the `multi_threaded` feature is enabled.
+    /// This function is only available when the `immutable_ctx` feature is enabled.
     /// The preferable way is to use `try_ctx_for_window_mut` to avoid unpredictable blocking inside
     /// UI systems.
-    #[cfg(feature = "multi_threaded")]
+    #[cfg(feature = "immutable_ctx")]
     #[must_use]
     pub fn try_ctx_for_window(&self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
@@ -293,7 +293,7 @@ impl EguiContext {
     }
 
     /// Allows to get multiple contexts at the same time. This function is useful when you want
-    /// to get multiple window contexts without using the `multi_threaded` feature.
+    /// to get multiple window contexts without using the `immutable_ctx` feature.
     ///
     /// # Panics
     ///

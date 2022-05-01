@@ -69,7 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         features: [
-            'multi_threaded',
+            'immutable_ctx',
             'manage_clipboard',
             'open_url',
             'manage_clipboard,open_url',
@@ -121,7 +121,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --all
+          args: --all --features "bevy/x11"
         env:
           RUSTDOCFLAGS: -D warnings
 
