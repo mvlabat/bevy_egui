@@ -1,51 +1,39 @@
-struct EguiTransform {
+struct Transform {
     scale: vec2<f32>;
     translation: vec2<f32>;
 };
 
-[[group(0), binding(0)]]
-var<uniform> egui_transform: EguiTransform;
-
-struct VertexOutput {
-    [[location(0)]] uv: vec2<f32>;
-    [[location(1)]] color: vec4<f32>;
-    [[builtin(position)]] pos: vec4<f32>;
+struct VertexInput {
+    [[location(0)]] position: vec2<f32>;
+    [[location(1)]] uv: vec2<f32>;
+    [[location(2)]] color: vec4<f32>;
 };
 
-// 0-1 linear  from  0-255 sRGB
-fn linear_from_srgb(srgb: vec3<f32>) -> vec3<f32> {
-    let cutoff = vec3<f32>(srgb < vec3<f32>(10.31475));
-    let lower = srgb / vec3<f32>(3294.6);
-    let higher = pow((srgb + vec3<f32>(14.025)) / vec3<f32>(269.025), vec3<f32>(2.4));
-    return mix(higher, lower, cutoff);
-}
+struct VertexOutput {
+    [[builtin(position)]] position: vec4<f32>;
+    [[location(0)]] color: vec4<f32>;
+    [[location(1)]] uv: vec2<f32>;
+};
 
-// 0-1 linear  from  0-255 sRGBA
-fn linear_from_srgba(srgba: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(linear_from_srgb(srgba.rgb), srgba.a / 255.0);
+[[group(0), binding(0)]] var<uniform> transform: Transform;
+[[group(1), binding(0)]] var image_texture: texture_2d<f32>;
+[[group(1), binding(1)]] var image_sampler: sampler;
+
+fn linear_from_srgb(srgb: vec3<f32>) -> vec3<f32> {
+    let cutoff = srgb < vec3<f32>(0.04045);
+    let lower = srgb / 12.92;
+    let higher = pow((srgb + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(higher, lower, cutoff);
 }
 
 [[stage(vertex)]]
-fn vs_main(
-    [[location(0)]] position: vec2<f32>,
-    [[location(1)]] uv: vec2<f32>,
-    [[location(2)]] color: vec4<f32>, // 0-1 range
-) -> VertexOutput {
-    var out: VertexOutput;
-    out.uv = uv;
-    out.color = linear_from_srgba(color * 255.0);
-    out.pos = vec4<f32>(position * egui_transform.scale + egui_transform.translation, 0.0, 1.0);
-    return out;
+fn vs_main(in: VertexInput) -> VertexOutput {
+    let position = in.position * transform.scale + transform.translation;
+    let color = vec4<f32>(linear_from_srgb(in.color.rgb), in.color.a);
+    return VertexOutput(vec4<f32>(position, 0.0, 1.0), color, in.uv);
 }
-
-[[group(1), binding(0)]]
-var t_egui: texture_2d<f32>;
-[[group(1), binding(1)]]
-var s_egui: sampler;
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-    let color = in.color * textureSample(t_egui, s_egui, in.uv);
-
-    return color;
+    return in.color * textureSample(image_texture, image_sampler, in.uv);
 }
