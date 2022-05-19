@@ -31,15 +31,14 @@ fn main() {
             ..Default::default()
         })
         .init_resource::<UiState>()
-        .init_resource::<WindowState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .add_startup_system(configure_visuals)
+        .add_startup_system(configure_ui_state)
         .add_system(update_ui_scale_factor)
         .add_system(ui_example)
         .run();
 }
-
 #[derive(Default)]
 struct UiState {
     label: String,
@@ -47,16 +46,7 @@ struct UiState {
     painting: Painting,
     inverted: bool,
     egui_texture_handle: Option<egui::TextureHandle>,
-}
-
-struct WindowState {
-    is_open: bool,
-}
-
-impl Default for WindowState {
-    fn default() -> Self {
-        Self { is_open: true }
-    }
+    is_window_open: bool,
 }
 
 fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
@@ -64,6 +54,10 @@ fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
         window_rounding: 0.0.into(),
         ..Default::default()
     });
+}
+
+fn configure_ui_state(mut ui_state: ResMut<UiState>) {
+    ui_state.is_window_open = true;
 }
 
 fn update_ui_scale_factor(
@@ -89,7 +83,6 @@ fn update_ui_scale_factor(
 fn ui_example(
     mut egui_ctx: ResMut<EguiContext>,
     mut ui_state: ResMut<UiState>,
-    mut window_state: ResMut<WindowState>,
     // You are not required to store Egui texture ids in systems. We store this one here just to
     // demonstrate that rendering by using a texture id of a removed image is handled without
     // making bevy_egui panic.
@@ -150,7 +143,7 @@ fn ui_example(
             ));
 
             ui.allocate_space(egui::Vec2::new(1.0, 10.0));
-            ui.checkbox(&mut window_state.is_open, "Window Is Open");
+            ui.checkbox(&mut ui_state.is_window_open, "Window Is Open");
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.add(egui::Hyperlink::from_label_and_url(
@@ -195,7 +188,7 @@ fn ui_example(
 
     egui::Window::new("Window")
         .vscroll(true)
-        .open(&mut window_state.is_open)
+        .open(&mut ui_state.is_window_open)
         .show(egui_ctx.ctx_mut(), |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
