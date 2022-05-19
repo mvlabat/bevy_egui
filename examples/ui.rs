@@ -31,6 +31,7 @@ fn main() {
             ..Default::default()
         })
         .init_resource::<UiState>()
+        .init_resource::<WindowState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .add_startup_system(configure_visuals)
@@ -46,6 +47,16 @@ struct UiState {
     painting: Painting,
     inverted: bool,
     egui_texture_handle: Option<egui::TextureHandle>,
+}
+
+struct WindowState {
+    is_open: bool,
+}
+
+impl Default for WindowState {
+    fn default() -> Self {
+        Self { is_open: true }
+    }
 }
 
 fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
@@ -78,6 +89,7 @@ fn update_ui_scale_factor(
 fn ui_example(
     mut egui_ctx: ResMut<EguiContext>,
     mut ui_state: ResMut<UiState>,
+    mut window_state: ResMut<WindowState>,
     // You are not required to store Egui texture ids in systems. We store this one here just to
     // demonstrate that rendering by using a texture id of a removed image is handled without
     // making bevy_egui panic.
@@ -137,6 +149,9 @@ fn ui_example(
                 [256.0, 256.0],
             ));
 
+            ui.allocate_space(egui::Vec2::new(1.0, 10.0));
+            ui.checkbox(&mut window_state.is_open, "Window Is Open");
+
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.add(egui::Hyperlink::from_label_and_url(
                     "powered by egui",
@@ -180,6 +195,7 @@ fn ui_example(
 
     egui::Window::new("Window")
         .vscroll(true)
+        .open(&mut window_state.is_open)
         .show(egui_ctx.ctx_mut(), |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
