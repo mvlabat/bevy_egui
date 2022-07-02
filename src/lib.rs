@@ -604,7 +604,7 @@ pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig)
 
     render_graph
         .add_node_edge(
-            bevy::core_pipeline::node::MAIN_PASS_DRIVER,
+            bevy::render::main_graph::node::CAMERA_DRIVER,
             config.egui_pass,
         )
         .unwrap();

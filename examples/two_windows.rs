@@ -58,7 +58,7 @@ fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut co
         },
     });
     // second window camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
+    commands.spawn_bundle(Camera3dBundle {
         camera: Camera {
             target: RenderTarget::Window(*SECOND_WINDOW_ID),
             ..Default::default()

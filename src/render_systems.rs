@@ -8,8 +8,8 @@ use bevy::{
     render::{
         render_asset::RenderAssets,
         render_resource::{
-            std140::AsStd140, BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
-            BufferId, DynamicUniformVec,
+            BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
+            DynamicUniformBuffer, ShaderType,
         },
         renderer::{RenderDevice, RenderQueue},
         texture::Image,
@@ -84,16 +84,17 @@ pub(crate) fn extract_egui_textures(
 
 #[derive(Default)]
 pub(crate) struct EguiTransforms {
-    pub buffer: DynamicUniformVec<EguiTransform>,
+    pub buffer: DynamicUniformBuffer<EguiTransform>,
     pub offsets: HashMap<WindowId, u32>,
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
 
-#[derive(AsStd140)]
+#[derive(ShaderType, Default)]
 pub(crate) struct EguiTransform {
     scale: Vec2,
     translation: Vec2,
 }
+
 impl EguiTransform {
     fn new(window_size: WindowSize, egui_settings: &EguiSettings) -> Self {
         EguiTransform {
@@ -130,7 +131,7 @@ pub(crate) fn prepare_egui_transforms(
         .buffer
         .write_buffer(&render_device, &render_queue);
 
-    if let Some(buffer) = egui_transforms.buffer.uniform_buffer() {
+    if let Some(buffer) = egui_transforms.buffer.buffer() {
         match egui_transforms.bind_group {
             Some((id, _)) if buffer.id() == id => {}
             _ => {
