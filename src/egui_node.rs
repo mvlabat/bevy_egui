@@ -40,7 +40,7 @@ impl FromWorld for EguiPipeline {
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
         let shader_source = ShaderSource::Wgsl(include_str!("egui.wgsl").into());
-        let shader_module = render_device.create_shader_module(&ShaderModuleDescriptor {
+        let shader_module = render_device.create_shader_module(ShaderModuleDescriptor {
             label: Some("egui shader"),
             source: shader_source,
         });
@@ -119,7 +119,7 @@ impl FromWorld for EguiPipeline {
             fragment: Some(RawFragmentState {
                 module: &shader_module,
                 entry_point: "fs_main",
-                targets: &[ColorTargetState {
+                targets: &[Some(ColorTargetState {
                     format: TextureFormat::bevy_default(),
                     blend: Some(BlendState {
                         color: BlendComponent {
@@ -134,7 +134,7 @@ impl FromWorld for EguiPipeline {
                         },
                     }),
                     write_mask: ColorWrites::ALL,
-                }],
+                })],
             }),
             primitive: PrimitiveState {
                 front_face: FrontFace::Cw,
@@ -333,14 +333,14 @@ impl Node for EguiNode {
                 .command_encoder
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("egui render pass"),
-                    color_attachments: &[RenderPassColorAttachment {
+                    color_attachments: &[Some(RenderPassColorAttachment {
                         view: swap_chain_texture,
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,
                             store: true,
                         },
-                    }],
+                    })],
                     depth_stencil_attachment: None,
                 });
 
