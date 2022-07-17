@@ -486,7 +486,7 @@ impl Plugin for EguiPlugin {
                 .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
 
             let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-            setup_pipeline(&mut *render_graph, RenderGraphConfig::default());
+            setup_pipeline(&mut render_graph, RenderGraphConfig::default());
         }
     }
 }

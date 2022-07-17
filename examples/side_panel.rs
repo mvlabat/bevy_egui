@@ -111,25 +111,25 @@ fn update_camera_transform_system(
     windows: Res<Windows>,
     mut camera_query: Query<(&Projection, &mut Transform)>,
 ) {
-    if let Ok((camera_projection, mut transform)) = camera_query.get_single_mut() {
-        if let Projection::Perspective(projection) = camera_projection {
-            let distance_to_target =
-                (CAMERA_TARGET - original_camera_transform.0.translation).length();
-            let frustum_height = 2.0 * distance_to_target * (projection.fov * 0.5).tan();
-            let frustum_width = frustum_height * projection.aspect_ratio;
+    let (camera_projection, mut transform) = match camera_query.get_single_mut() {
+        Ok((Projection::Perspective(projection), transform)) => (projection, transform),
+        _ => unreachable!(),
+    };
 
-            let window = windows.get_primary().unwrap();
+    let distance_to_target = (CAMERA_TARGET - original_camera_transform.0.translation).length();
+    let frustum_height = 2.0 * distance_to_target * (camera_projection.fov * 0.5).tan();
+    let frustum_width = frustum_height * camera_projection.aspect_ratio;
 
-            let left_taken = occupied_screen_space.left / window.width();
-            let right_taken = occupied_screen_space.right / window.width();
-            let top_taken = occupied_screen_space.top / window.height();
-            let bottom_taken = occupied_screen_space.bottom / window.height();
-            transform.translation = original_camera_transform.0.translation
-                + transform.rotation.mul_vec3(Vec3::new(
-                    (right_taken - left_taken) * frustum_width * 0.5,
-                    (top_taken - bottom_taken) * frustum_height * 0.5,
-                    0.0,
-                ));
-        }
-    }
+    let window = windows.get_primary().unwrap();
+
+    let left_taken = occupied_screen_space.left / window.width();
+    let right_taken = occupied_screen_space.right / window.width();
+    let top_taken = occupied_screen_space.top / window.height();
+    let bottom_taken = occupied_screen_space.bottom / window.height();
+    transform.translation = original_camera_transform.0.translation
+        + transform.rotation.mul_vec3(Vec3::new(
+            (right_taken - left_taken) * frustum_width * 0.5,
+            (top_taken - bottom_taken) * frustum_height * 0.5,
+            0.0,
+        ));
 }
