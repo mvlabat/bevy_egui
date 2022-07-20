@@ -306,6 +306,14 @@ impl Node for EguiNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
+        let extracted_window =
+            if let Some(extracted_window) = extracted_windows.get(&self.window_id) {
+                extracted_window
+            } else {
+                return Ok(()); // No window
+            };
+
         let egui_shaders = world.get_resource::<EguiPipeline>().unwrap();
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
@@ -324,8 +332,6 @@ impl Node for EguiNode {
 
         let egui_transforms = world.get_resource::<EguiTransforms>().unwrap();
 
-        let extracted_window =
-            &world.get_resource::<ExtractedWindows>().unwrap().windows[&self.window_id];
         let swap_chain_texture = extracted_window.swap_chain_texture.as_ref().unwrap();
 
         let mut render_pass =
