@@ -1,3 +1,7 @@
+use crate::render_systems::{
+    EguiTexture, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
+    ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
+};
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
@@ -11,21 +15,15 @@ use bevy::{
             PipelineLayoutDescriptor, PrimitiveState, RawFragmentState,
             RawRenderPipelineDescriptor, RawVertexBufferLayout, RawVertexState,
             RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, SamplerBindingType,
-            ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureDimension, TextureFormat,
-            TextureSampleType, TextureViewDimension, VertexAttribute, VertexFormat, VertexStepMode,
+            ShaderModuleDescriptor, ShaderSource, ShaderStages, ShaderType, TextureDimension,
+            TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexFormat,
+            VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::{BevyDefault, Image},
         view::ExtractedWindows,
     },
     window::WindowId,
-};
-
-use bevy::render::render_resource::ShaderType;
-
-use crate::render_systems::{
-    EguiTexture, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
-    ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
 };
 
 pub struct EguiPipeline {

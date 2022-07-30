@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::{EguiContext, EguiInput, EguiOutput, EguiRenderOutput, EguiSettings, WindowSize};
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -20,6 +18,7 @@ use bevy::{
         WindowFocused, WindowId, Windows,
     },
 };
+use std::marker::PhantomData;
 
 #[derive(SystemParam)]
 pub struct InputEvents<'w, 's> {

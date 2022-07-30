@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 30-Jul-2022
+
+### Added
+
+- Update Bevy to 0.8 ([#111](https://github.com/mvlabat/bevy_egui/pull/111) by @DGriffin91)
+- Add a feature that can be disabled to replace default Egui fonts ([#110](https://github.com/mvlabat/bevy_egui/pull/110) by @iTitus)
+
 ## [0.14.0] - 1-May-2022
 
 ### Added

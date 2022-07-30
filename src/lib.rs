@@ -10,7 +10,7 @@
 //! - Desktop and web platforms support
 //! - Clipboard (web support is limited to the same window, see [rust-windowing/winit#1829](https://github.com/rust-windowing/winit/issues/1829))
 //! - Opening URLs
-//! - Multiple windows support (see [./examples/two_windows.rs](./examples/two_windows.rs))
+//! - Multiple windows support (see [./examples/two_windows.rs](https://github.com/mvlabat/bevy_egui/blob/v0.15.0/examples/two_windows.rs))
 //!
 //! `bevy_egui` can be compiled with using only `bevy` and `egui` as dependencies: `manage_clipboard` and `open_url` features,
 //! that require additional crates, can be disabled.
@@ -40,7 +40,7 @@
 //! }
 //! ```
 //!
-//! For a more advanced example, see [examples/ui.rs](examples/ui.rs).
+//! For a more advanced example, see [examples/ui.rs](https://github.com/mvlabat/bevy_egui/blob/v0.15.0/examples/ui.rs).
 //!
 //! ```bash
 //! cargo run --example ui
@@ -55,9 +55,6 @@ pub use egui;
 mod egui_node;
 mod render_systems;
 mod systems;
-
-use egui_node::EguiNode;
-use render_systems::EguiTransforms;
 
 use crate::systems::*;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -76,6 +73,8 @@ use bevy::{
     utils::HashMap,
     window::WindowId,
 };
+use egui_node::EguiNode;
+use render_systems::EguiTransforms;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
