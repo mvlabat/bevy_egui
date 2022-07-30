@@ -20,7 +20,7 @@ manage_clipboard = ["arboard", "thread_local"]
 open_url = ["webbrowser"]
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = ["bevy_render", "bevy_core_pipeline"] }
+bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = ["bevy_render", "bevy_core_pipeline", "bevy_asset"] }
 egui = { version = "0.18", features = ["bytemuck"] }
 webbrowser = { version = "0.7", optional = true }
 
