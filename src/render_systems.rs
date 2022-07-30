@@ -8,11 +8,12 @@ use bevy::{
     render::{
         render_asset::RenderAssets,
         render_resource::{
-            std140::AsStd140, BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
-            BufferId, DynamicUniformVec,
+            BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
+            DynamicUniformBuffer, ShaderType,
         },
         renderer::{RenderDevice, RenderQueue},
         texture::Image,
+        Extract,
     },
     utils::HashMap,
     window::WindowId,
@@ -53,13 +54,12 @@ impl ExtractedEguiTextures {
 
 pub(crate) fn extract_egui_render_data(
     mut commands: Commands,
-    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
-    window_sizes: ResMut<HashMap<WindowId, WindowSize>>,
-    egui_settings: Res<EguiSettings>,
-    egui_context: Res<EguiContext>,
+    egui_render_output: Extract<Res<HashMap<WindowId, EguiRenderOutput>>>,
+    window_sizes: Extract<Res<HashMap<WindowId, WindowSize>>>,
+    egui_settings: Extract<Res<EguiSettings>>,
+    egui_context: Extract<Res<EguiContext>>,
 ) {
-    let render_output = std::mem::take(&mut *egui_render_output);
-    commands.insert_resource(ExtractedRenderOutput(render_output));
+    commands.insert_resource(ExtractedRenderOutput(egui_render_output.clone()));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedEguiContext(egui_context.ctx.clone()));
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
@@ -67,8 +67,8 @@ pub(crate) fn extract_egui_render_data(
 
 pub(crate) fn extract_egui_textures(
     mut commands: Commands,
-    egui_context: Res<EguiContext>,
-    egui_managed_textures: ResMut<EguiManagedTextures>,
+    egui_context: Extract<Res<EguiContext>>,
+    egui_managed_textures: Extract<Res<EguiManagedTextures>>,
 ) {
     commands.insert_resource(ExtractedEguiTextures {
         egui_textures: egui_managed_textures
@@ -84,16 +84,17 @@ pub(crate) fn extract_egui_textures(
 
 #[derive(Default)]
 pub(crate) struct EguiTransforms {
-    pub buffer: DynamicUniformVec<EguiTransform>,
+    pub buffer: DynamicUniformBuffer<EguiTransform>,
     pub offsets: HashMap<WindowId, u32>,
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
 
-#[derive(AsStd140)]
+#[derive(ShaderType, Default)]
 pub(crate) struct EguiTransform {
     scale: Vec2,
     translation: Vec2,
 }
+
 impl EguiTransform {
     fn new(window_size: WindowSize, egui_settings: &EguiSettings) -> Self {
         EguiTransform {
@@ -130,7 +131,7 @@ pub(crate) fn prepare_egui_transforms(
         .buffer
         .write_buffer(&render_device, &render_queue);
 
-    if let Some(buffer) = egui_transforms.buffer.uniform_buffer() {
+    if let Some(buffer) = egui_transforms.buffer.buffer() {
         match egui_transforms.bind_group {
             Some((id, _)) if buffer.id() == id => {}
             _ => {
