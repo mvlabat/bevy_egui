@@ -486,7 +486,7 @@ impl Plugin for EguiPlugin {
                 .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
 
             let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-            setup_pipeline(&mut *render_graph, RenderGraphConfig::default());
+            setup_pipeline(&mut render_graph, RenderGraphConfig::default());
         }
     }
 }
@@ -604,7 +604,7 @@ pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig)
 
     render_graph
         .add_node_edge(
-            bevy::core_pipeline::node::MAIN_PASS_DRIVER,
+            bevy::render::main_graph::node::CAMERA_DRIVER,
             config.egui_pass,
         )
         .unwrap();

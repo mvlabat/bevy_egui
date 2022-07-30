@@ -1,4 +1,4 @@
-use bevy::{prelude::*, window::PresentMode, winit::WinitSettings};
+use bevy::{prelude::*, render::camera::Projection, window::PresentMode, winit::WinitSettings};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 #[derive(Default)]
@@ -99,7 +99,7 @@ fn setup_system(
         Transform::from_translation(camera_pos).looking_at(CAMERA_TARGET, Vec3::Y);
     commands.insert_resource(OriginalCameraTransform(camera_transform));
 
-    commands.spawn_bundle(PerspectiveCameraBundle {
+    commands.spawn_bundle(Camera3dBundle {
         transform: camera_transform,
         ..Default::default()
     });
@@ -109,9 +109,12 @@ fn update_camera_transform_system(
     occupied_screen_space: Res<OccupiedScreenSpace>,
     original_camera_transform: Res<OriginalCameraTransform>,
     windows: Res<Windows>,
-    mut camera_query: Query<(&PerspectiveProjection, &mut Transform)>,
+    mut camera_query: Query<(&Projection, &mut Transform)>,
 ) {
-    let (camera_projection, mut transform) = camera_query.get_single_mut().unwrap();
+    let (camera_projection, mut transform) = match camera_query.get_single_mut() {
+        Ok((Projection::Perspective(projection), transform)) => (projection, transform),
+        _ => unreachable!(),
+    };
 
     let distance_to_target = (CAMERA_TARGET - original_camera_transform.0.translation).length();
     let frustum_height = 2.0 * distance_to_target * (camera_projection.fov * 0.5).tan();
