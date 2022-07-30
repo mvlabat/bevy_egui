@@ -2,7 +2,6 @@ use bevy::{
     prelude::*,
     render::{camera::RenderTarget, render_graph::RenderGraph, RenderApp},
     window::{CreateWindow, PresentMode, WindowId},
-    winit::WinitSettings,
 };
 use bevy_egui::{EguiContext, EguiPlugin};
 use once_cell::sync::Lazy;
@@ -16,12 +15,6 @@ struct Images {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        // Optimal power saving and present mode settings for desktop apps.
-        .insert_resource(WinitSettings::desktop_app())
-        .insert_resource(WindowDescriptor {
-            present_mode: PresentMode::Mailbox,
-            ..Default::default()
-        })
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
         .add_startup_system(load_assets)
@@ -52,7 +45,7 @@ fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut co
         descriptor: WindowDescriptor {
             width: 800.,
             height: 600.,
-            present_mode: PresentMode::Mailbox,
+            present_mode: PresentMode::AutoVsync,
             title: "Second window".to_string(),
             ..Default::default()
         },
