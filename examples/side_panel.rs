@@ -1,4 +1,4 @@
-use bevy::{prelude::*, render::camera::Projection, window::PresentMode, winit::WinitSettings};
+use bevy::{prelude::*, render::camera::Projection};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 #[derive(Default)]
@@ -17,12 +17,6 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        // Optimal power saving and present mode settings for desktop apps.
-        .insert_resource(WinitSettings::desktop_app())
-        .insert_resource(WindowDescriptor {
-            present_mode: PresentMode::Mailbox,
-            ..Default::default()
-        })
         .init_resource::<OccupiedScreenSpace>()
         .add_startup_system(setup_system)
         .add_system(ui_example_system)
