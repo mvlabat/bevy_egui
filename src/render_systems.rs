@@ -34,7 +34,7 @@ pub(crate) enum EguiTexture {
 
 pub(crate) struct ExtractedEguiTextures {
     pub(crate) egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
-    pub(crate) user_textures: HashMap<HandleId, u64>,
+    pub(crate) user_textures: HashMap<Handle<Image>, u64>,
 }
 
 impl ExtractedEguiTextures {
@@ -47,7 +47,7 @@ impl ExtractedEguiTextures {
             .chain(
                 self.user_textures
                     .iter()
-                    .map(|(handle, id)| (EguiTexture::User(*id), *handle)),
+                    .map(|(handle, id)| (EguiTexture::User(*id), handle.id)),
             )
     }
 }
