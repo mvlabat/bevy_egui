@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Update Egui to 0.17
+- Update Egui to 0.19
 
 ## [0.15.1] - 13-Aug-2022
 
