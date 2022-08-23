@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 23-Aug-2022
+
+### Added
+
+- Update Egui to 0.17
+
 ## [0.15.1] - 13-Aug-2022
 
 ### Fixed
@@ -70,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - User texture ids are now tracked internally ([#71](https://github.com/mvlabat/bevy_egui/pull/71)).
   - Instead of using `set_egui_texture`, you can now use `add_image` which returns a texture id itself
-  (see the updated [ui](https://github.com/mvlabat/bevy_egui/blob/c611671603a70e5956ba06f77bb94851c7ced659/examples/ui.rs) example).
+    (see the updated [ui](https://github.com/mvlabat/bevy_egui/blob/c611671603a70e5956ba06f77bb94851c7ced659/examples/ui.rs) example).
 - Switch to `arboard` for managing clipboard ([#72](https://github.com/mvlabat/bevy_egui/pull/72)).
 
 ## [0.11.1] - 4-Feb-2022
@@ -107,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Change points delta from 24 to 50 for `MouseScrollUnit::Line` event.
 - Fix handling of mouse button events for Safari (inputs are no longer ignored).
-- Scroll is no longer applied to every Bevy window. 
+- Scroll is no longer applied to every Bevy window.
 
 ## [0.10.1] - 16-Jan-2022
 
