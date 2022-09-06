@@ -533,6 +533,7 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiClipboard>();
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
+        world.insert_resource(TouchId::default());
 
         app.add_startup_systems(
             (
