@@ -470,6 +470,7 @@ impl Plugin for EguiPlugin {
         #[cfg(feature = "manage_clipboard")]
         world.insert_resource(EguiClipboard::default());
         world.insert_resource(EguiContext::new());
+        world.insert_resource(TouchId::default());
 
         app.add_startup_system_to_stage(
             StartupStage::PreStartup,

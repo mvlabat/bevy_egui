@@ -309,8 +309,7 @@ pub fn process_input_system(
 
         for touch in input_events.ev_touch.iter() {
             let scale_factor = egui_settings.scale_factor as f32;
-            let mut touch_position: (f32, f32) = (touch.position / scale_factor).into();
-            touch_position.1 = focused_window_height.unwrap() / scale_factor - touch_position.1;
+            let touch_position: (f32, f32) = (touch.position / scale_factor).into();
 
             // Emit touch event
             focused_input.events.push(egui::Event::Touch {
