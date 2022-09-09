@@ -128,8 +128,38 @@ pub fn process_input(
     // When a user releases a mouse button, Safari emits both `CursorLeft` and `CursorEntered`
     // events during the same frame. We don't want to reset mouse position in such a case, otherwise
     // we won't be able to process the mouse button event.
-    if cursor_left_window.is_some() && cursor_left_window != cursor_entered_window {
-        egui_context.mouse_position = None;
+    if let Some(window_id) = &cursor_left_window {
+        if cursor_left_window != cursor_entered_window {
+            egui_context.mouse_position = None;
+
+            if let Some(events) = input_resources
+                .egui_input
+                .get_mut(window_id)
+                .map(|egui_input| &mut egui_input.raw_input.events)
+            {
+                for button in [
+                    egui::PointerButton::Primary,
+                    egui::PointerButton::Secondary,
+                    egui::PointerButton::Middle,
+                    egui::PointerButton::Extra1,
+                    egui::PointerButton::Extra2,
+                ] {
+                    if egui_context.ctx[window_id]
+                        .input()
+                        .pointer
+                        .button_down(button)
+                    {
+                        events.push(egui::Event::PointerButton {
+                            pressed: false,
+                            button,
+                            modifiers: Default::default(),
+                            pos: Default::default(),
+                        });
+                    }
+                }
+                events.push(egui::Event::PointerGone);
+            }
+        }
     }
 
     if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
