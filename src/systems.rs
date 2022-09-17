@@ -128,13 +128,18 @@ pub fn process_input(
     // When a user releases a mouse button, Safari emits both `CursorLeft` and `CursorEntered`
     // events during the same frame. We don't want to reset mouse position in such a case, otherwise
     // we won't be able to process the mouse button event.
-    if cursor_left_window.is_some() && cursor_left_window != cursor_entered_window {
-        egui_context.mouse_position = None;
-    }
+    let prev_mouse_position =
+        if cursor_left_window.is_some() && cursor_left_window != cursor_entered_window {
+            // If it's not the Safari edge case, reset the mouse position.
+            egui_context.mouse_position.take()
+        } else {
+            None
+        };
 
     if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
         // If we've left the window, it's unlikely that we've moved the cursor back to the same
-        // window this exact frame.
+        // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
+        // that has been left.
         if cursor_left_window != Some(cursor_moved.id) {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
@@ -155,10 +160,20 @@ pub fn process_input(
         }
     }
 
-    // Marks the events as read if we are going to ignore them (i.e. there's no window hovered).
+    // Calling `iter` marks the events as read.
+    // If we are going to ignore them (i.e. there's no window hovered), it's still important
+    // to clear the buffer.
     let mouse_button_event_iter = input_events.ev_mouse_button_input.iter();
     let mouse_wheel_event_iter = input_events.ev_mouse_wheel.iter();
-    if let Some((window_id, position)) = egui_context.mouse_position.as_ref() {
+
+    // If we pressed a button, started dragging a cursor inside a window and released
+    // the button when being outside, some platforms will fire `CursorLeft` again together
+    // with `MouseButtonInput` - this is why we also take `prev_mouse_position` into account.
+    if let Some((window_id, position)) = egui_context
+        .mouse_position
+        .as_ref()
+        .or(prev_mouse_position.as_ref())
+    {
         if let Some(egui_input) = input_resources.egui_input.get_mut(window_id) {
             let events = &mut egui_input.raw_input.events;
 
