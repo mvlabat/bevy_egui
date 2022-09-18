@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.16.1] - 18-Sep-2022
 
+### Fixed
+
 - Fix releasing buttons outside a window ([#123](https://github.com/mvlabat/bevy_egui/pull/123), thanks to @TheRawMeatball for flagging the issue in [#121](https://github.com/mvlabat/bevy_egui/pull/121))
 
 ## [0.16.0] - 24-Aug-2022
