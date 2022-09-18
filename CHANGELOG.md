@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 18-Sep-2022
+
+- Fix releasing buttons outside a window ([#123](https://github.com/mvlabat/bevy_egui/pull/123), thanks to @TheRawMeatball for flagging the issue in [#121](https://github.com/mvlabat/bevy_egui/pull/121))
+
 ## [0.16.0] - 24-Aug-2022
 
 ### Added
