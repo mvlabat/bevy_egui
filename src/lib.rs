@@ -51,7 +51,7 @@
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
 pub use egui;
-
+pub use bevy;
 mod egui_node;
 mod render_systems;
 mod systems;
