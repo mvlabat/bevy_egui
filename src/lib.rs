@@ -670,7 +670,9 @@ pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::{render::settings::WgpuSettings, winit::WinitPlugin, DefaultPlugins};
+    use bevy::{
+        app::PluginGroup, render::settings::WgpuSettings, winit::WinitPlugin, DefaultPlugins,
+    };
 
     #[test]
     fn test_readme_deps() {
@@ -684,7 +686,7 @@ mod tests {
                 backends: None,
                 ..Default::default()
             })
-            .add_plugins_with(DefaultPlugins, |group| group.disable::<WinitPlugin>())
+            .add_plugins(DefaultPlugins.build().disable::<WinitPlugin>())
             .add_plugin(EguiPlugin)
             .update();
     }
