@@ -21,7 +21,7 @@ use bevy::{
             VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{BevyDefault, Image},
+        texture::Image,
         view::ExtractedWindows,
     },
     window::WindowId,
@@ -120,7 +120,7 @@ impl FromWorld for EguiPipeline {
                 module: &shader_module,
                 entry_point: "fs_main",
                 targets: &[Some(ColorTargetState {
-                    format: TextureFormat::bevy_default(),
+                    format: TextureFormat::Bgra8UnormSrgb,
                     blend: Some(BlendState {
                         color: BlendComponent {
                             src_factor: BlendFactor::One,
@@ -424,7 +424,10 @@ pub(crate) fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image 
         // We unmultiply Egui textures to premultiply them later in the fragment shader.
         // As user textures loaded as Bevy assets are not premultiplied (and there seems to be no
         // convenient way to convert them to premultiplied ones), we do the this with Egui ones.
-        .flat_map(|color| color.to_srgba_unmultiplied())
+        .flat_map(|color| {
+            let [r, g, b, a] = color.to_srgba_unmultiplied();
+            [b, g, r, a]
+        })
         .collect();
 
     Image::new(
@@ -435,6 +438,6 @@ pub(crate) fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image 
         },
         TextureDimension::D2,
         pixels,
-        TextureFormat::Rgba8UnormSrgb,
+        TextureFormat::Bgra8UnormSrgb,
     )
 }
