@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 13-Nov-2022
+
+### Added
+
+- Update to Bevy 0.9 ([#127](https://github.com/mvlabat/bevy_egui/pull/127), [#133](https://github.com/mvlabat/bevy_egui/pull/133), thanks to @terhechte and @jakobhellermann)
+
+### Fixed
+
+- Fix window resizing on Windows ([#128](https://github.com/mvlabat/bevy_egui/pull/128) by @chronicl) 
+
 ## [0.16.1] - 18-Sep-2022
 
 ### Fixed
