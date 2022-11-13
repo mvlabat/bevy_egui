@@ -19,45 +19,58 @@ use bevy::{
     window::WindowId,
 };
 
-#[derive(Resource)]
-pub(crate) struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
-#[derive(Resource)]
-pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
-#[derive(Resource)]
-pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
-#[derive(Resource)]
-pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
+/// Extracted Egui render output.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
 
+/// Extracted window sizes.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
+
+/// Extracted Egui settings.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct ExtractedEguiSettings(pub EguiSettings);
+
+/// Extracted Egui contexts.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
+
+/// Corresponds to Egui's [`egui::TextureId`].
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub(crate) enum EguiTexture {
-    /// Textures allocated via egui.
+pub enum EguiTextureId {
+    /// Textures allocated via Egui.
     Managed(WindowId, u64),
-    /// Textures allocated via bevy.
+    /// Textures allocated via Bevy.
     User(u64),
 }
 
-#[derive(Resource)]
-pub(crate) struct ExtractedEguiTextures {
-    pub(crate) egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
-    pub(crate) user_textures: HashMap<Handle<Image>, u64>,
+/// Extracted Egui textures.
+#[derive(Resource, Default)]
+pub struct ExtractedEguiTextures {
+    /// Maps Egui managed texture ids to Bevy image handles.
+    pub egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
+    /// Maps Bevy managed texture handles to Egui user texture ids.
+    pub user_textures: HashMap<Handle<Image>, u64>,
 }
 
 impl ExtractedEguiTextures {
-    pub(crate) fn handles(&self) -> impl Iterator<Item = (EguiTexture, HandleId)> + '_ {
+    /// Returns an iterator over all textures (both Egui and Bevy managed).
+    pub fn handles(&self) -> impl Iterator<Item = (EguiTextureId, HandleId)> + '_ {
         self.egui_textures
             .iter()
             .map(|(&(window, texture_id), handle)| {
-                (EguiTexture::Managed(window, texture_id), handle.id())
+                (EguiTextureId::Managed(window, texture_id), handle.id())
             })
             .chain(
                 self.user_textures
                     .iter()
-                    .map(|(handle, id)| (EguiTexture::User(*id), handle.id())),
+                    .map(|(handle, id)| (EguiTextureId::User(*id), handle.id())),
             )
     }
 }
 
-pub(crate) fn extract_egui_render_data(
+/// Extracts Egui context, render output, settings and application window sizes.
+pub fn extract_egui_render_data_system(
     mut commands: Commands,
     egui_render_output: Extract<Res<EguiRenderOutputContainer>>,
     window_sizes: Extract<Res<EguiWindowSizeContainer>>,
@@ -70,7 +83,8 @@ pub(crate) fn extract_egui_render_data(
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
 }
 
-pub(crate) fn extract_egui_textures(
+/// Extracts Egui textures.
+pub fn extract_egui_textures_system(
     mut commands: Commands,
     egui_context: Extract<Res<EguiContext>>,
     egui_managed_textures: Extract<Res<EguiManagedTextures>>,
@@ -87,32 +101,42 @@ pub(crate) fn extract_egui_textures(
     });
 }
 
-#[derive(Default, Resource)]
-pub(crate) struct EguiTransforms {
+/// Describes the transform buffer.
+#[derive(Resource, Default)]
+pub struct EguiTransforms {
+    /// Uniform buffer.
     pub buffer: DynamicUniformBuffer<EguiTransform>,
+    /// Offsets for each window.
     pub offsets: HashMap<WindowId, u32>,
+    /// Bind group.
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
 
+/// Scale and translation for rendering Egui shapes. Is needed to transform Egui coordinates from
+/// the screen space with the center at (0, 0) to the normalised viewport space.
 #[derive(ShaderType, Default)]
-pub(crate) struct EguiTransform {
-    scale: Vec2,
-    translation: Vec2,
+pub struct EguiTransform {
+    /// Is affected by window size and [`EguiSettings::scale_factor`].
+    pub scale: Vec2,
+    /// Normally equals `Vec2::new(-1.0, 1.0)`.
+    pub translation: Vec2,
 }
 
 impl EguiTransform {
-    fn new(window_size: WindowSize, egui_settings: &EguiSettings) -> Self {
+    /// Calculates the transform from window size and scale factor.
+    pub fn from_window_size(window_size: WindowSize, scale_factor: f32) -> Self {
         EguiTransform {
             scale: Vec2::new(
-                2.0 / (window_size.width() / egui_settings.scale_factor as f32),
-                -2.0 / (window_size.height() / egui_settings.scale_factor as f32),
+                2.0 / (window_size.width() / scale_factor),
+                -2.0 / (window_size.height() / scale_factor),
             ),
             translation: Vec2::new(-1.0, 1.0),
         }
     }
 }
 
-pub(crate) fn prepare_egui_transforms(
+/// Prepares Egui transforms.
+pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
     window_sizes: Res<ExtractedWindowSizes>,
     egui_settings: Res<ExtractedEguiSettings>,
@@ -128,7 +152,7 @@ pub(crate) fn prepare_egui_transforms(
     for (window, size) in &window_sizes.0 {
         let offset = egui_transforms
             .buffer
-            .push(EguiTransform::new(*size, &egui_settings.0));
+            .push(EguiTransform::from_window_size(*size, egui_settings.scale_factor as f32));
         egui_transforms.offsets.insert(*window, offset);
     }
 
@@ -154,12 +178,12 @@ pub(crate) fn prepare_egui_transforms(
     }
 }
 
-#[derive(Resource)]
-pub(crate) struct EguiTextureBindGroups {
-    pub(crate) bind_groups: HashMap<EguiTexture, BindGroup>,
-}
+/// Maps Egui textures to bind groups.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct EguiTextureBindGroups(pub HashMap<EguiTextureId, BindGroup>);
 
-pub(crate) fn queue_bind_groups(
+/// Queues bind groups.
+pub fn queue_bind_groups_system(
     mut commands: Commands,
     egui_textures: Res<ExtractedEguiTextures>,
     render_device: Res<RenderDevice>,
@@ -188,5 +212,5 @@ pub(crate) fn queue_bind_groups(
         })
         .collect();
 
-    commands.insert_resource(EguiTextureBindGroups { bind_groups })
+    commands.insert_resource(EguiTextureBindGroups(bind_groups))
 }

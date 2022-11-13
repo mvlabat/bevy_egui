@@ -23,6 +23,7 @@ use bevy::{
 };
 use std::marker::PhantomData;
 
+#[doc(hidden)]
 #[derive(SystemParam)]
 pub struct InputEvents<'w, 's> {
     ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
@@ -36,6 +37,7 @@ pub struct InputEvents<'w, 's> {
     ev_window_created: EventReader<'w, 's, WindowCreated>,
 }
 
+#[doc(hidden)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
@@ -46,6 +48,7 @@ pub struct InputResources<'w, 's> {
     marker: PhantomData<&'s usize>,
 }
 
+#[doc(hidden)]
 #[derive(SystemParam)]
 pub struct WindowResources<'w, 's> {
     focused_window: Local<'s, Option<WindowId>>,
@@ -55,7 +58,8 @@ pub struct WindowResources<'w, 's> {
     _marker: PhantomData<&'s usize>,
 }
 
-pub fn init_contexts_on_startup(
+/// Initialises Egui contexts (for multiple windows) on startup.
+pub fn init_contexts_startup_system(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiRenderInputContainer>,
     mut window_resources: WindowResources,
@@ -69,7 +73,8 @@ pub fn init_contexts_on_startup(
     );
 }
 
-pub fn process_input(
+/// Processes Bevy input and feeds it to Egui.
+pub fn process_input_system(
     mut egui_context: ResMut<EguiContext>,
     mut input_events: InputEvents,
     mut input_resources: InputResources,
@@ -152,10 +157,8 @@ pub fn process_input(
             egui_context.mouse_position = Some((cursor_moved.id, mouse_position.into()));
             input_resources
                 .egui_input
-                .0
                 .get_mut(&cursor_moved.id)
                 .unwrap()
-                .raw_input
                 .events
                 .push(egui::Event::PointerMoved(egui::pos2(
                     mouse_position.0,
@@ -179,7 +182,7 @@ pub fn process_input(
         .or(prev_mouse_position.as_ref())
     {
         if let Some(egui_input) = input_resources.egui_input.0.get_mut(window_id) {
-            let events = &mut egui_input.raw_input.events;
+            let events = &mut egui_input.events;
 
             for mouse_button_event in mouse_button_event_iter {
                 let button = match mouse_button_event.button {
@@ -233,10 +236,8 @@ pub fn process_input(
             if !event.char.is_control() {
                 input_resources
                     .egui_input
-                    .0
                     .get_mut(&event.id)
                     .unwrap()
-                    .raw_input
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
             }
@@ -259,7 +260,7 @@ pub fn process_input(
                     pressed,
                     modifiers,
                 };
-                focused_input.raw_input.events.push(egui_event);
+                focused_input.events.push(egui_event);
 
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
@@ -267,15 +268,14 @@ pub fn process_input(
                 if command && pressed {
                     match key {
                         egui::Key::C => {
-                            focused_input.raw_input.events.push(egui::Event::Copy);
+                            focused_input.events.push(egui::Event::Copy);
                         }
                         egui::Key::X => {
-                            focused_input.raw_input.events.push(egui::Event::Cut);
+                            focused_input.events.push(egui::Event::Cut);
                         }
                         egui::Key::V => {
                             if let Some(contents) = input_resources.egui_clipboard.get_contents() {
                                 focused_input
-                                    .raw_input
                                     .events
                                     .push(egui::Event::Text(contents))
                             }
@@ -286,11 +286,11 @@ pub fn process_input(
             }
         }
 
-        focused_input.raw_input.modifiers = modifiers;
+        focused_input.modifiers = modifiers;
     }
 
     for egui_input in input_resources.egui_input.0.values_mut() {
-        egui_input.raw_input.predicted_dt = time.delta_seconds();
+        egui_input.predicted_dt = time.delta_seconds();
     }
 }
 
@@ -319,33 +319,34 @@ fn update_window_contexts(
             continue;
         }
 
-        egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
+        egui_input.screen_rect = Some(egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
             egui::pos2(width, height),
         ));
 
-        egui_input.raw_input.pixels_per_point =
+        egui_input.pixels_per_point =
             Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
         window_resources
             .window_sizes
-            .0
             .insert(window.id(), window_size);
         egui_context.ctx.entry(window.id()).or_default();
     }
 }
 
-pub fn begin_frame(
+/// Marks frame start for Egui.
+pub fn begin_frame_system(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiRenderInputContainer>,
 ) {
     for (id, ctx) in egui_context.ctx.iter_mut() {
-        let raw_input = egui_input.0.get_mut(id).unwrap().raw_input.take();
+        let raw_input = egui_input.0.get_mut(id).unwrap().take();
         ctx.begin_frame(raw_input);
     }
 }
 
-pub fn process_output(
+/// Reads Egui output.
+pub fn process_output_system(
     #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
         EguiSettings,
     >,
