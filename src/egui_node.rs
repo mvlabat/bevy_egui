@@ -1,5 +1,5 @@
 use crate::render_systems::{
-    EguiTexture, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
+    EguiTextureId, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
     ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
 };
 use bevy::{
@@ -157,7 +157,7 @@ impl FromWorld for EguiPipeline {
 #[derive(Debug)]
 struct DrawCommand {
     vertices_count: usize,
-    egui_texture: EguiTexture,
+    egui_texture: EguiTextureId,
     clipping_zone: (u32, u32, u32, u32), // x, y, w, h
 }
 
@@ -190,15 +190,15 @@ impl EguiNode {
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
         let mut shapes = world.get_resource_mut::<ExtractedRenderOutput>().unwrap();
-        let shapes = match shapes.0.get_mut(&self.window_id) {
+        let shapes = match shapes.get_mut(&self.window_id) {
             Some(shapes) => shapes,
             None => return,
         };
         let shapes = std::mem::take(&mut shapes.shapes);
 
-        let window_size = &world.get_resource::<ExtractedWindowSizes>().unwrap().0[&self.window_id];
-        let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap().0;
-        let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap().0;
+        let window_size = &world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_id];
+        let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
+        let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap();
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
@@ -254,8 +254,8 @@ impl Node for EguiNode {
             index_offset += mesh.vertices.len() as u32;
 
             let texture_handle = match mesh.texture_id {
-                egui::TextureId::Managed(id) => EguiTexture::Managed(self.window_id, id),
-                egui::TextureId::User(id) => EguiTexture::User(id),
+                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.window_id, id),
+                egui::TextureId::User(id) => EguiTextureId::User(id),
             };
 
             let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);
@@ -327,8 +327,7 @@ impl Node for EguiNode {
 
         let bind_groups = &world
             .get_resource::<EguiTextureBindGroups>()
-            .unwrap()
-            .bind_groups;
+            .unwrap();
 
         let egui_transforms = world.get_resource::<EguiTransforms>().unwrap();
 
