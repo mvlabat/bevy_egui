@@ -85,10 +85,15 @@ impl FromWorld for EguiPipeline {
     }
 }
 
-impl SpecializedRenderPipeline for EguiPipeline {
-    type Key = ();
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct EguiPipelineKey {
+    pub texture_format: TextureFormat,
+}
 
-    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
+impl SpecializedRenderPipeline for EguiPipeline {
+    type Key = EguiPipelineKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("egui render pipeline".into()),
             layout: Some(vec![
@@ -126,7 +131,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
                 shader_defs: Vec::new(),
                 entry_point: "fs_main".into(),
                 targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb,
+                    format: key.texture_format,
                     blend: Some(BlendState {
                         color: BlendComponent {
                             src_factor: BlendFactor::One,
