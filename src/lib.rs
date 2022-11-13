@@ -67,7 +67,7 @@ use crate::{
 use arboard::Clipboard;
 use bevy::{
     app::{App, CoreStage, Plugin, StartupStage},
-    asset::{load_internal_asset, AssetEvent, Assets, Handle},
+    asset::{AssetEvent, Assets, Handle},
     ecs::{event::EventReader, schedule::SystemLabel, system::ResMut},
     input::InputSystem,
     log,
@@ -496,7 +496,11 @@ impl Plugin for EguiPlugin {
         );
         app.add_system_to_stage(CoreStage::Last, free_egui_textures_system);
 
-        load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
+        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
+        shaders.set_untracked(
+            EGUI_SHADER_HANDLE,
+            Shader::from_wgsl(include_str!("egui.wgsl")),
+        );
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
