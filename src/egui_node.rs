@@ -1,23 +1,23 @@
 use crate::render_systems::{
-    EguiTextureId, EguiTextureBindGroups, EguiTransform, EguiTransforms, ExtractedEguiContext,
-    ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
+    EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
+    ExtractedEguiContext, ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
 };
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
-    prelude::Resource,
+    prelude::{HandleUntyped, Resource},
+    reflect::TypeUuid,
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
             BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
             BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
             BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-            Extent3d, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
-            PipelineLayoutDescriptor, PrimitiveState, RawFragmentState,
-            RawRenderPipelineDescriptor, RawVertexBufferLayout, RawVertexState,
-            RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, SamplerBindingType,
-            ShaderModuleDescriptor, ShaderSource, ShaderStages, ShaderType, TextureDimension,
-            TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexFormat,
+            Extent3d, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
+            PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+            RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType,
+            SpecializedRenderPipeline, TextureDimension, TextureFormat, TextureSampleType,
+            TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
             VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
@@ -27,23 +27,18 @@ use bevy::{
     window::WindowId,
 };
 
+pub const EGUI_SHADER_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9898276442290979394);
+
 #[derive(Resource)]
 pub struct EguiPipeline {
-    pipeline: RenderPipeline,
-
     pub transform_bind_group_layout: BindGroupLayout,
     pub texture_bind_group_layout: BindGroupLayout,
 }
 
 impl FromWorld for EguiPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let render_device = world.get_resource::<RenderDevice>().unwrap();
-
-        let shader_source = ShaderSource::Wgsl(include_str!("egui.wgsl").into());
-        let shader_module = render_device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("egui shader"),
-            source: shader_source,
-        });
+    fn from_world(render_world: &mut World) -> Self {
+        let render_device = render_world.get_resource::<RenderDevice>().unwrap();
 
         let transform_bind_group_layout =
             render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -82,22 +77,32 @@ impl FromWorld for EguiPipeline {
                     },
                 ],
             });
-        let pipeline_layout = render_device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("egui pipeline layout"),
-            bind_group_layouts: &[&transform_bind_group_layout, &texture_bind_group_layout],
-            push_constant_ranges: &[],
-        });
 
-        let render_pipeline = render_device.create_render_pipeline(&RawRenderPipelineDescriptor {
-            label: Some("egui render pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: RawVertexState {
-                module: &shader_module,
-                entry_point: "vs_main",
-                buffers: &[RawVertexBufferLayout {
+        EguiPipeline {
+            transform_bind_group_layout,
+            texture_bind_group_layout,
+        }
+    }
+}
+
+impl SpecializedRenderPipeline for EguiPipeline {
+    type Key = ();
+
+    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
+        RenderPipelineDescriptor {
+            label: Some("egui render pipeline".into()),
+            layout: Some(vec![
+                self.transform_bind_group_layout.clone(),
+                self.texture_bind_group_layout.clone(),
+            ]),
+            vertex: VertexState {
+                shader: EGUI_SHADER_HANDLE.typed(),
+                shader_defs: Vec::new(),
+                entry_point: "vs_main".into(),
+                buffers: vec![VertexBufferLayout {
                     array_stride: 20,
                     step_mode: VertexStepMode::Vertex,
-                    attributes: &[
+                    attributes: vec![
                         VertexAttribute {
                             format: VertexFormat::Float32x2,
                             offset: 0,
@@ -116,10 +121,11 @@ impl FromWorld for EguiPipeline {
                     ],
                 }],
             },
-            fragment: Some(RawFragmentState {
-                module: &shader_module,
-                entry_point: "fs_main",
-                targets: &[Some(ColorTargetState {
+            fragment: Some(FragmentState {
+                shader: EGUI_SHADER_HANDLE.typed(),
+                shader_defs: Vec::new(),
+                entry_point: "fs_main".into(),
+                targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Bgra8UnormSrgb,
                     blend: Some(BlendState {
                         color: BlendComponent {
@@ -143,13 +149,6 @@ impl FromWorld for EguiPipeline {
             },
             depth_stencil: None,
             multisample: MultisampleState::default(),
-            multiview: None,
-        });
-
-        EguiPipeline {
-            pipeline: render_pipeline,
-            transform_bind_group_layout,
-            texture_bind_group_layout,
         }
     }
 }
@@ -306,6 +305,9 @@ impl Node for EguiNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().pipelines;
+        let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
+
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
         let extracted_window =
             if let Some(extracted_window) = extracted_windows.get(&self.window_id) {
@@ -314,7 +316,6 @@ impl Node for EguiNode {
                 return Ok(()); // No window
             };
 
-        let egui_shaders = world.get_resource::<EguiPipeline>().unwrap();
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
         let (vertex_buffer, index_buffer) = match (&self.vertex_buffer, &self.index_buffer) {
@@ -325,9 +326,7 @@ impl Node for EguiNode {
         render_queue.write_buffer(vertex_buffer, 0, &self.vertex_data);
         render_queue.write_buffer(index_buffer, 0, &self.index_data);
 
-        let bind_groups = &world
-            .get_resource::<EguiTextureBindGroups>()
-            .unwrap();
+        let bind_groups = &world.get_resource::<EguiTextureBindGroups>().unwrap();
 
         let egui_transforms = world.get_resource::<EguiTransforms>().unwrap();
 
@@ -349,7 +348,10 @@ impl Node for EguiNode {
                     depth_stencil_attachment: None,
                 });
 
-        render_pass.set_pipeline(&egui_shaders.pipeline);
+        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.id) else { return Ok(()) };
+        let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else { return Ok(()) };
+
+        render_pass.set_pipeline(pipeline);
         render_pass.set_vertex_buffer(0, *self.vertex_buffer.as_ref().unwrap().slice(..));
         render_pass.set_index_buffer(
             *self.index_buffer.as_ref().unwrap().slice(..),

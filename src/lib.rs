@@ -51,29 +51,35 @@
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
 pub use egui;
-/// Plugin systems.
-pub mod systems;
 /// Plugin systems for the render app.
 pub mod render_systems;
+/// Plugin systems.
+pub mod systems;
 
 mod egui_node;
 
-use crate::systems::*;
+use crate::{
+    egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
+    render_systems::EguiTransforms,
+    systems::*,
+};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
     app::{App, CoreStage, Plugin, StartupStage},
-    asset::{AssetEvent, Assets, Handle},
+    asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{event::EventReader, schedule::SystemLabel, system::ResMut},
     input::InputSystem,
     log,
-    prelude::{Deref, DerefMut, IntoSystemDescriptor, Resource},
-    render::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
+    prelude::{Deref, DerefMut, IntoSystemDescriptor, Resource, Shader},
+    render::{
+        render_graph::RenderGraph, render_resource::SpecializedRenderPipelines, texture::Image,
+        RenderApp, RenderStage,
+    },
     utils::HashMap,
     window::WindowId,
 };
 use egui_node::EguiNode;
-use render_systems::EguiTransforms;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -490,20 +496,27 @@ impl Plugin for EguiPlugin {
         );
         app.add_system_to_stage(CoreStage::Last, free_egui_textures_system);
 
+        load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
+
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<egui_node::EguiPipeline>()
+                .init_resource::<SpecializedRenderPipelines<EguiPipeline>>()
                 .init_resource::<EguiTransforms>()
                 .add_system_to_stage(
                     RenderStage::Extract,
                     render_systems::extract_egui_render_data_system,
                 )
-                .add_system_to_stage(RenderStage::Extract, render_systems::extract_egui_textures_system)
+                .add_system_to_stage(
+                    RenderStage::Extract,
+                    render_systems::extract_egui_textures_system,
+                )
                 .add_system_to_stage(
                     RenderStage::Prepare,
                     render_systems::prepare_egui_transforms_system,
                 )
-                .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups_system);
+                .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups_system)
+                .add_system_to_stage(RenderStage::Queue, render_systems::queue_pipelines_system);
 
             let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
             setup_pipeline(&mut render_graph, RenderGraphConfig::default());
