@@ -23,39 +23,43 @@ use bevy::{
 };
 use std::marker::PhantomData;
 
+#[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputEvents<'w, 's> {
-    ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
-    ev_cursor_left: EventReader<'w, 's, CursorLeft>,
-    ev_cursor: EventReader<'w, 's, CursorMoved>,
-    ev_mouse_button_input: EventReader<'w, 's, MouseButtonInput>,
-    ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
-    ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
-    ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
-    ev_window_focused: EventReader<'w, 's, WindowFocused>,
-    ev_window_created: EventReader<'w, 's, WindowCreated>,
+    pub ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
+    pub ev_cursor_left: EventReader<'w, 's, CursorLeft>,
+    pub ev_cursor: EventReader<'w, 's, CursorMoved>,
+    pub ev_mouse_button_input: EventReader<'w, 's, MouseButtonInput>,
+    pub ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
+    pub ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
+    pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
+    pub ev_window_focused: EventReader<'w, 's, WindowFocused>,
+    pub ev_window_created: EventReader<'w, 's, WindowCreated>,
 }
 
+#[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
-    egui_clipboard: Res<'w, crate::EguiClipboard>,
-    keyboard_input: Res<'w, Input<KeyCode>>,
-    egui_input: ResMut<'w, EguiRenderInputContainer>,
+    pub egui_clipboard: Res<'w, crate::EguiClipboard>,
+    pub keyboard_input: Res<'w, Input<KeyCode>>,
+    pub egui_input: ResMut<'w, EguiRenderInputContainer>,
     #[system_param(ignore)]
-    marker: PhantomData<&'s usize>,
+    _marker: PhantomData<&'s ()>,
 }
 
+#[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct WindowResources<'w, 's> {
-    focused_window: Local<'s, Option<WindowId>>,
-    windows: ResMut<'w, Windows>,
-    window_sizes: ResMut<'w, EguiWindowSizeContainer>,
+    pub focused_window: Local<'s, Option<WindowId>>,
+    pub windows: ResMut<'w, Windows>,
+    pub window_sizes: ResMut<'w, EguiWindowSizeContainer>,
     #[system_param(ignore)]
-    _marker: PhantomData<&'s usize>,
+    _marker: PhantomData<&'s ()>,
 }
 
-pub fn init_contexts_on_startup(
+/// Initialises Egui contexts (for multiple windows) on startup.
+pub fn init_contexts_startup_system(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiRenderInputContainer>,
     mut window_resources: WindowResources,
@@ -69,7 +73,8 @@ pub fn init_contexts_on_startup(
     );
 }
 
-pub fn process_input(
+/// Processes Bevy input and feeds it to Egui.
+pub fn process_input_system(
     mut egui_context: ResMut<EguiContext>,
     mut input_events: InputEvents,
     mut input_resources: InputResources,
@@ -152,10 +157,8 @@ pub fn process_input(
             egui_context.mouse_position = Some((cursor_moved.id, mouse_position.into()));
             input_resources
                 .egui_input
-                .0
                 .get_mut(&cursor_moved.id)
                 .unwrap()
-                .raw_input
                 .events
                 .push(egui::Event::PointerMoved(egui::pos2(
                     mouse_position.0,
@@ -178,8 +181,8 @@ pub fn process_input(
         .as_ref()
         .or(prev_mouse_position.as_ref())
     {
-        if let Some(egui_input) = input_resources.egui_input.0.get_mut(window_id) {
-            let events = &mut egui_input.raw_input.events;
+        if let Some(egui_input) = input_resources.egui_input.get_mut(window_id) {
+            let events = &mut egui_input.events;
 
             for mouse_button_event in mouse_button_event_iter {
                 let button = match mouse_button_event.button {
@@ -233,10 +236,8 @@ pub fn process_input(
             if !event.char.is_control() {
                 input_resources
                     .egui_input
-                    .0
                     .get_mut(&event.id)
                     .unwrap()
-                    .raw_input
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
             }
@@ -246,7 +247,7 @@ pub fn process_input(
     if let Some(focused_input) = window_resources
         .focused_window
         .as_ref()
-        .and_then(|window_id| input_resources.egui_input.0.get_mut(window_id))
+        .and_then(|window_id| input_resources.egui_input.get_mut(window_id))
     {
         for ev in input_events.ev_keyboard_input.iter() {
             if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
@@ -259,7 +260,7 @@ pub fn process_input(
                     pressed,
                     modifiers,
                 };
-                focused_input.raw_input.events.push(egui_event);
+                focused_input.events.push(egui_event);
 
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
@@ -267,17 +268,14 @@ pub fn process_input(
                 if command && pressed {
                     match key {
                         egui::Key::C => {
-                            focused_input.raw_input.events.push(egui::Event::Copy);
+                            focused_input.events.push(egui::Event::Copy);
                         }
                         egui::Key::X => {
-                            focused_input.raw_input.events.push(egui::Event::Cut);
+                            focused_input.events.push(egui::Event::Cut);
                         }
                         egui::Key::V => {
                             if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                                focused_input
-                                    .raw_input
-                                    .events
-                                    .push(egui::Event::Text(contents))
+                                focused_input.events.push(egui::Event::Text(contents))
                             }
                         }
                         _ => {}
@@ -286,11 +284,11 @@ pub fn process_input(
             }
         }
 
-        focused_input.raw_input.modifiers = modifiers;
+        focused_input.modifiers = modifiers;
     }
 
-    for egui_input in input_resources.egui_input.0.values_mut() {
-        egui_input.raw_input.predicted_dt = time.delta_seconds();
+    for egui_input in input_resources.egui_input.values_mut() {
+        egui_input.predicted_dt = time.delta_seconds();
     }
 }
 
@@ -319,39 +317,48 @@ fn update_window_contexts(
             continue;
         }
 
-        egui_input.raw_input.screen_rect = Some(egui::Rect::from_min_max(
+        egui_input.screen_rect = Some(egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
             egui::pos2(width, height),
         ));
 
-        egui_input.raw_input.pixels_per_point =
+        egui_input.pixels_per_point =
             Some(window_size.scale_factor * egui_settings.scale_factor as f32);
 
         window_resources
             .window_sizes
-            .0
             .insert(window.id(), window_size);
         egui_context.ctx.entry(window.id()).or_default();
     }
 }
 
-pub fn begin_frame(
+/// Marks frame start for Egui.
+pub fn begin_frame_system(
     mut egui_context: ResMut<EguiContext>,
     mut egui_input: ResMut<EguiRenderInputContainer>,
 ) {
     for (id, ctx) in egui_context.ctx.iter_mut() {
-        let raw_input = egui_input.0.get_mut(id).unwrap().raw_input.take();
+        let raw_input = egui_input.get_mut(id).unwrap().take();
         ctx.begin_frame(raw_input);
     }
 }
 
-pub fn process_output(
+#[allow(missing_docs)]
+#[derive(SystemParam)]
+pub struct OutputResources<'w, 's> {
+    pub egui: ResMut<'w, EguiOutputContainer>,
+    pub egui_render: ResMut<'w, EguiRenderOutputContainer>,
+    #[system_param(ignore)]
+    _marker: PhantomData<&'s ()>,
+}
+
+/// Reads Egui output.
+pub fn process_output_system(
     #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
         EguiSettings,
     >,
     mut egui_context: ResMut<EguiContext>,
-    mut egui_output: ResMut<EguiOutputContainer>,
-    mut egui_render_output: ResMut<EguiRenderOutputContainer>,
+    mut output: OutputResources,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     mut windows: Option<ResMut<Windows>>,
     mut event: EventWriter<RequestRedraw>,
@@ -366,11 +373,11 @@ pub fn process_output(
             repaint_after,
         } = full_output;
 
-        let egui_render_output = egui_render_output.0.entry(*window_id).or_default();
+        let egui_render_output = output.egui_render.entry(*window_id).or_default();
         egui_render_output.shapes = shapes;
         egui_render_output.textures_delta.append(textures_delta);
 
-        egui_output.0.entry(*window_id).or_default().platform_output = platform_output.clone();
+        output.egui.entry(*window_id).or_default().platform_output = platform_output.clone();
 
         #[cfg(feature = "manage_clipboard")]
         if !platform_output.copied_text.is_empty() {

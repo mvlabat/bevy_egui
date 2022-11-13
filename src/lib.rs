@@ -50,13 +50,21 @@
 //!
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
+/// Plugin systems for the render app.
+pub mod render_systems;
+/// Plugin systems.
+pub mod systems;
+
+/// Egui render node.
+pub mod egui_node;
+
 pub use egui;
 
-mod egui_node;
-mod render_systems;
-mod systems;
-
-use crate::systems::*;
+use crate::{
+    egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
+    render_systems::EguiTransforms,
+    systems::*,
+};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
@@ -65,16 +73,17 @@ use bevy::{
     ecs::{event::EventReader, schedule::SystemLabel, system::ResMut},
     input::InputSystem,
     log,
-    prelude::{IntoSystemDescriptor, Resource},
-    render::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
+    prelude::{Deref, DerefMut, IntoSystemDescriptor, Resource, Shader},
+    render::{
+        render_graph::RenderGraph, render_resource::SpecializedRenderPipelines, texture::Image,
+        RenderApp, RenderStage,
+    },
     utils::HashMap,
     window::WindowId,
 };
 use egui_node::EguiNode;
-use render_systems::EguiTransforms;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
-use std::ops::Deref;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -114,62 +123,27 @@ impl Default for EguiSettings {
     }
 }
 
-/// Wrap the `WindowId` to `EguiRenderOutput` hashmap
-#[derive(Resource)]
+/// Stores [`EguiRenderOutput`] for each window.
+#[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiRenderOutputContainer(pub HashMap<WindowId, EguiRenderOutput>);
 
-impl Deref for EguiRenderOutputContainer {
-    type Target = HashMap<WindowId, EguiRenderOutput>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// Wrap the `WindowId` to `EguiInput` hashmap
-#[derive(Resource)]
+/// Stores [`EguiInput`] for each window.
+#[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiRenderInputContainer(pub HashMap<WindowId, EguiInput>);
 
-impl Deref for EguiRenderInputContainer {
-    type Target = HashMap<WindowId, EguiInput>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// Wrap the `WindowId` to `EguiOutputContainer` hashmap
-#[derive(Resource)]
+/// Stores [`EguiOutputContainer`] for each window.
+#[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiOutputContainer(pub HashMap<WindowId, EguiOutput>);
 
-impl Deref for EguiOutputContainer {
-    type Target = HashMap<WindowId, EguiOutput>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// Wrap the `WindowId` to `WindowSize` hashmap
-#[derive(Resource)]
+/// Stores [`WindowSize`] for each window.
+#[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiWindowSizeContainer(pub HashMap<WindowId, WindowSize>);
 
-impl Deref for EguiWindowSizeContainer {
-    type Target = HashMap<WindowId, WindowSize>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// Is used for storing the input passed to Egui. The actual resource is `HashMap<WindowId, EguiInput>`.
+/// Is used for storing the input passed to Egui in the [`EguiRenderInputContainer`] resource.
 ///
 /// It gets reset during the [`EguiSystem::ProcessInput`] system.
-#[derive(Clone, Debug, Default, Resource)]
-pub struct EguiInput {
-    /// Egui's raw input.
-    pub raw_input: egui::RawInput,
-}
+#[derive(Clone, Debug, Default, Deref, DerefMut)]
+pub struct EguiInput(pub egui::RawInput);
 
 /// A resource for accessing clipboard.
 ///
@@ -243,7 +217,7 @@ impl EguiClipboard {
     }
 }
 
-/// Is used for storing Egui shapes. The actual resource is `HashMap<WindowId, EguiShapes>`.
+/// Is used for storing Egui shapes in the [`EguiRenderOutputContainer`] resource.
 #[derive(Clone, Default, Debug, Resource)]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
@@ -255,7 +229,7 @@ pub struct EguiRenderOutput {
     pub textures_delta: egui::TexturesDelta,
 }
 
-/// Is used for storing Egui output. The actual resource is `HashMap<WindowId, EguiOutput>`.
+/// Is used for storing Egui output ine the [`EguiOutputContainer`] resource..
 #[derive(Clone, Default, Resource)]
 pub struct EguiOutput {
     /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
@@ -419,7 +393,7 @@ impl EguiContext {
     }
 }
 
-#[doc(hidden)]
+/// Stores physical size and scale factor, is used as a helper to calculate logical size.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct WindowSize {
     physical_width: f32,
@@ -499,45 +473,56 @@ impl Plugin for EguiPlugin {
 
         app.add_startup_system_to_stage(
             StartupStage::PreStartup,
-            init_contexts_on_startup.label(EguiStartupSystem::InitContexts),
+            init_contexts_startup_system.label(EguiStartupSystem::InitContexts),
         );
 
         app.add_system_to_stage(
             CoreStage::PreUpdate,
-            process_input
+            process_input_system
                 .label(EguiSystem::ProcessInput)
                 .after(InputSystem),
         );
         app.add_system_to_stage(
             CoreStage::PreUpdate,
-            begin_frame
+            begin_frame_system
                 .label(EguiSystem::BeginFrame)
                 .after(EguiSystem::ProcessInput),
         );
         app.add_system_to_stage(
             CoreStage::PostUpdate,
-            process_output.label(EguiSystem::ProcessOutput),
+            process_output_system.label(EguiSystem::ProcessOutput),
         );
         app.add_system_to_stage(
             CoreStage::PostUpdate,
-            update_egui_textures.after(EguiSystem::ProcessOutput),
+            update_egui_textures_system.after(EguiSystem::ProcessOutput),
         );
-        app.add_system_to_stage(CoreStage::Last, free_egui_textures);
+        app.add_system_to_stage(CoreStage::Last, free_egui_textures_system);
+
+        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
+        shaders.set_untracked(
+            EGUI_SHADER_HANDLE,
+            Shader::from_wgsl(include_str!("egui.wgsl")),
+        );
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<egui_node::EguiPipeline>()
+                .init_resource::<SpecializedRenderPipelines<EguiPipeline>>()
                 .init_resource::<EguiTransforms>()
                 .add_system_to_stage(
                     RenderStage::Extract,
-                    render_systems::extract_egui_render_data,
+                    render_systems::extract_egui_render_data_system,
                 )
-                .add_system_to_stage(RenderStage::Extract, render_systems::extract_egui_textures)
+                .add_system_to_stage(
+                    RenderStage::Extract,
+                    render_systems::extract_egui_textures_system,
+                )
                 .add_system_to_stage(
                     RenderStage::Prepare,
-                    render_systems::prepare_egui_transforms,
+                    render_systems::prepare_egui_transforms_system,
                 )
-                .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups);
+                .add_system_to_stage(RenderStage::Queue, render_systems::queue_bind_groups_system)
+                .add_system_to_stage(RenderStage::Queue, render_systems::queue_pipelines_system);
 
             let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
             setup_pipeline(&mut render_graph, RenderGraphConfig::default());
@@ -545,22 +530,25 @@ impl Plugin for EguiPlugin {
     }
 }
 
-#[derive(Default, Resource)]
-pub(crate) struct EguiManagedTextures(HashMap<(WindowId, u64), EguiManagedTexture>);
+/// Contains textures allocated and painted by Egui.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct EguiManagedTextures(pub HashMap<(WindowId, u64), EguiManagedTexture>);
 
-#[derive(Resource)]
-pub(crate) struct EguiManagedTexture {
-    handle: Handle<Image>,
+/// Represents a texture allocated and painted by Egui.
+pub struct EguiManagedTexture {
+    /// Assets store handle.
+    pub handle: Handle<Image>,
     /// Stored in full so we can do partial updates (which bevy doesn't support).
-    color_image: egui::ColorImage,
+    pub color_image: egui::ColorImage,
 }
 
-fn update_egui_textures(
+/// Updates textures painted by Egui.
+pub fn update_egui_textures_system(
     mut egui_render_output: ResMut<EguiRenderOutputContainer>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.0.iter_mut() {
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (texture_id, image_delta) in set_textures {
@@ -574,7 +562,7 @@ fn update_egui_textures(
             if let Some(pos) = image_delta.pos {
                 // Partial update.
                 if let Some(managed_texture) =
-                    egui_managed_textures.0.get_mut(&(window_id, texture_id))
+                    egui_managed_textures.get_mut(&(window_id, texture_id))
                 {
                     // TODO: when bevy supports it, only update the part of the texture that changes.
                     update_image_rect(&mut managed_texture.color_image, pos, &color_image);
@@ -587,7 +575,7 @@ fn update_egui_textures(
                 // Full update.
                 let image = egui_node::color_image_as_bevy_image(&color_image);
                 let handle = image_assets.add(image);
-                egui_managed_textures.0.insert(
+                egui_managed_textures.insert(
                     (window_id, texture_id),
                     EguiManagedTexture {
                         handle,
@@ -607,18 +595,18 @@ fn update_egui_textures(
     }
 }
 
-fn free_egui_textures(
+fn free_egui_textures_system(
     mut egui_context: ResMut<EguiContext>,
     mut egui_render_output: ResMut<EguiRenderOutputContainer>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.0.iter_mut() {
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
         for texture_id in free_textures {
             if let egui::TextureId::Managed(texture_id) = texture_id {
-                let managed_texture = egui_managed_textures.0.remove(&(window_id, texture_id));
+                let managed_texture = egui_managed_textures.remove(&(window_id, texture_id));
                 if let Some(managed_texture) = managed_texture {
                     image_assets.remove(managed_texture.handle);
                 }
