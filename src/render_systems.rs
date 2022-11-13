@@ -9,10 +9,12 @@ use bevy::{
         render_asset::RenderAssets,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
-            DynamicUniformBuffer, ShaderType,
+            CachedRenderPipelineId, DynamicUniformBuffer, PipelineCache, ShaderType,
+            SpecializedRenderPipelines,
         },
         renderer::{RenderDevice, RenderQueue},
         texture::Image,
+        view::ExtractedWindows,
         Extract,
     },
     utils::HashMap,
@@ -150,9 +152,10 @@ pub fn prepare_egui_transforms_system(
     egui_transforms.offsets.clear();
 
     for (window, size) in &window_sizes.0 {
-        let offset = egui_transforms
-            .buffer
-            .push(EguiTransform::from_window_size(*size, egui_settings.scale_factor as f32));
+        let offset = egui_transforms.buffer.push(EguiTransform::from_window_size(
+            *size,
+            egui_settings.scale_factor as f32,
+        ));
         egui_transforms.offsets.insert(*window, offset);
     }
 
@@ -213,4 +216,34 @@ pub fn queue_bind_groups_system(
         .collect();
 
     commands.insert_resource(EguiTextureBindGroups(bind_groups))
+}
+
+/// TODO
+#[derive(Resource)]
+/// TODO
+pub struct EguiPipelines {
+    /// TODO
+    pub pipelines: HashMap<WindowId, CachedRenderPipelineId>,
+}
+
+/// TODO
+pub fn queue_pipelines_system(
+    mut commands: Commands,
+    mut pipeline_cache: ResMut<PipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
+    egui_pipeline: Res<EguiPipeline>,
+    windows: Res<ExtractedWindows>,
+) {
+    let pipelines = windows
+        .iter()
+        .filter_map(|(window_id, window)| {
+            let _format = window.swap_chain_texture_format?;
+            let key = ();
+            let pipeline_id = pipelines.specialize(&mut pipeline_cache, &egui_pipeline, key);
+
+            Some((*window_id, pipeline_id))
+        })
+        .collect();
+
+    commands.insert_resource(EguiPipelines { pipelines });
 }
