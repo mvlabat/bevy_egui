@@ -355,6 +355,7 @@ pub fn process_output(
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     mut windows: Option<ResMut<Windows>>,
     mut event: EventWriter<RequestRedraw>,
+    #[cfg(windows)] mut last_cursor_icon: Local<HashMap<WindowId, egui::CursorIcon>>,
 ) {
     for (window_id, ctx) in egui_context.ctx.iter_mut() {
         let full_output = ctx.end_frame();
@@ -378,10 +379,23 @@ pub fn process_output(
 
         if let Some(ref mut windows) = windows {
             if let Some(window) = windows.get_mut(*window_id) {
-                window.set_cursor_icon(
-                    egui_to_winit_cursor_icon(platform_output.cursor_icon)
-                        .unwrap_or(bevy::window::CursorIcon::Default),
-                );
+                let mut set_icon = || {
+                    window.set_cursor_icon(
+                        egui_to_winit_cursor_icon(platform_output.cursor_icon)
+                            .unwrap_or(bevy::window::CursorIcon::Default),
+                    )
+                };
+
+                #[cfg(windows)]
+                {
+                    let last_cursor_icon = last_cursor_icon.entry(*window_id).or_default();
+                    if *last_cursor_icon != platform_output.cursor_icon {
+                        set_icon();
+                        *last_cursor_icon = platform_output.cursor_icon;
+                    }
+                }
+                #[cfg(not(windows))]
+                set_icon();
             }
         }
 
