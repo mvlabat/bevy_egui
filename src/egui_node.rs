@@ -17,8 +17,7 @@ use bevy::{
             PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
             RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType,
             SpecializedRenderPipeline, TextureDimension, TextureFormat, TextureSampleType,
-            TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
-            VertexStepMode,
+            TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::Image,
@@ -104,27 +103,14 @@ impl SpecializedRenderPipeline for EguiPipeline {
                 shader: EGUI_SHADER_HANDLE.typed(),
                 shader_defs: Vec::new(),
                 entry_point: "vs_main".into(),
-                buffers: vec![VertexBufferLayout {
-                    array_stride: 20,
-                    step_mode: VertexStepMode::Vertex,
-                    attributes: vec![
-                        VertexAttribute {
-                            format: VertexFormat::Float32x2,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x2,
-                            offset: 8,
-                            shader_location: 1,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Unorm8x4,
-                            offset: 16,
-                            shader_location: 2,
-                        },
+                buffers: vec![VertexBufferLayout::from_vertex_formats(
+                    VertexStepMode::Vertex,
+                    [
+                        VertexFormat::Float32x2, // position
+                        VertexFormat::Float32x2, // UV
+                        VertexFormat::Unorm8x4,  // color (sRGB)
                     ],
-                }],
+                )],
             },
             fragment: Some(FragmentState {
                 shader: EGUI_SHADER_HANDLE.typed(),
