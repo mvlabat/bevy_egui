@@ -219,15 +219,11 @@ pub fn queue_bind_groups_system(
     commands.insert_resource(EguiTextureBindGroups(bind_groups))
 }
 
-/// TODO
+/// Cached Pipeline IDs for the specialized `EguiPipeline`s
 #[derive(Resource)]
-/// TODO
-pub struct EguiPipelines {
-    /// TODO
-    pub pipelines: HashMap<WindowId, CachedRenderPipelineId>,
-}
+pub struct EguiPipelines(pub HashMap<WindowId, CachedRenderPipelineId>);
 
-/// TODO
+/// Queue [`EguiPipeline`]s specialized on each window's swap chain texture format.
 pub fn queue_pipelines_system(
     mut commands: Commands,
     mut pipeline_cache: ResMut<PipelineCache>,
@@ -247,5 +243,5 @@ pub fn queue_pipelines_system(
         })
         .collect();
 
-    commands.insert_resource(EguiPipelines { pipelines });
+    commands.insert_resource(EguiPipelines(pipelines));
 }
