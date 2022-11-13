@@ -37,6 +37,21 @@ pub struct InputEvents<'w, 's> {
     pub ev_window_created: EventReader<'w, 's, WindowCreated>,
 }
 
+impl<'w, 's> InputEvents<'w, 's> {
+    /// Consumes all the events.
+    pub fn clear(&mut self) {
+        self.ev_cursor_entered.iter().last();
+        self.ev_cursor_left.iter().last();
+        self.ev_cursor.iter().last();
+        self.ev_mouse_button_input.iter().last();
+        self.ev_mouse_wheel.iter().last();
+        self.ev_received_character.iter().last();
+        self.ev_keyboard_input.iter().last();
+        self.ev_window_focused.iter().last();
+        self.ev_window_created.iter().last();
+    }
+}
+
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
@@ -167,12 +182,6 @@ pub fn process_input_system(
         }
     }
 
-    // Calling `iter` marks the events as read.
-    // If we are going to ignore them (i.e. there's no window hovered), it's still important
-    // to clear the buffer.
-    let mouse_button_event_iter = input_events.ev_mouse_button_input.iter();
-    let mouse_wheel_event_iter = input_events.ev_mouse_wheel.iter();
-
     // If we pressed a button, started dragging a cursor inside a window and released
     // the button when being outside, some platforms will fire `CursorLeft` again together
     // with `MouseButtonInput` - this is why we also take `prev_mouse_position` into account.
@@ -184,7 +193,7 @@ pub fn process_input_system(
         if let Some(egui_input) = input_resources.egui_input.get_mut(window_id) {
             let events = &mut egui_input.events;
 
-            for mouse_button_event in mouse_button_event_iter {
+            for mouse_button_event in input_events.ev_mouse_button_input.iter() {
                 let button = match mouse_button_event.button {
                     MouseButton::Left => Some(egui::PointerButton::Primary),
                     MouseButton::Right => Some(egui::PointerButton::Secondary),
@@ -205,7 +214,7 @@ pub fn process_input_system(
                 }
             }
 
-            for event in mouse_wheel_event_iter {
+            for event in input_events.ev_mouse_wheel.iter() {
                 let mut delta = egui::vec2(event.x, event.y);
                 if let MouseScrollUnit::Line = event.unit {
                     // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
@@ -290,6 +299,10 @@ pub fn process_input_system(
     for egui_input in input_resources.egui_input.values_mut() {
         egui_input.predicted_dt = time.delta_seconds();
     }
+
+    // In some cases, we may skip certain events. For example, we ignore `ReceivedCharacter` events
+    // when alt or ctrl button is pressed. We still want to clear event buffer.
+    input_events.clear();
 }
 
 fn update_window_contexts(
