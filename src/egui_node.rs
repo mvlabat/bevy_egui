@@ -296,7 +296,7 @@ impl Node for EguiNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().pipelines;
+        let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().0;
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
