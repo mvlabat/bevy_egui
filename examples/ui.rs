@@ -33,7 +33,7 @@ fn main() {
         .add_system(ui_example)
         .run();
 }
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct UiState {
     label: String,
     value: f32,

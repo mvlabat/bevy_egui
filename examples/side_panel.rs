@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::camera::Projection};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct OccupiedScreenSpace {
     left: f32,
     top: f32,
@@ -11,6 +11,7 @@ struct OccupiedScreenSpace {
 
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 
+#[derive(Resource)]
 struct OriginalCameraTransform(Transform);
 
 fn main() {
@@ -67,18 +68,18 @@ fn setup_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..Default::default()
     });
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
         material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
         transform: Transform::from_xyz(0.0, 0.5, 0.0),
         ..Default::default()
     });
-    commands.spawn_bundle(PointLightBundle {
+    commands.spawn(PointLightBundle {
         point_light: PointLight {
             intensity: 1500.0,
             shadows_enabled: true,
@@ -93,7 +94,7 @@ fn setup_system(
         Transform::from_translation(camera_pos).looking_at(CAMERA_TARGET, Vec3::Y);
     commands.insert_resource(OriginalCameraTransform(camera_transform));
 
-    commands.spawn_bundle(Camera3dBundle {
+    commands.spawn(Camera3dBundle {
         transform: camera_transform,
         ..Default::default()
     });

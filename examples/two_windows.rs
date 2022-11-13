@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 
 static SECOND_WINDOW_ID: Lazy<WindowId> = Lazy::new(WindowId::new);
 
+#[derive(Resource)]
 struct Images {
     bevy_icon: Handle<Image>,
 }
@@ -51,7 +52,7 @@ fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut co
         },
     });
     // second window camera
-    commands.spawn_bundle(Camera3dBundle {
+    commands.spawn(Camera3dBundle {
         camera: Camera {
             target: RenderTarget::Window(*SECOND_WINDOW_ID),
             ..Default::default()
@@ -72,7 +73,7 @@ struct UiState {
     input: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct SharedUiState {
     shared_input: String,
 }
