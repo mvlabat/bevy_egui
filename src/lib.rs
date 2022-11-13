@@ -50,13 +50,15 @@
 //!
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
-pub use egui;
 /// Plugin systems for the render app.
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
 
-mod egui_node;
+/// Egui render node.
+pub mod egui_node;
+
+pub use egui;
 
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},

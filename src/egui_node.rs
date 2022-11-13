@@ -26,12 +26,16 @@ use bevy::{
     window::WindowId,
 };
 
+/// Egui shader.
 pub const EGUI_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9898276442290979394);
 
+/// Egui render pipeline.
 #[derive(Resource)]
 pub struct EguiPipeline {
+    /// Transform bind group layout.
     pub transform_bind_group_layout: BindGroupLayout,
+    /// Texture bind group layout.
     pub texture_bind_group_layout: BindGroupLayout,
 }
 
@@ -84,8 +88,10 @@ impl FromWorld for EguiPipeline {
     }
 }
 
+/// Key for specialized pipeline.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct EguiPipelineKey {
+    /// Texture format of a window's swap chain to render to.
     pub texture_format: TextureFormat,
 }
 
@@ -151,6 +157,7 @@ struct DrawCommand {
     clipping_zone: (u32, u32, u32, u32), // x, y, w, h
 }
 
+/// Egui render node.
 pub struct EguiNode {
     window_id: WindowId,
     vertex_data: Vec<u8>,
@@ -163,6 +170,7 @@ pub struct EguiNode {
 }
 
 impl EguiNode {
+    /// Constructs Egui render node.
     pub fn new(window_id: WindowId) -> Self {
         EguiNode {
             window_id,
