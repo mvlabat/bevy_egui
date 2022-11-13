@@ -11,7 +11,7 @@ struct OccupiedScreenSpace {
 
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 
-#[derive(Resource)]
+#[derive(Resource, Deref, DerefMut)]
 struct OriginalCameraTransform(Transform);
 
 fn main() {
@@ -111,7 +111,7 @@ fn update_camera_transform_system(
         _ => unreachable!(),
     };
 
-    let distance_to_target = (CAMERA_TARGET - original_camera_transform.0.translation).length();
+    let distance_to_target = (CAMERA_TARGET - original_camera_transform.translation).length();
     let frustum_height = 2.0 * distance_to_target * (camera_projection.fov * 0.5).tan();
     let frustum_width = frustum_height * camera_projection.aspect_ratio;
 
@@ -121,7 +121,7 @@ fn update_camera_transform_system(
     let right_taken = occupied_screen_space.right / window.width();
     let top_taken = occupied_screen_space.top / window.height();
     let bottom_taken = occupied_screen_space.bottom / window.height();
-    transform.translation = original_camera_transform.0.translation
+    transform.translation = original_camera_transform.translation
         + transform.rotation.mul_vec3(Vec3::new(
             (right_taken - left_taken) * frustum_width * 0.5,
             (top_taken - bottom_taken) * frustum_height * 0.5,

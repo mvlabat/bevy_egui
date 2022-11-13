@@ -94,7 +94,6 @@ pub fn extract_egui_textures_system(
 ) {
     commands.insert_resource(ExtractedEguiTextures {
         egui_textures: egui_managed_textures
-            .0
             .iter()
             .map(|(&(window_id, texture_id), managed_texture)| {
                 ((window_id, texture_id), managed_texture.handle.clone())

@@ -125,19 +125,19 @@ impl Default for EguiSettings {
 
 /// Stores [`EguiRenderOutput`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiRenderOutputContainer(HashMap<WindowId, EguiRenderOutput>);
+pub struct EguiRenderOutputContainer(pub HashMap<WindowId, EguiRenderOutput>);
 
 /// Stores [`EguiInput`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiRenderInputContainer(HashMap<WindowId, EguiInput>);
+pub struct EguiRenderInputContainer(pub HashMap<WindowId, EguiInput>);
 
 /// Stores [`EguiOutputContainer`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiOutputContainer(HashMap<WindowId, EguiOutput>);
+pub struct EguiOutputContainer(pub HashMap<WindowId, EguiOutput>);
 
 /// Stores [`WindowSize`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiWindowSizeContainer(HashMap<WindowId, WindowSize>);
+pub struct EguiWindowSizeContainer(pub HashMap<WindowId, WindowSize>);
 
 /// Is used for storing the input passed to Egui in the [`EguiRenderInputContainer`] resource.
 ///
@@ -532,7 +532,7 @@ impl Plugin for EguiPlugin {
 
 /// Contains textures allocated and painted by Egui.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiManagedTextures(HashMap<(WindowId, u64), EguiManagedTexture>);
+pub struct EguiManagedTextures(pub HashMap<(WindowId, u64), EguiManagedTexture>);
 
 /// Represents a texture allocated and painted by Egui.
 pub struct EguiManagedTexture {
@@ -548,7 +548,7 @@ pub fn update_egui_textures_system(
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.0.iter_mut() {
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (texture_id, image_delta) in set_textures {
@@ -562,7 +562,7 @@ pub fn update_egui_textures_system(
             if let Some(pos) = image_delta.pos {
                 // Partial update.
                 if let Some(managed_texture) =
-                    egui_managed_textures.0.get_mut(&(window_id, texture_id))
+                    egui_managed_textures.get_mut(&(window_id, texture_id))
                 {
                     // TODO: when bevy supports it, only update the part of the texture that changes.
                     update_image_rect(&mut managed_texture.color_image, pos, &color_image);
@@ -575,7 +575,7 @@ pub fn update_egui_textures_system(
                 // Full update.
                 let image = egui_node::color_image_as_bevy_image(&color_image);
                 let handle = image_assets.add(image);
-                egui_managed_textures.0.insert(
+                egui_managed_textures.insert(
                     (window_id, texture_id),
                     EguiManagedTexture {
                         handle,
@@ -602,11 +602,11 @@ fn free_egui_textures_system(
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.0.iter_mut() {
+    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
         for texture_id in free_textures {
             if let egui::TextureId::Managed(texture_id) = texture_id {
-                let managed_texture = egui_managed_textures.0.remove(&(window_id, texture_id));
+                let managed_texture = egui_managed_textures.remove(&(window_id, texture_id));
                 if let Some(managed_texture) = managed_texture {
                     image_assets.remove(managed_texture.handle);
                 }
