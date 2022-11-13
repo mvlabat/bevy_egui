@@ -1,6 +1,7 @@
 use crate::{
-    egui_node::EguiPipeline, EguiContext, EguiManagedTextures, EguiRenderOutput,
-    EguiRenderOutputContainer, EguiSettings, EguiWindowSizeContainer, WindowSize,
+    egui_node::{EguiPipeline, EguiPipelineKey},
+    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer, EguiSettings,
+    EguiWindowSizeContainer, WindowSize,
 };
 use bevy::{
     asset::HandleId,
@@ -237,8 +238,9 @@ pub fn queue_pipelines_system(
     let pipelines = windows
         .iter()
         .filter_map(|(window_id, window)| {
-            let _format = window.swap_chain_texture_format?;
-            let key = ();
+            let key = EguiPipelineKey {
+                texture_format: window.swap_chain_texture_format?,
+            };
             let pipeline_id = pipelines.specialize(&mut pipeline_cache, &egui_pipeline, key);
 
             Some((*window_id, pipeline_id))
