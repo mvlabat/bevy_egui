@@ -432,7 +432,7 @@ pub(crate) fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image 
         // convenient way to convert them to premultiplied ones), we do the this with Egui ones.
         .flat_map(|color| {
             let [r, g, b, a] = color.to_srgba_unmultiplied();
-            [b, g, r, a]
+            [r, g, b, a]
         })
         .collect();
 
@@ -444,6 +444,6 @@ pub(crate) fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image 
         },
         TextureDimension::D2,
         pixels,
-        TextureFormat::Bgra8UnormSrgb,
+        TextureFormat::Rgba8UnormSrgb,
     )
 }
