@@ -298,7 +298,7 @@ impl EguiContext {
     #[must_use]
     #[track_caller]
     pub fn ctx_mut(&mut self) -> &egui::Context {
-        self.ctx.get(&WindowId::primary()).expect("`EguiContext::ctx_mut` was called for an uninitialized context (primary window), consider moving your startup system to the `StartupStage::Startup` stage or run it after the `EguiStartupSystem::InitContexts` system")
+        self.ctx_for_window_mut(WindowId::primary())
     }
 
     /// Egui context for a specific window.
@@ -307,9 +307,7 @@ impl EguiContext {
     #[must_use]
     #[track_caller]
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
-        self.ctx
-            .get(&window)
-            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
+        self.ctx.entry(window).or_default()
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
