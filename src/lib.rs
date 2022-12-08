@@ -78,7 +78,7 @@ use bevy::{
         render_graph::RenderGraph, render_resource::SpecializedRenderPipelines, texture::Image,
         RenderApp, RenderStage,
     },
-    utils::HashMap,
+    utils::{Entry, HashMap},
     window::WindowId,
 };
 use egui_node::EguiNode;
@@ -307,7 +307,14 @@ impl EguiContext {
     #[must_use]
     #[track_caller]
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
-        self.ctx.entry(window).or_default()
+        match self.ctx.entry(window) {
+            Entry::Occupied(ctx) => ctx.into_mut(),
+            Entry::Vacant(entry) => {
+                let context = egui::Context::default();
+                context.run(Default::default(), |ui| {});
+                entry.insert(context)
+            }
+        }
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
