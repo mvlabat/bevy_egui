@@ -410,10 +410,9 @@ pub(crate) fn as_color_image(image: egui::ImageData) -> egui::ColorImage {
 }
 
 fn alpha_image_as_color_image(image: &egui::FontImage) -> egui::ColorImage {
-    let gamma = 1.0;
     egui::ColorImage {
         size: image.size,
-        pixels: image.srgba_pixels(gamma).collect(),
+        pixels: image.srgba_pixels(None).collect(),
     }
 }
 
