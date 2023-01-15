@@ -18,10 +18,10 @@ fn main() {
     app.add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
-        .add_startup_system(load_assets)
-        .add_startup_system(create_new_window)
-        .add_system(ui_first_window)
-        .add_system(ui_second_window);
+        .add_startup_system(load_assets_system)
+        .add_startup_system(create_new_window_system)
+        .add_system(ui_first_window_system)
+        .add_system(ui_second_window_system);
 
     let render_app = app.sub_app_mut(RenderApp);
     let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
@@ -39,7 +39,10 @@ fn main() {
 
 const SECONDARY_EGUI_PASS: &str = "secondary_egui_pass";
 
-fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut commands: Commands) {
+fn create_new_window_system(
+    mut create_window_events: EventWriter<CreateWindow>,
+    mut commands: Commands,
+) {
     // sends out a "CreateWindow" event, which will be received by the windowing backend
     create_window_events.send(CreateWindow {
         id: *SECOND_WINDOW_ID,
@@ -62,7 +65,7 @@ fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut co
     });
 }
 
-fn load_assets(mut commands: Commands, assets: Res<AssetServer>) {
+fn load_assets_system(mut commands: Commands, assets: Res<AssetServer>) {
     commands.insert_resource(Images {
         bevy_icon: assets.load("icon.png"),
     });
@@ -78,7 +81,7 @@ struct SharedUiState {
     shared_input: String,
 }
 
-fn ui_first_window(
+fn ui_first_window_system(
     mut egui_context: ResMut<EguiContext>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
@@ -101,7 +104,7 @@ fn ui_first_window(
         });
 }
 
-fn ui_second_window(
+fn ui_second_window_system(
     mut egui_context: ResMut<EguiContext>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,

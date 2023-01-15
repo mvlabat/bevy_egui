@@ -27,10 +27,10 @@ fn main() {
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_startup_system(configure_visuals)
-        .add_startup_system(configure_ui_state)
-        .add_system(update_ui_scale_factor)
-        .add_system(ui_example)
+        .add_startup_system(configure_visuals_system)
+        .add_startup_system(configure_ui_state_system)
+        .add_system(update_ui_scale_factor_system)
+        .add_system(ui_example_system)
         .run();
 }
 #[derive(Default, Resource)]
@@ -43,18 +43,18 @@ struct UiState {
     is_window_open: bool,
 }
 
-fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
+fn configure_visuals_system(mut egui_ctx: ResMut<EguiContext>) {
     egui_ctx.ctx_mut().set_visuals(egui::Visuals {
         window_rounding: 0.0.into(),
         ..Default::default()
     });
 }
 
-fn configure_ui_state(mut ui_state: ResMut<UiState>) {
+fn configure_ui_state_system(mut ui_state: ResMut<UiState>) {
     ui_state.is_window_open = true;
 }
 
-fn update_ui_scale_factor(
+fn update_ui_scale_factor_system(
     keyboard_input: Res<Input<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut egui_settings: ResMut<EguiSettings>,
@@ -74,7 +74,7 @@ fn update_ui_scale_factor(
     }
 }
 
-fn ui_example(
+fn ui_example_system(
     mut egui_ctx: ResMut<EguiContext>,
     mut ui_state: ResMut<UiState>,
     // You are not required to store Egui texture ids in systems. We store this one here just to

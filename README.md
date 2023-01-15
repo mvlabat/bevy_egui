@@ -40,7 +40,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.9"
-bevy_egui = "0.18"
+bevy_egui = "0.19"
 ```
 
 ```rust
@@ -53,11 +53,11 @@ fn main() {
         .add_plugin(EguiPlugin)
         // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
-        .add_system(ui_example)
+        .add_system(ui_example_system)
         .run();
 }
 
-fn ui_example(mut egui_context: ResMut<EguiContext>) {
+fn ui_example_system(mut egui_context: ResMut<EguiContext>) {
     egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
         ui.label("world");
     });
@@ -80,7 +80,7 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
-| 0.9  | 0.17-0.18 |
+| 0.9  | 0.17-0.19 |
 | 0.8  | 0.15-0.16 |
 | 0.7  | 0.13-0.14 |
 | 0.6  | 0.10-0.12 |
