@@ -309,7 +309,7 @@ impl EguiContext {
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
         self.ctx
             .get(&window)
-            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", window))
+            .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {window}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)"))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
@@ -334,10 +334,9 @@ impl EguiContext {
         let mut unique_ids = bevy::utils::HashSet::default();
         assert!(
             ids.iter().all(move |id| unique_ids.insert(id)),
-            "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {:?}",
-            ids
+            "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {ids:?}",
         );
-        ids.map(|id| self.ctx.get(&id).unwrap_or_else(|| panic!("`EguiContext::ctx_for_windows_mut` was called for an uninitialized context (window {}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)", id)))
+        ids.map(|id| self.ctx.get(&id).unwrap_or_else(|| panic!("`EguiContext::ctx_for_windows_mut` was called for an uninitialized context (window {id}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)")))
     }
 
     /// Fallible variant of [`EguiContext::ctx_for_windows_mut`]. Make sure to set up the render
@@ -354,8 +353,7 @@ impl EguiContext {
         let mut unique_ids = bevy::utils::HashSet::default();
         assert!(
             ids.iter().all(move |id| unique_ids.insert(id)),
-            "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {:?}",
-            ids
+            "Window ids passed to `EguiContext::ctx_for_windows_mut` must be unique: {ids:?}",
         );
         ids.map(|id| self.ctx.get(&id))
     }
