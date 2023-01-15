@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.19.0] - 15-Jan-2023
 
+### Added
+
 - Update the `arboard` dependency ([#142](https://github.com/mvlabat/bevy_egui/pull/142) by @jakobhellermann)
+
+### Fixed
+
 - Fix panics due to missing swapchain textures ([#141](https://github.com/mvlabat/bevy_egui/pull/141) by @connerebbinghaus)
 
 ## [0.18.0] - 11-Dec-2022
