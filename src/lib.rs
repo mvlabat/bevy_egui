@@ -82,6 +82,7 @@ use bevy::{
     window::WindowId,
 };
 use egui_node::EguiNode;
+use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -302,8 +303,6 @@ impl EguiContext {
     }
 
     /// Egui context for a specific window.
-    /// If you want to display UI on a non-primary window, make sure to set up the render graph by
-    /// calling [`setup_pipeline`].
     #[must_use]
     #[track_caller]
     pub fn ctx_for_window_mut(&mut self, window: WindowId) -> &egui::Context {
@@ -312,8 +311,7 @@ impl EguiContext {
             .unwrap_or_else(|| panic!("`EguiContext::ctx_for_window_mut` was called for an uninitialized context (window {window}), consider moving your UI system to the `CoreStage::Update` stage or run it after the `EguiSystem::BeginFrame` system (`StartupStage::Startup` or `EguiStartupSystem::InitContexts` for startup systems respectively)"))
     }
 
-    /// Fallible variant of [`EguiContext::ctx_for_window_mut`]. Make sure to set up the render
-    /// graph by calling [`setup_pipeline`].
+    /// Fallible variant of [`EguiContext::ctx_for_window_mut`].
     #[must_use]
     pub fn try_ctx_for_window_mut(&mut self, window: WindowId) -> Option<&egui::Context> {
         self.ctx.get(&window)
@@ -516,6 +514,10 @@ impl Plugin for EguiPlugin {
                     render_systems::extract_egui_textures_system,
                 )
                 .add_system_to_stage(
+                    RenderStage::Extract,
+                    render_systems::setup_new_windows_system,
+                )
+                .add_system_to_stage(
                     RenderStage::Prepare,
                     render_systems::prepare_egui_transforms_system,
                 )
@@ -624,14 +626,14 @@ pub struct RenderGraphConfig {
     /// Target window.
     pub window_id: WindowId,
     /// Render pass name.
-    pub egui_pass: &'static str,
+    pub egui_pass: Cow<'static, str>,
 }
 
 impl Default for RenderGraphConfig {
     fn default() -> Self {
         RenderGraphConfig {
             window_id: WindowId::primary(),
-            egui_pass: node::EGUI_PASS,
+            egui_pass: Cow::Borrowed(node::EGUI_PASS),
         }
     }
 }
@@ -641,16 +643,19 @@ impl Default for RenderGraphConfig {
 /// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
 /// so you'll only need to manually call this if you want to use multiple windows.
 pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig) {
-    render_graph.add_node(config.egui_pass, EguiNode::new(config.window_id));
+    render_graph.add_node(
+        config.egui_pass.to_string(),
+        EguiNode::new(config.window_id),
+    );
 
     render_graph
         .add_node_edge(
             bevy::render::main_graph::node::CAMERA_DRIVER,
-            config.egui_pass,
+            config.egui_pass.to_string(),
         )
         .unwrap();
 
-    let _ = render_graph.add_node_edge("ui_pass_driver", config.egui_pass);
+    let _ = render_graph.add_node_edge("ui_pass_driver", config.egui_pass.to_string());
 }
 
 #[cfg(test)]

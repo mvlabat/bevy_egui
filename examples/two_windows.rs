@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    render::{camera::RenderTarget, render_graph::RenderGraph, RenderApp},
+    render::camera::RenderTarget,
     window::{CreateWindow, PresentMode, WindowId},
 };
 use bevy_egui::{EguiContext, EguiPlugin};
@@ -23,21 +23,8 @@ fn main() {
         .add_system(ui_first_window_system)
         .add_system(ui_second_window_system);
 
-    let render_app = app.sub_app_mut(RenderApp);
-    let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-
-    bevy_egui::setup_pipeline(
-        &mut graph,
-        bevy_egui::RenderGraphConfig {
-            window_id: *SECOND_WINDOW_ID,
-            egui_pass: SECONDARY_EGUI_PASS,
-        },
-    );
-
     app.run();
 }
-
-const SECONDARY_EGUI_PASS: &str = "secondary_egui_pass";
 
 fn create_new_window_system(
     mut create_window_events: EventWriter<CreateWindow>,

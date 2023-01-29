@@ -1,13 +1,14 @@
 use crate::{
     egui_node::{EguiPipeline, EguiPipelineKey},
-    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer, EguiSettings,
-    EguiWindowSizeContainer, WindowSize,
+    setup_pipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer,
+    EguiSettings, EguiWindowSizeContainer, RenderGraphConfig, WindowSize,
 };
 use bevy::{
     asset::HandleId,
     prelude::*,
     render::{
         render_asset::RenderAssets,
+        render_graph::RenderGraph,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
             CachedRenderPipelineId, DynamicUniformBuffer, PipelineCache, ShaderType,
@@ -19,7 +20,7 @@ use bevy::{
         Extract,
     },
     utils::HashMap,
-    window::WindowId,
+    window::{CreateWindow, WindowId},
 };
 
 /// Extracted Egui render output.
@@ -69,6 +70,22 @@ impl ExtractedEguiTextures {
                     .iter()
                     .map(|(handle, id)| (EguiTextureId::User(*id), handle.id())),
             )
+    }
+}
+
+/// Calls [`setup_pipeline`] for newly created windows to ensure egui works on them.
+pub fn setup_new_windows_system(
+    mut new_windows: Extract<EventReader<CreateWindow>>,
+    mut graph: ResMut<RenderGraph>,
+) {
+    for window in new_windows.iter() {
+        setup_pipeline(
+            &mut graph,
+            RenderGraphConfig {
+                window_id: window.id,
+                egui_pass: std::borrow::Cow::Owned(format!("egui{}", window.id)),
+            },
+        )
     }
 }
 
