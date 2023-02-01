@@ -15,7 +15,6 @@ use bevy::{
         ButtonState, Input,
     },
     prelude::{Entity, EventReader, Query, Resource, Time},
-    utils::HashMap,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
         WindowFocused,
@@ -41,6 +40,7 @@ pub struct InputEvents<'w, 's> {
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
+        self.ev_touch.iter().last();
         self.ev_cursor_entered.iter().last();
         self.ev_cursor_left.iter().last();
         self.ev_cursor.iter().last();
@@ -229,15 +229,6 @@ pub fn process_input_system(
             }
         }
     }
-
-    let focused_window_height = context_params.focused_window.as_ref().map(|window_id| {
-        context_params
-            .contexts
-            .get_mut(*window_id)
-            .unwrap()
-            .window_size
-            .height()
-    });
 
     if let Some(mut focused_input) = context_params
         .focused_window

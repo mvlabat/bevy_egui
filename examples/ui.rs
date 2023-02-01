@@ -1,4 +1,8 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{
+    log::{Level, LogPlugin},
+    prelude::*,
+    window::PrimaryWindow,
+};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiSettings};
 
 struct Images {
@@ -21,17 +25,32 @@ impl FromWorld for Images {
 /// - toggling hidpi scaling (by pressing '/' button);
 /// - configuring egui contexts during the startup.
 fn main() {
-    App::new()
-        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+    let mut app = App::new();
+    app.insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .insert_resource(Msaa::Sample4)
         .init_resource::<UiState>()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(
+            DefaultPlugins
+                .set(LogPlugin {
+                    filter: "".into(),
+                    level: Level::INFO,
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        present_mode: bevy::window::PresentMode::AutoNoVsync,
+                        fit_canvas_to_parent: true,
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        )
         .add_plugin(EguiPlugin)
         .add_startup_system(configure_visuals_system)
         .add_startup_system(configure_ui_state_system)
         .add_system(update_ui_scale_factor_system)
-        .add_system(ui_example_system)
-        .run();
+        .add_system(ui_example_system);
+
+    app.run();
 }
 #[derive(Default, Resource)]
 struct UiState {
