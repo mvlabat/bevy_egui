@@ -14,11 +14,11 @@ use bevy::{
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         ButtonState, Input,
     },
-    prelude::{EventReader, Time},
+    prelude::{Entity, EventReader, Query, Time},
     utils::HashMap,
     window::{
-        CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
-        WindowFocused, WindowId, Windows,
+        CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, Window,
+        WindowCreated, WindowFocused,
     },
 };
 use std::marker::PhantomData;
@@ -66,8 +66,8 @@ pub struct InputResources<'w, 's> {
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct WindowResources<'w, 's> {
-    pub focused_window: Local<'s, Option<WindowId>>,
-    pub windows: ResMut<'w, Windows>,
+    pub focused_window: Local<'s, Option<Entity>>,
+    pub windows: Query<'w, 's, (Entity, &'static mut Window)>,
     pub window_sizes: ResMut<'w, EguiWindowSizeContainer>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
@@ -99,12 +99,16 @@ pub fn process_input_system(
 ) {
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
-    if let Some(event) = input_events.ev_window_created.iter().next_back() {
-        *window_resources.focused_window = Some(event.id);
+    if let Some(event) = input_events.ev_window_created.iter().last() {
+        *window_resources.focused_window = Some(event.window);
     }
 
     for event in input_events.ev_window_focused.iter() {
-        *window_resources.focused_window = if event.focused { Some(event.id) } else { None };
+        *window_resources.focused_window = if event.focused {
+            Some(event.window)
+        } else {
+            None
+        };
     }
 
     update_window_contexts(
@@ -139,14 +143,14 @@ pub fn process_input_system(
     };
 
     let mut cursor_left_window = None;
-    if let Some(cursor_left) = input_events.ev_cursor_left.iter().next_back() {
-        cursor_left_window = Some(cursor_left.id);
+    if let Some(cursor_left) = input_events.ev_cursor_left.iter().last() {
+        cursor_left_window = Some(cursor_left.window);
     }
     let cursor_entered_window = input_events
         .ev_cursor_entered
         .iter()
-        .next_back()
-        .map(|event| event.id);
+        .last()
+        .map(|event| event.window);
 
     // When a user releases a mouse button, Safari emits both `CursorLeft` and `CursorEntered`
     // events during the same frame. We don't want to reset mouse position in such a case, otherwise
@@ -159,20 +163,20 @@ pub fn process_input_system(
             None
         };
 
-    if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
+    if let Some(cursor_moved) = input_events.ev_cursor.iter().last() {
         // If we've left the window, it's unlikely that we've moved the cursor back to the same
         // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
         // that has been left.
-        if cursor_left_window != Some(cursor_moved.id) {
+        if cursor_left_window != Some(cursor_moved.window) {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-            mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height()
+            mouse_position.1 = window_resources.window_sizes[&cursor_moved.window].height()
                 / scale_factor
                 - mouse_position.1;
-            egui_context.mouse_position = Some((cursor_moved.id, mouse_position.into()));
+            egui_context.mouse_position = Some((cursor_moved.window, mouse_position.into()));
             input_resources
                 .egui_input
-                .get_mut(&cursor_moved.id)
+                .get_mut(&cursor_moved.window)
                 .unwrap()
                 .events
                 .push(egui::Event::PointerMoved(egui::pos2(
@@ -245,7 +249,7 @@ pub fn process_input_system(
             if !event.char.is_control() {
                 input_resources
                     .egui_input
-                    .get_mut(&event.id)
+                    .get_mut(&event.window)
                     .unwrap()
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
@@ -307,12 +311,12 @@ pub fn process_input_system(
 
 fn update_window_contexts(
     egui_context: &mut EguiContext,
-    egui_input: &mut HashMap<WindowId, EguiInput>,
+    egui_input: &mut HashMap<Entity, EguiInput>,
     window_resources: &mut WindowResources,
     egui_settings: &EguiSettings,
 ) {
-    for window in window_resources.windows.iter() {
-        let egui_input = egui_input.entry(window.id()).or_default();
+    for (window_entity, window) in window_resources.windows.iter() {
+        let egui_input = egui_input.entry(window_entity).or_default();
 
         let window_size = WindowSize::new(
             window.physical_width() as f32,
@@ -340,8 +344,8 @@ fn update_window_contexts(
 
         window_resources
             .window_sizes
-            .insert(window.id(), window_size);
-        egui_context.ctx.entry(window.id()).or_default();
+            .insert(window_entity, window_size);
+        egui_context.ctx.entry(window_entity).or_default();
     }
 }
 
@@ -373,9 +377,9 @@ pub fn process_output_system(
     mut egui_context: ResMut<EguiContext>,
     mut output: OutputResources,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
-    mut windows: Option<ResMut<Windows>>,
+    mut windows: Query<&mut Window>,
     mut event: EventWriter<RequestRedraw>,
-    #[cfg(windows)] mut last_cursor_icon: Local<HashMap<WindowId, egui::CursorIcon>>,
+    #[cfg(windows)] mut last_cursor_icon: Local<HashMap<Entity, egui::CursorIcon>>,
 ) {
     for (window_id, ctx) in egui_context.ctx.iter_mut() {
         let full_output = ctx.end_frame();
@@ -397,26 +401,22 @@ pub fn process_output_system(
             egui_clipboard.set_contents(&platform_output.copied_text);
         }
 
-        if let Some(ref mut windows) = windows {
-            if let Some(window) = windows.get_mut(*window_id) {
-                let mut set_icon = || {
-                    window.set_cursor_icon(
-                        egui_to_winit_cursor_icon(platform_output.cursor_icon)
-                            .unwrap_or(bevy::window::CursorIcon::Default),
-                    )
-                };
+        if let Ok(mut window) = windows.get_mut(*window_id) {
+            let mut set_icon = || {
+                window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
+                    .unwrap_or(bevy::window::CursorIcon::Default);
+            };
 
-                #[cfg(windows)]
-                {
-                    let last_cursor_icon = last_cursor_icon.entry(*window_id).or_default();
-                    if *last_cursor_icon != platform_output.cursor_icon {
-                        set_icon();
-                        *last_cursor_icon = platform_output.cursor_icon;
-                    }
+            #[cfg(windows)]
+            {
+                let last_cursor_icon = last_cursor_icon.entry(*window_id).or_default();
+                if *last_cursor_icon != platform_output.cursor_icon {
+                    set_icon();
+                    *last_cursor_icon = platform_output.cursor_icon;
                 }
-                #[cfg(not(windows))]
-                set_icon();
             }
+            #[cfg(not(windows))]
+            set_icon();
         }
 
         if repaint_after.is_zero() {

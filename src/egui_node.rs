@@ -5,7 +5,7 @@ use crate::render_systems::{
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
-    prelude::{HandleUntyped, Resource},
+    prelude::{Entity, HandleUntyped, Resource},
     reflect::TypeUuid,
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
@@ -23,7 +23,6 @@ use bevy::{
         texture::Image,
         view::ExtractedWindows,
     },
-    window::WindowId,
 };
 
 /// Egui shader.
@@ -159,7 +158,7 @@ struct DrawCommand {
 
 /// Egui render node.
 pub struct EguiNode {
-    window_id: WindowId,
+    window_entity: Entity,
     vertex_data: Vec<u8>,
     vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
@@ -171,9 +170,9 @@ pub struct EguiNode {
 
 impl EguiNode {
     /// Constructs Egui render node.
-    pub fn new(window_id: WindowId) -> Self {
+    pub fn new(window_entity: Entity) -> Self {
         EguiNode {
-            window_id,
+            window_entity,
             draw_commands: Vec::new(),
             vertex_data: Vec::new(),
             vertex_buffer_capacity: 0,
@@ -188,13 +187,14 @@ impl EguiNode {
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
         let mut shapes = world.get_resource_mut::<ExtractedRenderOutput>().unwrap();
-        let shapes = match shapes.get_mut(&self.window_id) {
+        let shapes = match shapes.0.get_mut(&self.window_entity) {
             Some(shapes) => shapes,
             None => return,
         };
         let shapes = std::mem::take(&mut shapes.shapes);
 
-        let window_size = &world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_id];
+        let window_size =
+            &world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_entity];
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
         let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap();
 
@@ -205,7 +205,7 @@ impl Node for EguiNode {
             return;
         }
 
-        let egui_paint_jobs = egui_context[&self.window_id].tessellate(shapes);
+        let egui_paint_jobs = egui_context[&self.window_entity].tessellate(shapes);
 
         let mut index_offset = 0;
 
@@ -252,7 +252,7 @@ impl Node for EguiNode {
             index_offset += mesh.vertices.len() as u32;
 
             let texture_handle = match mesh.texture_id {
-                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.window_id, id),
+                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.window_entity, id),
                 egui::TextureId::User(id) => EguiTextureId::User(id),
             };
 
@@ -309,7 +309,7 @@ impl Node for EguiNode {
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
         let extracted_window =
-            if let Some(extracted_window) = extracted_windows.get(&self.window_id) {
+            if let Some(extracted_window) = extracted_windows.get(&self.window_entity) {
                 extracted_window
             } else {
                 return Ok(()); // No window
@@ -338,7 +338,7 @@ impl Node for EguiNode {
 
         let mut render_pass =
             render_context
-                .command_encoder
+                .command_encoder()
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("egui render pass"),
                     color_attachments: &[Some(RenderPassColorAttachment {
@@ -352,7 +352,7 @@ impl Node for EguiNode {
                     depth_stencil_attachment: None,
                 });
 
-        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.id) else { return Ok(()) };
+        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else { return Ok(()) };
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else { return Ok(()) };
 
         render_pass.set_pipeline(pipeline);
@@ -362,7 +362,7 @@ impl Node for EguiNode {
             IndexFormat::Uint32,
         );
 
-        let transform_buffer_offset = egui_transforms.offsets[&self.window_id];
+        let transform_buffer_offset = egui_transforms.offsets[&self.window_entity];
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
         render_pass.set_bind_group(0, transform_buffer_bind_group, &[transform_buffer_offset]);
 

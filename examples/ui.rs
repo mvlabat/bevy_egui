@@ -23,7 +23,7 @@ impl FromWorld for Images {
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
-        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(Msaa::Sample4)
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
@@ -43,11 +43,16 @@ struct UiState {
     is_window_open: bool,
 }
 
-fn configure_visuals_system(mut egui_ctx: ResMut<EguiContext>) {
-    egui_ctx.ctx_mut().set_visuals(egui::Visuals {
-        window_rounding: 0.0.into(),
-        ..Default::default()
-    });
+fn configure_visuals_system(
+    mut egui_ctx: ResMut<EguiContext>,
+    windows: Query<Entity, With<Window>>,
+) {
+    egui_ctx
+        .ctx_for_window_mut(windows.iter().next().unwrap())
+        .set_visuals(egui::Visuals {
+            window_rounding: 0.0.into(),
+            ..Default::default()
+        });
 }
 
 fn configure_ui_state_system(mut ui_state: ResMut<UiState>) {
@@ -58,12 +63,12 @@ fn update_ui_scale_factor_system(
     keyboard_input: Res<Input<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut egui_settings: ResMut<EguiSettings>,
-    windows: Res<Windows>,
+    windows: Query<&Window>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
         *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
 
-        if let Some(window) = windows.get_primary() {
+        if let Some(window) = windows.iter().next() {
             let scale_factor = if toggle_scale_factor.unwrap() {
                 1.0
             } else {
@@ -85,11 +90,14 @@ fn ui_example_system(
     // If you need to access the ids from multiple systems, you can also initialize the `Images`
     // resource while building the app and use `Res<Images>` instead.
     images: Local<Images>,
+    windows: Query<Entity, With<Window>>,
 ) {
+    let primary_window = windows.iter().next().unwrap();
+    let ctx = egui_ctx.ctx_for_window_mut(primary_window);
     let egui_texture_handle = ui_state
         .egui_texture_handle
         .get_or_insert_with(|| {
-            egui_ctx.ctx_mut().load_texture(
+            ctx.load_texture(
                 "example-image",
                 egui::ColorImage::example(),
                 Default::default(),
@@ -106,9 +114,11 @@ fn ui_example_system(
         *rendered_texture_id = egui_ctx.add_image(images.bevy_icon.clone_weak());
     }
 
+    let ctx = egui_ctx.ctx_for_window_mut(primary_window);
+
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
-        .show(egui_ctx.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.heading("Side Panel");
 
             ui.horizontal(|ui| {
@@ -149,7 +159,7 @@ fn ui_example_system(
             });
         });
 
-    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx_mut(), |ui| {
+    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu_button(ui, "File", |ui| {
@@ -160,7 +170,7 @@ fn ui_example_system(
         });
     });
 
-    egui::CentralPanel::default().show(egui_ctx.ctx_mut(), |ui| {
+    egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("Egui Template");
         ui.hyperlink("https://github.com/emilk/egui_template");
         ui.add(egui::github_link_file_line!(
@@ -185,7 +195,7 @@ fn ui_example_system(
     egui::Window::new("Window")
         .vscroll(true)
         .open(&mut ui_state.is_window_open)
-        .show(egui_ctx.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
             ui.label("You can turn on resizing and scrolling if you like.");

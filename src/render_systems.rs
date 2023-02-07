@@ -19,16 +19,15 @@ use bevy::{
         Extract,
     },
     utils::HashMap,
-    window::WindowId,
 };
 
 /// Extracted Egui render output.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
+pub struct ExtractedRenderOutput(pub HashMap<Entity, EguiRenderOutput>);
 
 /// Extracted window sizes.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
+pub struct ExtractedWindowSizes(pub HashMap<Entity, WindowSize>);
 
 /// Extracted Egui settings.
 #[derive(Resource, Deref, DerefMut, Default)]
@@ -36,13 +35,13 @@ pub struct ExtractedEguiSettings(pub EguiSettings);
 
 /// Extracted Egui contexts.
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
+pub struct ExtractedEguiContext(pub HashMap<Entity, egui::Context>);
 
 /// Corresponds to Egui's [`egui::TextureId`].
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum EguiTextureId {
     /// Textures allocated via Egui.
-    Managed(WindowId, u64),
+    Managed(Entity, u64),
     /// Textures allocated via Bevy.
     User(u64),
 }
@@ -51,7 +50,7 @@ pub enum EguiTextureId {
 #[derive(Resource, Default)]
 pub struct ExtractedEguiTextures {
     /// Maps Egui managed texture ids to Bevy image handles.
-    pub egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
+    pub egui_textures: HashMap<(Entity, u64), Handle<Image>>,
     /// Maps Bevy managed texture handles to Egui user texture ids.
     pub user_textures: HashMap<Handle<Image>, u64>,
 }
@@ -109,7 +108,7 @@ pub struct EguiTransforms {
     /// Uniform buffer.
     pub buffer: DynamicUniformBuffer<EguiTransform>,
     /// Offsets for each window.
-    pub offsets: HashMap<WindowId, u32>,
+    pub offsets: HashMap<Entity, u32>,
     /// Bind group.
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
@@ -220,7 +219,7 @@ pub fn queue_bind_groups_system(
 
 /// Cached Pipeline IDs for the specialized `EguiPipeline`s
 #[derive(Resource)]
-pub struct EguiPipelines(pub HashMap<WindowId, CachedRenderPipelineId>);
+pub struct EguiPipelines(pub HashMap<Entity, CachedRenderPipelineId>);
 
 /// Queue [`EguiPipeline`]s specialized on each window's swap chain texture format.
 pub fn queue_pipelines_system(

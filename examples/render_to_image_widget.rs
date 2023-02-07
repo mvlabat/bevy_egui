@@ -58,6 +58,7 @@ fn setup(
             usage: TextureUsages::TEXTURE_BINDING
                 | TextureUsages::COPY_DST
                 | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
         },
         ..default()
     };
@@ -107,7 +108,7 @@ fn setup(
             },
             camera: Camera {
                 // render before the "main pass" camera
-                priority: -1,
+                order: -1,
                 target: RenderTarget::Image(image_handle),
                 ..default()
             },
@@ -150,12 +151,13 @@ fn render_to_image_example_system(
     preview_cube_query: Query<&Handle<StandardMaterial>, With<PreviewPassCube>>,
     main_cube_query: Query<&Handle<StandardMaterial>, With<MainPassCube>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    windows: Query<Entity, With<Window>>,
 ) {
     let cube_preview_texture_id = egui_ctx.image_id(&cube_preview_image).unwrap();
     let preview_material_handle = preview_cube_query.single();
     let preview_material = materials.get_mut(preview_material_handle).unwrap();
 
-    let ctx = egui_ctx.ctx_mut();
+    let ctx = egui_ctx.ctx_for_window_mut(windows.iter().next().unwrap());
     let mut apply = false;
     egui::Window::new("Cube material preview").show(ctx, |ui| {
         ui.image(cube_preview_texture_id, [300.0, 300.0]);
