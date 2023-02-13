@@ -267,6 +267,7 @@ pub fn process_input_system(
                 let egui_event = egui::Event::Key {
                     key,
                     pressed,
+                    repeat: false,
                     modifiers,
                 };
                 focused_input.events.push(egui_event);
