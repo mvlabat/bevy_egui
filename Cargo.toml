@@ -19,6 +19,7 @@ immutable_ctx = []
 manage_clipboard = ["arboard", "thread_local"]
 open_url = ["webbrowser"]
 default_fonts = ["egui/default_fonts"]
+serde = ["egui/serde"]
 
 [dependencies]
 bevy = { version = "0.9.0", default-features = false, features = ["bevy_render", "bevy_core_pipeline", "bevy_asset"] }
