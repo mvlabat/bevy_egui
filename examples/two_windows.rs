@@ -1,7 +1,7 @@
 use bevy::{
     prelude::*,
-    render::{camera::RenderTarget, render_graph::RenderGraph, RenderApp},
-    window::{PresentMode, WindowRef, WindowResolution},
+    render::{camera::RenderTarget, render_graph::RenderGraph, Extract, RenderApp},
+    window::{PresentMode, PrimaryWindow, WindowRef, WindowResolution},
 };
 use bevy_egui::{EguiContext, EguiPlugin};
 
@@ -24,24 +24,30 @@ fn main() {
         .add_system(ui_second_window_system);
 
     let render_app = app.sub_app_mut(RenderApp);
-    let window = render_app
-        .world
-        .query_filtered::<Entity, With<Window>>()
-        .iter(&render_app.world)
-        .next()
-        .unwrap();
 
-    let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-
-    bevy_egui::setup_pipeline(
-        &mut graph,
-        bevy_egui::RenderGraphConfig {
-            window,
-            egui_pass: SECONDARY_EGUI_PASS,
-        },
-    );
+    render_app.add_system_to_schedule(ExtractSchedule, init_second_window);
 
     app.run();
+}
+
+fn init_second_window(
+    query: Extract<Query<(Entity, &Window), Without<PrimaryWindow>>>,
+    mut render_graph: ResMut<RenderGraph>,
+    mut is_setup: Local<bool>,
+) {
+    if *is_setup {
+        return;
+    }
+    if let Some((entity, _window)) = query.iter().next() {
+        bevy_egui::setup_pipeline(
+            &mut render_graph,
+            bevy_egui::RenderGraphConfig {
+                window: entity,
+                egui_pass: SECONDARY_EGUI_PASS,
+            },
+        );
+        *is_setup = true;
+    }
 }
 
 const SECONDARY_EGUI_PASS: &str = "secondary_egui_pass";

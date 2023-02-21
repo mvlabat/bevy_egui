@@ -74,15 +74,15 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        CoreSet, Deref, DerefMut, Entity, IntoSystemConfig, Resource, Shader, StartupSet,
-        SystemSet, With,
+        CoreSet, Deref, DerefMut, Entity, IntoSystemConfig, Local, Query, Resource, Shader,
+        StartupSet, SystemSet,
     },
     render::{
         render_graph::RenderGraph, render_resource::SpecializedRenderPipelines, texture::Image,
-        ExtractSchedule, RenderApp, RenderSet,
+        Extract, ExtractSchedule, RenderApp, RenderSet,
     },
     utils::HashMap,
-    window::Window,
+    window::PrimaryWindow,
 };
 use egui_node::EguiNode;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -471,7 +471,7 @@ impl Plugin for EguiPlugin {
         app.add_startup_system(
             init_contexts_startup_system
                 .in_set(EguiStartupSystem::InitContexts)
-                .in_set(StartupSet::PreStartup),
+                .in_base_set(StartupSet::PreStartup),
         );
 
         app.add_system(
@@ -514,6 +514,7 @@ impl Plugin for EguiPlugin {
                     (
                         render_systems::extract_egui_render_data_system,
                         render_systems::extract_egui_textures_system,
+                        init_primary_window,
                     ),
                 )
                 .add_system(
@@ -523,23 +524,43 @@ impl Plugin for EguiPlugin {
                 .add_system(render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
 
             // TODO window doesn't exist yet
-            let window = render_app
-                .world
-                .query_filtered::<Entity, With<Window>>()
-                .iter(&render_app.world)
-                .next()
-                .unwrap();
-
-            let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-
-            setup_pipeline(
-                &mut render_graph,
-                RenderGraphConfig {
-                    window,
-                    egui_pass: node::EGUI_PASS,
-                },
-            );
+            // let window = render_app
+            //     .world
+            //     .query_filtered::<Entity, With<Window>>()
+            //     .iter(&render_app.world)
+            //     .next()
+            //     .unwrap();
+            //
+            // let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+            //
+            // setup_pipeline(
+            //     &mut render_graph,
+            //     RenderGraphConfig {
+            //         window,
+            //         egui_pass: node::EGUI_PASS,
+            //     },
+            // );
         }
+    }
+}
+
+fn init_primary_window(
+    query: Extract<Query<(Entity, &PrimaryWindow)>>,
+    mut render_graph: ResMut<RenderGraph>,
+    mut is_setup: Local<bool>,
+) {
+    if *is_setup {
+        return;
+    }
+    if let Some((entity, _window)) = query.iter().next() {
+        setup_pipeline(
+            &mut render_graph,
+            RenderGraphConfig {
+                window: entity,
+                egui_pass: node::EGUI_PASS,
+            },
+        );
+        *is_setup = true;
     }
 }
 
@@ -664,7 +685,7 @@ pub fn setup_pipeline(render_graph: &mut RenderGraph, config: RenderGraphConfig)
         config.egui_pass,
     );
 
-    let _ = render_graph.add_node_edge("ui_pass_driver", config.egui_pass);
+    //let _ = render_graph.add_node_edge("ui_pass_driver", config.egui_pass);
 }
 
 #[cfg(test)]

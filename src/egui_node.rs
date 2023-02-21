@@ -14,10 +14,11 @@ use bevy::{
             BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
             BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites,
             Extent3d, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
-            PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-            RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType,
-            SpecializedRenderPipeline, TextureDimension, TextureFormat, TextureSampleType,
-            TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+            PipelineCache, PrimitiveState, PushConstantRange, RenderPassColorAttachment,
+            RenderPassDescriptor, RenderPipelineDescriptor, SamplerBindingType, Shader,
+            ShaderStages, ShaderType, SpecializedRenderPipeline, TextureDimension, TextureFormat,
+            TextureSampleType, TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState,
+            VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::Image,
@@ -100,10 +101,10 @@ impl SpecializedRenderPipeline for EguiPipeline {
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("egui render pipeline".into()),
-            layout: Some(vec![
+            layout: vec![
                 self.transform_bind_group_layout.clone(),
                 self.texture_bind_group_layout.clone(),
-            ]),
+            ],
             vertex: VertexState {
                 shader: EGUI_SHADER_HANDLE.typed(),
                 shader_defs: Vec::new(),
@@ -145,6 +146,10 @@ impl SpecializedRenderPipeline for EguiPipeline {
             },
             depth_stencil: None,
             multisample: MultisampleState::default(),
+            push_constant_ranges: vec![PushConstantRange {
+                stages: ShaderStages::FRAGMENT,
+                range: 0..0,
+            }],
         }
     }
 }
