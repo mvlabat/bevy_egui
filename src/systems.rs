@@ -240,14 +240,16 @@ pub fn process_input_system(
         }
     }
 
-    for event in input_events.ev_received_character.iter() {
-        if !event.char.is_control() {
-            input_resources
-                .egui_input
-                .get_mut(&event.id)
-                .unwrap()
-                .events
-                .push(egui::Event::Text(event.char.to_string()));
+    if !mac_cmd {
+        for event in input_events.ev_received_character.iter() {
+            if !event.char.is_control() {
+                input_resources
+                    .egui_input
+                    .get_mut(&event.id)
+                    .unwrap()
+                    .events
+                    .push(egui::Event::Text(event.char.to_string()));
+            }
         }
     }
 
