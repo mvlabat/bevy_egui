@@ -273,7 +273,7 @@ pub fn process_input_system(
     }
 
     for mut context in context_params.contexts.iter_mut() {
-        context.egui_input.predicted_dt = time.delta_seconds();
+        context.egui_input.predicted_dt = time.raw_delta_seconds();
     }
 
     // In some cases, we may skip certain events. For example, we ignore `ReceivedCharacter` events
