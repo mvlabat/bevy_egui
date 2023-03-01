@@ -123,12 +123,10 @@ pub fn process_input_system(
     let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
         || input_resources.keyboard_input.pressed(KeyCode::RWin);
 
-    let mac_cmd = if cfg!(target_os = "macos") {
-        win
-    } else {
-        false
-    };
-    let command = if cfg!(target_os = "macos") { win } else { ctrl };
+    // L/R macOS ⌘ command map as `LWin/RWin` keys; so we can just assign
+    let mac_cmd = win;
+    // OS independent "command" modifier, used for copy/paste and other actions
+    let command = if cfg!(target_os = "macos") { mac_cmd } else { ctrl };
 
     let modifiers = egui::Modifiers {
         alt,
@@ -225,7 +223,7 @@ pub fn process_input_system(
                 // TODO: remove this line when Bevy updates winit after https://github.com/rust-windowing/winit/pull/2105 is merged and released.
                 delta.x *= -1.0;
 
-                if ctrl || mac_cmd {
+                if command {
                     // Treat as zoom instead.
                     let factor = (delta.y / 200.0).exp();
                     events.push(egui::Event::Zoom(factor));
@@ -242,6 +240,7 @@ pub fn process_input_system(
 
     if !ctrl && !win {
         for event in input_events.ev_received_character.iter() {
+            // Ignore unicode control characters such as: tab, escape, enter…
             if !event.char.is_control() {
                 input_resources
                     .egui_input
