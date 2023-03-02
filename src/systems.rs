@@ -126,7 +126,11 @@ pub fn process_input_system(
     // L/R macOS ⌘ command map as `LWin/RWin` keys; so we can just assign
     let mac_cmd = win;
     // OS independent "command" modifier, used for copy/paste and other actions
-    let command = if cfg!(target_os = "macos") { mac_cmd } else { ctrl };
+    let command = if cfg!(target_os = "macos") {
+        mac_cmd
+    } else {
+        ctrl
+    };
 
     let modifiers = egui::Modifiers {
         alt,
