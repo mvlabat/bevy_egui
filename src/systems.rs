@@ -240,7 +240,7 @@ pub fn process_input_system(
         }
     }
 
-    if !mac_cmd {
+    if !command || cfg!(target_os = "windows") && ctrl && alt {
         for event in input_events.ev_received_character.iter() {
             if !event.char.is_control() {
                 input_resources
