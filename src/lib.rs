@@ -74,8 +74,8 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        CoreSet, Deref, DerefMut, Entity, IntoSystemConfig, Local, Query, Resource, Shader,
-        StartupSet, SystemSet,
+        CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs, IntoSystemConfig,
+        IntoSystemConfigs, Local, Query, Resource, Shader, StartupSet, SystemSet,
     },
     render::{
         render_graph::RenderGraph, render_resource::SpecializedRenderPipelines, texture::Image,
@@ -509,13 +509,14 @@ impl Plugin for EguiPlugin {
                 .init_resource::<egui_node::EguiPipeline>()
                 .init_resource::<SpecializedRenderPipelines<EguiPipeline>>()
                 .init_resource::<EguiTransforms>()
-                .add_systems_to_schedule(
-                    ExtractSchedule,
+                .add_systems(
                     (
                         render_systems::extract_egui_render_data_system,
                         render_systems::extract_egui_textures_system,
                         init_primary_window,
-                    ),
+                    )
+                        .into_configs()
+                        .in_schedule(ExtractSchedule),
                 )
                 .add_system(
                     render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
