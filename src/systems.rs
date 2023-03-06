@@ -225,10 +225,6 @@ pub fn process_input_system(
                     delta *= 50.0;
                 }
 
-                // Winit has inverted hscroll.
-                // TODO: remove this line when Bevy updates winit after https://github.com/rust-windowing/winit/pull/2105 is merged and released.
-                delta.x *= -1.0;
-
                 if ctrl || mac_cmd {
                     // Treat as zoom instead.
                     let factor = (delta.y / 200.0).exp();
@@ -271,6 +267,7 @@ pub fn process_input_system(
                 let egui_event = egui::Event::Key {
                     key,
                     pressed,
+                    repeat: false,
                     modifiers,
                 };
                 focused_input.events.push(egui_event);

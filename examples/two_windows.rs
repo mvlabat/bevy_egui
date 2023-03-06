@@ -1,12 +1,9 @@
 use bevy::{
     prelude::*,
-    render::{camera::RenderTarget, render_graph::RenderGraph, Extract, RenderApp},
-    window::{PresentMode, PrimaryWindow, WindowRef, WindowResolution},
+    render::camera::RenderTarget,
+    window::{PresentMode, WindowRef, WindowResolution},
 };
 use bevy_egui::{EguiContext, EguiPlugin};
-
-//TODO WindowId::new
-//static SECOND_WINDOW_ID: Lazy<WindowId> = Lazy::new(WindowId::new);
 
 #[derive(Resource)]
 struct Images {
@@ -23,41 +20,15 @@ fn main() {
         .add_system(ui_first_window_system)
         .add_system(ui_second_window_system);
 
-    let render_app = app.sub_app_mut(RenderApp);
-
-    render_app.add_system_to_schedule(ExtractSchedule, init_second_window);
-
     app.run();
 }
-
-fn init_second_window(
-    query: Extract<Query<(Entity, &Window), Without<PrimaryWindow>>>,
-    mut render_graph: ResMut<RenderGraph>,
-    mut is_setup: Local<bool>,
-) {
-    if *is_setup {
-        return;
-    }
-    if let Some((entity, _window)) = query.iter().next() {
-        bevy_egui::setup_pipeline(
-            &mut render_graph,
-            bevy_egui::RenderGraphConfig {
-                window: entity,
-                egui_pass: SECONDARY_EGUI_PASS,
-            },
-        );
-        *is_setup = true;
-    }
-}
-
-const SECONDARY_EGUI_PASS: &str = "secondary_egui_pass";
 
 fn create_new_window_system(mut commands: Commands) {
     // Spawn a second window
     let second_window_id = commands
         .spawn(Window {
             title: "Second window".to_owned(),
-            resolution: WindowResolution::new(800., 600.),
+            resolution: WindowResolution::new(800.0, 600.0),
             present_mode: PresentMode::AutoVsync,
             ..Default::default()
         })
@@ -97,7 +68,7 @@ fn ui_first_window_system(
     images: Res<Images>,
     windows: Query<Entity, With<Window>>,
 ) {
-    let first_window = windows.iter().nth(0).unwrap();
+    let first_window = windows.iter().next().unwrap();
     let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
     egui::Window::new("First Window").vscroll(true).show(
         egui_context.ctx_for_window_mut(first_window),
