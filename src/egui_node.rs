@@ -3,7 +3,7 @@ use crate::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
         ExtractedEguiSettings, ExtractedWindowSizes,
     },
-    EguiContext, EguiRenderOutputContainer,
+    EguiContext, EguiRenderOutput,
 };
 use bevy::{
     core::cast_slice,
@@ -194,7 +194,7 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut windows = world.query::<(&EguiContext, &mut EguiRenderOutputContainer)>();
+        let mut windows = world.query::<(&EguiContext, &mut EguiRenderOutput)>();
 
         let Ok(
             (egui_context, mut render_output),

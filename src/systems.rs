@@ -1,5 +1,5 @@
 use crate::{
-    EguiContext, EguiInput, EguiMousePosition, EguiOutput, EguiRenderOutputContainer, EguiSettings,
+    EguiContext, EguiInput, EguiMousePosition, EguiOutput, EguiRenderOutput, EguiSettings,
     EguiWindowSizeContainer, WindowSize,
 };
 #[cfg(feature = "open_url")]
@@ -342,7 +342,7 @@ pub fn process_output_system(
         Entity,
         &mut Window,
         &EguiContext,
-        &mut EguiRenderOutputContainer,
+        &mut EguiRenderOutput,
         &mut EguiOutput,
     )>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
@@ -359,8 +359,8 @@ pub fn process_output_system(
             repaint_after,
         } = full_output;
 
-        egui_render_output.0.shapes = shapes;
-        egui_render_output.0.textures_delta.append(textures_delta);
+        egui_render_output.shapes = shapes;
+        egui_render_output.textures_delta.append(textures_delta);
 
         egui_output.platform_output = platform_output.clone();
 

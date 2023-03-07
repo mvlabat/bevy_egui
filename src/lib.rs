@@ -127,10 +127,6 @@ impl Default for EguiSettings {
     }
 }
 
-/// Stores [`EguiRenderOutput`] for each window.
-#[derive(Component, Clone, Deref, DerefMut, Default)]
-pub struct EguiRenderOutputContainer(pub EguiRenderOutput);
-
 /// Stores [`WindowSize`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiWindowSizeContainer(pub HashMap<Entity, WindowSize>);
@@ -213,8 +209,8 @@ impl EguiClipboard {
     }
 }
 
-/// Is used for storing Egui shapes in the [`EguiRenderOutputContainer`] resource.
-#[derive(Clone, Default, Debug, Resource)]
+/// Is used for storing Egui shapes.
+#[derive(Component, Clone, Default, Debug, Resource)]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
@@ -225,8 +221,8 @@ pub struct EguiRenderOutput {
     pub textures_delta: egui::TexturesDelta,
 }
 
-/// Is used for storing Egui output on each window
-#[derive(Component, Clone, Default, Resource)]
+/// Is used for storing Egui output.
+#[derive(Component, Clone, Default)]
 pub struct EguiOutput {
     /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
     pub platform_output: egui::PlatformOutput,
@@ -447,7 +443,7 @@ pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entit
         commands.entity(window).insert((
             EguiContext::default(),
             EguiMousePosition::default(),
-            EguiRenderOutputContainer::default(),
+            EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),
         ));
@@ -456,7 +452,7 @@ pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entit
 
 /// Updates textures painted by Egui.
 pub fn update_egui_textures_system(
-    mut egui_render_output: Query<(Entity, &mut EguiRenderOutputContainer), With<Window>>,
+    mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
@@ -509,7 +505,7 @@ pub fn update_egui_textures_system(
 
 fn free_egui_textures_system(
     mut egui_user_textures: ResMut<EguiUserTextures>,
-    mut egui_render_output: Query<(Entity, &mut EguiRenderOutputContainer), With<Window>>,
+    mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,

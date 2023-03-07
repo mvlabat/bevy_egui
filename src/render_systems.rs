@@ -1,6 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContext, EguiManagedTextures, EguiRenderOutputContainer, EguiSettings, EguiUserTextures,
+    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings, EguiUserTextures,
     EguiWindowSizeContainer, WindowSize,
 };
 use bevy::{
@@ -88,7 +88,7 @@ pub fn extract_egui_render_data_system(
     mut commands: Commands,
     window_sizes: Extract<Res<EguiWindowSizeContainer>>,
     egui_settings: Extract<Res<EguiSettings>>,
-    windows: Extract<Query<(Entity, &EguiContext, &EguiRenderOutputContainer), With<Window>>>,
+    windows: Extract<Query<(Entity, &EguiContext, &EguiRenderOutput), With<Window>>>,
 ) {
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
