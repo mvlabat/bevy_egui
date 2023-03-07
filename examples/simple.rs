@@ -5,8 +5,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
-        // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
+        // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
+        // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
         .add_system(ui_example_system)
         .run();
 }

@@ -58,12 +58,12 @@ fn update_ui_scale_factor_system(
     keyboard_input: Res<Input<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut egui_settings: ResMut<EguiSettings>,
-    windows: Query<&Window>,
+    windows: Query<&Window, With<PrimaryWindow>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
         *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
 
-        if let Some(window) = windows.iter().next() {
+        if let Ok(window) = windows.get_single() {
             let scale_factor = if toggle_scale_factor.unwrap() {
                 1.0
             } else {

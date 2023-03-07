@@ -17,11 +17,10 @@ use bevy::{
             BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
             BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites,
             Extent3d, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
-            PipelineCache, PrimitiveState, PushConstantRange, RenderPassColorAttachment,
-            RenderPassDescriptor, RenderPipelineDescriptor, SamplerBindingType, Shader,
-            ShaderStages, ShaderType, SpecializedRenderPipeline, TextureDimension, TextureFormat,
-            TextureSampleType, TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState,
-            VertexStepMode,
+            PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+            RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType,
+            SpecializedRenderPipeline, TextureDimension, TextureFormat, TextureSampleType,
+            TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::Image,
@@ -149,10 +148,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
             },
             depth_stencil: None,
             multisample: MultisampleState::default(),
-            push_constant_ranges: vec![PushConstantRange {
-                stages: ShaderStages::FRAGMENT,
-                range: 0..0,
-            }],
+            push_constant_ranges: vec![],
         }
     }
 }
@@ -194,15 +190,12 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut windows = world.query::<(&mut EguiContext, &mut EguiRenderOutput, &WindowSize)>();
+        let mut egui_contexts =
+            world.query::<(&mut EguiContext, &mut EguiRenderOutput, &WindowSize)>();
 
-        let Ok(
-            (mut egui_context, mut render_output, window_size),
-        ) = windows.get_mut(world, self.window_entity) else {
-            // No egui context
+        let Ok((mut egui_context, mut render_output, window_size)) = egui_contexts.get_mut(world, self.window_entity) else {
             return;
         };
-
         let window_size = *window_size;
 
         let shapes = std::mem::take(&mut render_output.shapes);

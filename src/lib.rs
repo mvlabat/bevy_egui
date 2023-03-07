@@ -20,21 +20,21 @@
 //! Here's a minimal usage example:
 //!
 //! ```no_run,rust
-//! use bevy::prelude::*;
+//! use bevy::{prelude::*, window::PrimaryWindow};
 //! use bevy_egui::{egui, EguiContext, EguiPlugin};
 //!
 //! fn main() {
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugin(EguiPlugin)
-//!         // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
-//!         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
+//!         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
+//!         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
 //!         .add_system(ui_example_system)
 //!         .run();
 //! }
 //!
-//! fn ui_example_system(egui_context: Query<&EguiContext>) {
-//!     egui::Window::new("Hello").show(egui_context.iter().next().unwrap(), |ui| {
+//! fn ui_example_system(mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>) {
+//!     egui::Window::new("Hello").show(egui_ctx.single_mut().get_mut(), |ui| {
 //!         ui.label("world");
 //!     });
 //! }
@@ -70,7 +70,7 @@ use arboard::Clipboard;
 use bevy::{
     app::{App, Plugin},
     asset::{AssetEvent, Assets, Handle},
-    ecs::{event::EventReader, system::ResMut},
+    ecs::{event::EventReader, query::WorldQuery, schedule::apply_system_buffers, system::ResMut},
     input::InputSystem,
     log,
     prelude::{
@@ -84,8 +84,6 @@ use bevy::{
     utils::HashMap,
     window::Window,
 };
-
-use bevy::ecs::query::WorldQuery;
 use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
@@ -102,11 +100,11 @@ pub struct EguiSettings {
     ///
     /// This setting can be used to force the UI to render in physical pixels regardless of DPI as follows:
     /// ```rust
-    /// use bevy::prelude::*;
+    /// use bevy::{prelude::*, window::PrimaryWindow};
     /// use bevy_egui::EguiSettings;
     ///
-    /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Query<&Window>) {
-    ///     if let Some(window) = windows.iter().next() {
+    /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Query<&Window, With<PrimaryWindow>>) {
+    ///     if let Ok(window) = windows.get_single() {
     ///         egui_settings.scale_factor = 1.0 / window.scale_factor();
     ///     }
     /// }
@@ -130,7 +128,7 @@ impl Default for EguiSettings {
 
 /// Is used for storing the input passed to Egui in the [`EguiRenderInputContainer`] resource.
 ///
-/// It gets reset during the [`EguiSystem::ProcessInput`] system.
+/// It gets reset during the [`EguiSet::ProcessInput`] system.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
 pub struct EguiInput(pub egui::RawInput);
 
@@ -211,7 +209,7 @@ impl EguiClipboard {
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`] and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreІуе::PostUpdate`]) and reset during `EguiNode::update`.
     pub shapes: Vec<egui::epaint::ClippedShape>,
 
     /// The change in egui textures since last frame.
@@ -221,7 +219,7 @@ pub struct EguiRenderOutput {
 /// Is used for storing Egui output.
 #[derive(Component, Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
+    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreStage::PostUpdate`]).
     pub platform_output: egui::PlatformOutput,
 }
 
@@ -263,20 +261,13 @@ impl EguiContext {
 pub struct EguiMousePosition(pub Option<(Entity, egui::Vec2)>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource)]
+#[derive(Clone, Resource, Default)]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
 }
 
 impl EguiUserTextures {
-    fn new() -> Self {
-        Self {
-            textures: Default::default(),
-            last_texture_id: 0,
-        }
-    }
-
     /// Can accept either a strong or a weak handle.
     ///
     /// You may want to pass a weak handle if you control removing texture assets in your
@@ -345,76 +336,76 @@ pub mod node {
 }
 
 #[derive(SystemSet, Clone, Hash, Debug, Eq, PartialEq)]
-/// The names of `bevy_egui` startup systems.
-pub enum EguiStartupSystem {
+/// The `bevy_egui` plugin startup system sets.
+pub enum EguiStartupSet {
     /// Initializes Egui contexts for available windows.
     InitContexts,
 }
 
-/// The names of egui systems.
+/// The `bevy_egui` plugin system sets.
 #[derive(SystemSet, Clone, Hash, Debug, Eq, PartialEq)]
-pub enum EguiSystem {
+pub enum EguiSet {
+    /// Initializes Egui contexts for newly created windows.
+    InitContexts,
     /// Reads Egui inputs (keyboard, mouse, etc) and writes them into the [`EguiInput`] resource.
     ///
     /// To modify the input, you can hook your system like this:
     ///
-    /// `system.after(EguiSystem::ProcessInput).before(EguiSystem::BeginFrame)`.
+    /// `system.after(EguiSet::ProcessInput).before(EguiSet::BeginFrame)`.
     ProcessInput,
-    /// Begins the `egui` frame
+    /// Begins the `egui` frame.
     BeginFrame,
-    /// Processes the [`EguiOutput`] resource
+    /// Processes the [`EguiOutput`] resource.
     ProcessOutput,
 }
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         let world = &mut app.world;
-        world.insert_resource(EguiSettings::default());
-        world.insert_resource(EguiManagedTextures::default());
+        world.init_resource::<EguiSettings>();
+        world.init_resource::<EguiManagedTextures>();
         #[cfg(feature = "manage_clipboard")]
-        world.insert_resource(EguiClipboard::default());
-        world.insert_resource(EguiUserTextures::new());
-        world.insert_resource(EguiMousePosition::default());
+        world.init_resource::<EguiClipboard>();
+        world.init_resource::<EguiUserTextures>();
+        world.init_resource::<EguiMousePosition>();
 
-        app.add_startup_system(
-            init_contexts_startup_system
-                .in_set(EguiStartupSystem::InitContexts)
+        app.add_startup_systems(
+            (
+                setup_new_windows_system,
+                apply_system_buffers,
+                init_contexts_startup_system,
+            )
+                .chain()
+                .in_set(EguiStartupSet::InitContexts)
                 .in_base_set(StartupSet::PreStartup),
         );
-
-        // TODO where is the correct place for this?
-        // Probably shouldn't need both add_startup_system & add_system version.
-        app.add_startup_system(
-            setup_new_windows_system
-                .in_set(EguiStartupSystem::InitContexts)
-                .in_base_set(StartupSet::PreStartup),
+        app.add_systems(
+            (setup_new_windows_system, apply_system_buffers)
+                .chain()
+                .in_set(EguiSet::InitContexts)
+                .in_base_set(CoreSet::PreUpdate),
         );
-        app.add_system(
-            setup_new_windows_system
-                .in_set(EguiStartupSystem::InitContexts)
-                .in_base_set(StartupSet::PreStartup),
-        );
-
         app.add_system(
             process_input_system
-                .in_set(EguiSystem::ProcessInput)
+                .in_set(EguiSet::ProcessInput)
                 .after(InputSystem)
+                .after(EguiSet::InitContexts)
                 .in_base_set(CoreSet::PreUpdate),
         );
         app.add_system(
             begin_frame_system
-                .in_set(EguiSystem::BeginFrame)
-                .after(EguiSystem::ProcessInput)
+                .in_set(EguiSet::BeginFrame)
+                .after(EguiSet::ProcessInput)
                 .in_base_set(CoreSet::PreUpdate),
         );
         app.add_system(
             process_output_system
-                .in_set(EguiSystem::ProcessOutput)
+                .in_set(EguiSet::ProcessOutput)
                 .in_base_set(CoreSet::PostUpdate),
         );
         app.add_system(
             update_egui_textures_system
-                .after(EguiSystem::ProcessOutput)
+                .after(EguiSet::ProcessOutput)
                 .in_base_set(CoreSet::PostUpdate),
         );
         app.add_system(free_egui_textures_system.in_base_set(CoreSet::Last));
@@ -453,15 +444,19 @@ impl Plugin for EguiPlugin {
 #[world_query(mutable)]
 pub struct EguiContextQuery {
     /// Window entity.
-    pub window: Entity,
+    pub window_entity: Entity,
     /// Egui context associated with the window.
     pub ctx: &'static mut EguiContext,
+    /// Encapsulates [`egui::RawInput`].
+    pub egui_input: &'static mut EguiInput,
     /// Egui shapes and textures delta.
     pub render_output: &'static mut EguiRenderOutput,
     /// Encapsulates [`egui::PlatformOutput`].
     pub egui_output: &'static mut EguiOutput,
     /// Stores physical size of the window and its scale factor.
     pub window_size: &'static mut WindowSize,
+    /// [`Window`] component.
+    pub window: &'static mut Window,
 }
 
 /// Contains textures allocated and painted by Egui.

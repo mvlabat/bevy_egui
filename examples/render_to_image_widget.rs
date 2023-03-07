@@ -35,7 +35,7 @@ struct MainPassCube;
 struct CubePreviewImage(Handle<Image>);
 
 fn setup(
-    mut egui_ctx: ResMut<EguiUserTextures>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -68,7 +68,7 @@ fn setup(
     image.resize(size);
 
     let image_handle = images.add(image);
-    egui_ctx.add_image(image_handle.clone());
+    egui_user_textures.add_image(image_handle.clone());
     commands.insert_resource(CubePreviewImage(image_handle.clone()));
 
     let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 4.0 }));

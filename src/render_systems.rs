@@ -86,7 +86,7 @@ pub fn extract_egui_render_data_system(
 ) {
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     for context in contexts.iter() {
-        commands.get_or_spawn(context.window).insert((
+        commands.get_or_spawn(context.window_entity).insert((
             context.ctx.clone(),
             context.render_output.clone(),
             *context.window_size,
