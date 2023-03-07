@@ -566,8 +566,6 @@ pub fn setup_pipeline(world: &mut World, config: RenderGraphConfig) {
         bevy::render::main_graph::node::CAMERA_DRIVER,
         config.egui_pass.to_string(),
     );
-
-    let _ = render_graph.try_add_node_edge("ui_pass_driver", config.egui_pass.to_string());
 }
 
 #[cfg(test)]
