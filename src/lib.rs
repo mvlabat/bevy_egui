@@ -85,6 +85,7 @@ use bevy::{
     window::Window,
 };
 
+use bevy::ecs::query::WorldQuery;
 use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
@@ -205,7 +206,7 @@ impl EguiClipboard {
     }
 }
 
-/// Is used for storing Egui shapes.
+/// Is used for storing Egui shapes and textures delta.
 #[derive(Component, Clone, Default, Debug, Resource)]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
@@ -225,8 +226,37 @@ pub struct EguiOutput {
 }
 
 /// A component for storing `bevy_egui` context.
-#[derive(Clone, Component, Default, Deref, DerefMut)]
-pub struct EguiContext(pub egui::Context);
+#[derive(Clone, Component, Default)]
+pub struct EguiContext(egui::Context);
+
+impl EguiContext {
+    /// Borrows the underlying Egui context immutably.
+    ///
+    /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
+    /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
+    /// borrow is discouraged as it may cause unpredictable blocking in UI systems.
+    ///
+    /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
+    /// sure that the context isn't accessed concurrently and can perform other useful work
+    /// instead of busy-waiting.
+    #[cfg(feature = "immutable_ctx")]
+    pub fn get(&self) -> &egui::Context {
+        &self.0
+    }
+
+    /// Borrows the underlying Egui context mutably.
+    ///
+    /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
+    /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
+    /// borrow is discouraged as it may cause unpredictable blocking in UI systems.
+    ///
+    /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
+    /// sure that the context isn't accessed concurrently and can perform other useful work
+    /// instead of busy-waiting.
+    pub fn get_mut(&mut self) -> &mut egui::Context {
+        &mut self.0
+    }
+}
 
 /// A resource for storing `bevy_egui` mouse position.
 #[derive(Resource, Component, Default, Deref, DerefMut)]
@@ -416,6 +446,22 @@ impl Plugin for EguiPlugin {
                 .add_system(render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
         }
     }
+}
+
+/// Queries all the Egui related components.
+#[derive(WorldQuery)]
+#[world_query(mutable)]
+pub struct EguiContextQuery {
+    /// Window entity.
+    pub window: Entity,
+    /// Egui context associated with the window.
+    pub ctx: &'static mut EguiContext,
+    /// Egui shapes and textures delta.
+    pub render_output: &'static mut EguiRenderOutput,
+    /// Encapsulates [`egui::PlatformOutput`].
+    pub egui_output: &'static mut EguiOutput,
+    /// Stores physical size of the window and its scale factor.
+    pub window_size: &'static mut WindowSize,
 }
 
 /// Contains textures allocated and painted by Egui.

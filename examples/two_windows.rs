@@ -1,7 +1,7 @@
 use bevy::{
     prelude::*,
     render::camera::RenderTarget,
-    window::{PresentMode, WindowRef, WindowResolution},
+    window::{PresentMode, PrimaryWindow, WindowRef, WindowResolution},
 };
 use bevy_egui::{EguiContext, EguiPlugin, EguiUserTextures};
 
@@ -66,12 +66,12 @@ fn ui_first_window_system(
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
     images: Res<Images>,
-    egui_ctx: Query<&EguiContext>,
+    mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
 ) {
     let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     egui::Window::new("First Window")
         .vscroll(true)
-        .show(egui_ctx.iter().next().unwrap(), |ui| {
+        .show(egui_ctx.single_mut().get_mut(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
                 ui.text_edit_singleline(&mut ui_state.input);
@@ -90,10 +90,10 @@ fn ui_second_window_system(
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
     images: Res<Images>,
-    egui_ctx: Query<&EguiContext>,
+    mut egui_ctx: Query<&mut EguiContext, Without<PrimaryWindow>>,
 ) {
     let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
-    let ctx = match egui_ctx.iter().nth(1) {
+    let mut ctx = match egui_ctx.get_single_mut().ok() {
         Some(ctx) => ctx,
         None => {
             return;
@@ -101,7 +101,7 @@ fn ui_second_window_system(
     };
     egui::Window::new("Second Window")
         .vscroll(true)
-        .show(ctx, |ui| {
+        .show(ctx.get_mut(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something else: ");
                 ui.text_edit_singleline(&mut ui_state.input);

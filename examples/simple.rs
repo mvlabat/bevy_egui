@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 fn main() {
@@ -11,8 +11,8 @@ fn main() {
         .run();
 }
 
-fn ui_example_system(egui_ctx: Query<&EguiContext>) {
-    egui::Window::new("Hello").show(egui_ctx.iter().next().unwrap(), |ui| {
+fn ui_example_system(mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>) {
+    egui::Window::new("Hello").show(egui_ctx.single_mut().get_mut(), |ui| {
         ui.label("world");
     });
 }

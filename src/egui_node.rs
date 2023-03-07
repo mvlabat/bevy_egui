@@ -194,10 +194,10 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut windows = world.query::<(&EguiContext, &mut EguiRenderOutput, &WindowSize)>();
+        let mut windows = world.query::<(&mut EguiContext, &mut EguiRenderOutput, &WindowSize)>();
 
         let Ok(
-            (egui_context, mut render_output, window_size),
+            (mut egui_context, mut render_output, window_size),
         ) = windows.get_mut(world, self.window_entity) else {
             // No egui context
             return;
@@ -206,7 +206,7 @@ impl Node for EguiNode {
         let window_size = *window_size;
 
         let shapes = std::mem::take(&mut render_output.shapes);
-        let egui_paint_jobs = egui_context.tessellate(shapes);
+        let egui_paint_jobs = egui_context.get_mut().tessellate(shapes);
 
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
 

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings, EguiUserTextures};
 
 struct Images {
@@ -43,8 +43,8 @@ struct UiState {
     is_window_open: bool,
 }
 
-fn configure_visuals_system(egui_ctx: Query<&EguiContext>) {
-    egui_ctx.iter().next().unwrap().set_visuals(egui::Visuals {
+fn configure_visuals_system(mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>) {
+    egui_ctx.single_mut().get_mut().set_visuals(egui::Visuals {
         window_rounding: 0.0.into(),
         ..Default::default()
     });
@@ -85,13 +85,13 @@ fn ui_example_system(
     // If you need to access the ids from multiple systems, you can also initialize the `Images`
     // resource while building the app and use `Res<Images>` instead.
     images: Local<Images>,
-    egui_ctx: Query<&EguiContext>,
+    mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
 ) {
-    let ctx = egui_ctx.iter().next().unwrap();
+    let mut ctx = egui_ctx.single_mut();
     let egui_texture_handle = ui_state
         .egui_texture_handle
         .get_or_insert_with(|| {
-            ctx.load_texture(
+            ctx.get_mut().load_texture(
                 "example-image",
                 egui::ColorImage::example(),
                 Default::default(),
@@ -108,11 +108,9 @@ fn ui_example_system(
         *rendered_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     }
 
-    let ctx = egui_ctx.iter().next().unwrap();
-
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
-        .show(ctx, |ui| {
+        .show(ctx.get_mut(), |ui| {
             ui.heading("Side Panel");
 
             ui.horizontal(|ui| {
@@ -153,7 +151,7 @@ fn ui_example_system(
             });
         });
 
-    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+    egui::TopBottomPanel::top("top_panel").show(ctx.get_mut(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu_button(ui, "File", |ui| {
@@ -164,7 +162,7 @@ fn ui_example_system(
         });
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ctx.get_mut(), |ui| {
         ui.heading("Egui Template");
         ui.hyperlink("https://github.com/emilk/egui_template");
         ui.add(egui::github_link_file_line!(
@@ -189,7 +187,7 @@ fn ui_example_system(
     egui::Window::new("Window")
         .vscroll(true)
         .open(&mut ui_state.is_window_open)
-        .show(ctx, |ui| {
+        .show(ctx.get_mut(), |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
             ui.label("You can turn on resizing and scrolling if you like.");

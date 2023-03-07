@@ -1,6 +1,5 @@
 use crate::{
-    EguiContext, EguiInput, EguiMousePosition, EguiOutput, EguiRenderOutput, EguiSettings,
-    WindowSize,
+    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -15,7 +14,6 @@ use bevy::{
         ButtonState, Input,
     },
     prelude::{Entity, EventReader, Query, Time},
-    utils::HashMap,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, Window,
         WindowCreated, WindowFocused,
@@ -332,8 +330,8 @@ fn update_window_contexts(window_resources: &mut WindowResources, egui_settings:
 
 /// Marks frame start for Egui.
 pub fn begin_frame_system(mut windows: Query<(&mut EguiContext, &mut EguiInput)>) {
-    for (ctx, mut egui_input) in windows.iter_mut() {
-        ctx.begin_frame(egui_input.take());
+    for (mut ctx, mut egui_input) in windows.iter_mut() {
+        ctx.get_mut().begin_frame(egui_input.take());
     }
 }
 
@@ -342,20 +340,13 @@ pub fn process_output_system(
     #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
         EguiSettings,
     >,
-    mut windows: Query<(
-        Entity,
-        &mut Window,
-        &EguiContext,
-        &mut EguiRenderOutput,
-        &mut EguiOutput,
-    )>,
+    mut contexts: Query<(EguiContextQuery, &mut Window)>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<HashMap<Entity, egui::CursorIcon>>,
 ) {
-    for (window_id, mut window, ctx, mut egui_render_output, mut egui_output) in windows.iter_mut()
-    {
-        let full_output = ctx.end_frame();
+    for (mut context, mut window) in contexts.iter_mut() {
+        let full_output = context.ctx.get_mut().end_frame();
         let egui::FullOutput {
             platform_output,
             shapes,
@@ -363,10 +354,10 @@ pub fn process_output_system(
             repaint_after,
         } = full_output;
 
-        egui_render_output.shapes = shapes;
-        egui_render_output.textures_delta.append(textures_delta);
+        context.render_output.shapes = shapes;
+        context.render_output.textures_delta.append(textures_delta);
 
-        egui_output.platform_output = platform_output.clone();
+        context.egui_output.platform_output = platform_output.clone();
 
         #[cfg(feature = "manage_clipboard")]
         if !platform_output.copied_text.is_empty() {

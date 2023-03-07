@@ -1,6 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings, EguiUserTextures, WindowSize,
+    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
     asset::HandleId,
@@ -82,14 +82,14 @@ pub fn setup_new_windows_render_system(
 pub fn extract_egui_render_data_system(
     mut commands: Commands,
     egui_settings: Extract<Res<EguiSettings>>,
-    windows: Extract<Query<(Entity, &EguiContext, &EguiRenderOutput, &WindowSize), With<Window>>>,
+    contexts: Extract<Query<EguiContextQueryReadOnly, With<Window>>>,
 ) {
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
-    for (window_entity, ctx, egui_render_output, window_size) in windows.iter() {
-        commands.get_or_spawn(window_entity).insert((
-            ctx.clone(),
-            egui_render_output.clone(),
-            window_size.clone(),
+    for context in contexts.iter() {
+        commands.get_or_spawn(context.window).insert((
+            context.ctx.clone(),
+            context.render_output.clone(),
+            *context.window_size,
         ));
     }
 }
