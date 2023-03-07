@@ -1,6 +1,6 @@
 use crate::{
     EguiContext, EguiInput, EguiMousePosition, EguiOutput, EguiRenderOutput, EguiSettings,
-    EguiWindowSizeContainer, WindowSize,
+    WindowSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -66,8 +66,16 @@ pub struct InputResources<'w, 's> {
 #[derive(SystemParam)]
 pub struct WindowResources<'w, 's> {
     pub focused_window: Local<'s, Option<Entity>>,
-    pub windows: Query<'w, 's, (Entity, &'static mut Window, &'static mut EguiInput)>,
-    pub window_sizes: ResMut<'w, EguiWindowSizeContainer>,
+    pub windows: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static mut Window,
+            &'static mut EguiInput,
+            &'static mut WindowSize,
+        ),
+    >,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
 }
@@ -157,14 +165,12 @@ pub fn process_input_system(
         if cursor_left_window != Some(cursor_moved.window) {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-            mouse_position.1 = window_resources.window_sizes[&cursor_moved.window].height()
-                / scale_factor
-                - mouse_position.1;
-            egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
-            let (_, _, mut egui_input) = window_resources
+            let (_, _, mut egui_input, window_size) = window_resources
                 .windows
                 .get_mut(cursor_moved.window)
                 .unwrap();
+            mouse_position.1 = window_size.height() / scale_factor - mouse_position.1;
+            egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
             egui_input.events.push(egui::Event::PointerMoved(egui::pos2(
                 mouse_position.0,
                 mouse_position.1,
@@ -176,7 +182,7 @@ pub fn process_input_system(
     // the button when being outside, some platforms will fire `CursorLeft` again together
     // with `MouseButtonInput` - this is why we also take `prev_mouse_position` into account.
     if let Some((window_id, position)) = egui_mouse_position.or(prev_mouse_position) {
-        if let Ok((_, _, mut egui_input)) = window_resources.windows.get_mut(window_id) {
+        if let Ok((_, _, mut egui_input, _)) = window_resources.windows.get_mut(window_id) {
             let events = &mut egui_input.events;
 
             for mouse_button_event in input_events.ev_mouse_button_input.iter() {
@@ -225,7 +231,7 @@ pub fn process_input_system(
     if !ctrl && !win {
         for event in input_events.ev_received_character.iter() {
             if !event.char.is_control() {
-                let (_, _, mut egui_input) =
+                let (_, _, mut egui_input, _) =
                     window_resources.windows.get_mut(event.window).unwrap();
                 egui_input
                     .events
@@ -239,7 +245,7 @@ pub fn process_input_system(
             .focused_window
             .as_ref()
             .and_then(|window_id| {
-                if let Ok((_, _, egui_input)) = window_resources.windows.get_mut(*window_id) {
+                if let Ok((_, _, egui_input, _)) = window_resources.windows.get_mut(*window_id) {
                     Some(egui_input)
                 } else {
                     None
@@ -285,7 +291,7 @@ pub fn process_input_system(
         focused_input.modifiers = modifiers;
     }
 
-    for (_, _, mut egui_input) in window_resources.windows.iter_mut() {
+    for (_, _, mut egui_input, _) in window_resources.windows.iter_mut() {
         egui_input.predicted_dt = time.delta_seconds();
     }
 
@@ -295,17 +301,17 @@ pub fn process_input_system(
 }
 
 fn update_window_contexts(window_resources: &mut WindowResources, egui_settings: &EguiSettings) {
-    for (window_entity, window, mut egui_input) in window_resources.windows.iter_mut() {
-        let window_size = WindowSize::new(
+    for (_, window, mut egui_input, mut window_size) in window_resources.windows.iter_mut() {
+        let new_window_size = WindowSize::new(
             window.physical_width() as f32,
             window.physical_height() as f32,
             window.scale_factor() as f32,
         );
-        let width = window_size.physical_width
-            / window_size.scale_factor
+        let width = new_window_size.physical_width
+            / new_window_size.scale_factor
             / egui_settings.scale_factor as f32;
-        let height = window_size.physical_height
-            / window_size.scale_factor
+        let height = new_window_size.physical_height
+            / new_window_size.scale_factor
             / egui_settings.scale_factor as f32;
 
         if width < 1.0 || height < 1.0 {
@@ -318,11 +324,9 @@ fn update_window_contexts(window_resources: &mut WindowResources, egui_settings:
         ));
 
         egui_input.pixels_per_point =
-            Some(window_size.scale_factor * egui_settings.scale_factor as f32);
+            Some(new_window_size.scale_factor * egui_settings.scale_factor as f32);
 
-        window_resources
-            .window_sizes
-            .insert(window_entity, window_size);
+        *window_size = new_window_size;
     }
 }
 

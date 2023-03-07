@@ -127,10 +127,6 @@ impl Default for EguiSettings {
     }
 }
 
-/// Stores [`WindowSize`] for each window.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiWindowSizeContainer(pub HashMap<Entity, WindowSize>);
-
 /// Is used for storing the input passed to Egui in the [`EguiRenderInputContainer`] resource.
 ///
 /// It gets reset during the [`EguiSystem::ProcessInput`] system.
@@ -285,7 +281,7 @@ impl EguiUserTextures {
 }
 
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
 pub struct WindowSize {
     physical_width: f32,
     physical_height: f32,
@@ -344,9 +340,6 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         let world = &mut app.world;
         world.insert_resource(EguiSettings::default());
-        world.insert_resource(EguiWindowSizeContainer(
-            HashMap::<Entity, WindowSize>::default(),
-        ));
         world.insert_resource(EguiManagedTextures::default());
         #[cfg(feature = "manage_clipboard")]
         world.insert_resource(EguiClipboard::default());
@@ -446,6 +439,7 @@ pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entit
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),
+            WindowSize::default(),
         ));
     }
 }

@@ -1,9 +1,9 @@
 use crate::{
     render_systems::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
-        ExtractedEguiSettings, ExtractedWindowSizes,
+        ExtractedEguiSettings,
     },
-    EguiContext, EguiRenderOutput,
+    EguiContext, EguiRenderOutput, WindowSize,
 };
 use bevy::{
     core::cast_slice,
@@ -194,19 +194,20 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut windows = world.query::<(&EguiContext, &mut EguiRenderOutput)>();
+        let mut windows = world.query::<(&EguiContext, &mut EguiRenderOutput, &WindowSize)>();
 
         let Ok(
-            (egui_context, mut render_output),
+            (egui_context, mut render_output, window_size),
         ) = windows.get_mut(world, self.window_entity) else {
             // No egui context
             return;
         };
+
+        let window_size = *window_size;
+
         let shapes = std::mem::take(&mut render_output.shapes);
         let egui_paint_jobs = egui_context.tessellate(shapes);
 
-        let window_size =
-            world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_entity];
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();

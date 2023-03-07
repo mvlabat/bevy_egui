@@ -1,7 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings, EguiUserTextures,
-    EguiWindowSizeContainer, WindowSize,
+    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
     asset::HandleId,
@@ -21,10 +20,6 @@ use bevy::{
     },
     utils::HashMap,
 };
-
-/// Extracted window sizes.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedWindowSizes(pub HashMap<Entity, WindowSize>);
 
 /// Extracted Egui settings.
 #[derive(Resource, Deref, DerefMut, Default)]
@@ -86,16 +81,16 @@ pub fn setup_new_windows_render_system(
 /// Extracts Egui context, render output, settings and application window sizes.
 pub fn extract_egui_render_data_system(
     mut commands: Commands,
-    window_sizes: Extract<Res<EguiWindowSizeContainer>>,
     egui_settings: Extract<Res<EguiSettings>>,
-    windows: Extract<Query<(Entity, &EguiContext, &EguiRenderOutput), With<Window>>>,
+    windows: Extract<Query<(Entity, &EguiContext, &EguiRenderOutput, &WindowSize), With<Window>>>,
 ) {
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
-    commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
-    for (window_entity, ctx, egui_render_output) in windows.iter() {
-        commands
-            .get_or_spawn(window_entity)
-            .insert((ctx.clone(), egui_render_output.clone()));
+    for (window_entity, ctx, egui_render_output, window_size) in windows.iter() {
+        commands.get_or_spawn(window_entity).insert((
+            ctx.clone(),
+            egui_render_output.clone(),
+            window_size.clone(),
+        ));
     }
 }
 
@@ -153,7 +148,7 @@ impl EguiTransform {
 /// Prepares Egui transforms.
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
-    window_sizes: Res<ExtractedWindowSizes>,
+    window_sizes: Query<(Entity, &WindowSize)>,
     egui_settings: Res<ExtractedEguiSettings>,
 
     render_device: Res<RenderDevice>,
@@ -164,12 +159,12 @@ pub fn prepare_egui_transforms_system(
     egui_transforms.buffer.clear();
     egui_transforms.offsets.clear();
 
-    for (window, size) in &window_sizes.0 {
+    for (window, size) in window_sizes.iter() {
         let offset = egui_transforms.buffer.push(EguiTransform::from_window_size(
             *size,
             egui_settings.scale_factor as f32,
         ));
-        egui_transforms.offsets.insert(*window, offset);
+        egui_transforms.offsets.insert(window, offset);
     }
 
     egui_transforms
