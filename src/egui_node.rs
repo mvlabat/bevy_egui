@@ -8,7 +8,7 @@ use crate::{
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
-    prelude::{Entity, HandleUntyped, QueryState, Resource},
+    prelude::{Entity, HandleUntyped, Resource},
     reflect::TypeUuid,
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
@@ -174,12 +174,11 @@ pub struct EguiNode {
     index_buffer_capacity: usize,
     index_buffer: Option<Buffer>,
     draw_commands: Vec<DrawCommand>,
-    query: QueryState<&'static EguiContext>,
 }
 
 impl EguiNode {
     /// Constructs Egui render node.
-    pub fn new(world: &mut World, window_entity: Entity) -> Self {
+    pub fn new(window_entity: Entity) -> Self {
         EguiNode {
             window_entity,
             draw_commands: Vec::new(),
@@ -189,7 +188,6 @@ impl EguiNode {
             index_data: Vec::new(),
             index_buffer_capacity: 0,
             index_buffer: None,
-            query: world.query_filtered(),
         }
     }
 }
@@ -202,6 +200,8 @@ impl Node for EguiNode {
             None => return,
         };
         let shapes = std::mem::take(&mut shapes.shapes);
+
+        let egui_ctx = world.query::<&EguiContext>();
 
         let window_size =
             &world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_entity];
@@ -216,7 +216,7 @@ impl Node for EguiNode {
 
         let Ok(
             egui_context,
-        ) = self.query.get_manual(world, self.window_entity) else {
+        ) = egui_ctx.get_manual(world, self.window_entity) else {
             // No egui context
             return;
         };

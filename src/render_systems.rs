@@ -1,14 +1,14 @@
 use crate::{
-    egui_node::{EguiPipeline, EguiPipelineKey},
-    setup_pipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer,
-    EguiSettings, EguiUserTextures, EguiWindowSizeContainer, RenderGraphConfig, WindowSize,
+    egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
+    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer, EguiSettings,
+    EguiUserTextures, EguiWindowSizeContainer, WindowSize,
 };
 use bevy::{
     asset::HandleId,
-    ecs::system::SystemState,
     prelude::*,
     render::{
         render_asset::RenderAssets,
+        render_graph::RenderGraph,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
             CachedRenderPipelineId, DynamicUniformBuffer, PipelineCache, ShaderType,
@@ -69,23 +69,21 @@ impl ExtractedEguiTextures {
 }
 
 /// Calls [`setup_pipeline`] for newly created windows to ensure egui works on them.
-pub fn setup_new_windows_render_system(world: &mut World) {
-    let mut system_state: SystemState<Extract<Query<Entity, Added<Window>>>> =
-        SystemState::new(world);
-    let mut new_render_configs = Vec::new();
-    for window in system_state.get_mut(world).iter() {
-        // TODO This is running every frame for some reason
-        new_render_configs.push(RenderGraphConfig {
-            window,
-            egui_pass: std::borrow::Cow::Owned(format!(
-                "egui-{}-{}",
-                window.index(),
-                window.generation()
-            )),
-        });
-    }
-    for render_config in new_render_configs {
-        setup_pipeline(world, render_config);
+pub fn setup_new_windows_render_system(
+    windows: Extract<Query<Entity, Added<Window>>>,
+    mut render_graph: ResMut<RenderGraph>,
+) {
+    for window in windows.iter() {
+        let egui_pass = format!("egui-{}-{}", window.index(), window.generation());
+
+        let new_node = EguiNode::new(window);
+
+        render_graph.add_node(egui_pass.clone(), new_node);
+
+        render_graph.add_node_edge(
+            bevy::render::main_graph::node::CAMERA_DRIVER,
+            egui_pass.to_string(),
+        );
     }
 }
 

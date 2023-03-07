@@ -75,16 +75,16 @@ use bevy::{
     log,
     prelude::{
         Added, Commands, Component, CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs,
-        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet, World,
+        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet,
     },
     render::{
-        render_graph::RenderGraph, render_resource::SpecializedRenderPipelines, texture::Image,
-        ExtractSchedule, RenderApp, RenderSet,
+        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
+        RenderSet,
     },
     utils::HashMap,
     window::Window,
 };
-use egui_node::EguiNode;
+
 use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
@@ -550,22 +550,6 @@ pub struct RenderGraphConfig {
     pub window: Entity,
     /// Render pass name.
     pub egui_pass: Cow<'static, str>,
-}
-
-/// Set up egui render pipeline.
-///
-/// The pipeline for the primary window will already be set up by the [`EguiPlugin`],
-/// so you'll only need to manually call this if you want to use multiple windows.
-pub fn setup_pipeline(world: &mut World, config: RenderGraphConfig) {
-    let new_node = EguiNode::new(world, config.window);
-    let mut render_graph = world.resource_mut::<RenderGraph>();
-
-    render_graph.add_node(config.egui_pass.clone(), new_node);
-
-    render_graph.add_node_edge(
-        bevy::render::main_graph::node::CAMERA_DRIVER,
-        config.egui_pass.to_string(),
-    );
 }
 
 #[cfg(test)]
