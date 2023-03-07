@@ -1,6 +1,6 @@
 use crate::{
-    EguiContext, EguiInput, EguiMousePosition, EguiOutputContainer, EguiRenderOutputContainer,
-    EguiSettings, EguiWindowSizeContainer, WindowSize,
+    EguiContext, EguiInput, EguiMousePosition, EguiOutput, EguiRenderOutputContainer, EguiSettings,
+    EguiWindowSizeContainer, WindowSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -333,14 +333,6 @@ pub fn begin_frame_system(mut windows: Query<(&mut EguiContext, &mut EguiInput)>
     }
 }
 
-#[allow(missing_docs)]
-#[derive(SystemParam)]
-pub struct OutputResources<'w, 's> {
-    pub egui: ResMut<'w, EguiOutputContainer>,
-    #[system_param(ignore)]
-    _marker: PhantomData<&'s ()>,
-}
-
 /// Reads Egui output.
 pub fn process_output_system(
     #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
@@ -351,13 +343,14 @@ pub fn process_output_system(
         &mut Window,
         &EguiContext,
         &mut EguiRenderOutputContainer,
+        &mut EguiOutput,
     )>,
-    mut output: OutputResources,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<HashMap<Entity, egui::CursorIcon>>,
 ) {
-    for (window_id, mut window, ctx, mut egui_render_output) in windows.iter_mut() {
+    for (window_id, mut window, ctx, mut egui_render_output, mut egui_output) in windows.iter_mut()
+    {
         let full_output = ctx.end_frame();
         let egui::FullOutput {
             platform_output,
@@ -369,7 +362,7 @@ pub fn process_output_system(
         egui_render_output.0.shapes = shapes;
         egui_render_output.0.textures_delta.append(textures_delta);
 
-        output.egui.entry(window_id).or_default().platform_output = platform_output.clone();
+        egui_output.platform_output = platform_output.clone();
 
         #[cfg(feature = "manage_clipboard")]
         if !platform_output.copied_text.is_empty() {

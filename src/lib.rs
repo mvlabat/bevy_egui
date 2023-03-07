@@ -131,10 +131,6 @@ impl Default for EguiSettings {
 #[derive(Component, Clone, Deref, DerefMut, Default)]
 pub struct EguiRenderOutputContainer(pub EguiRenderOutput);
 
-/// Stores [`EguiOutputContainer`] for each window.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiOutputContainer(pub HashMap<Entity, EguiOutput>);
-
 /// Stores [`WindowSize`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiWindowSizeContainer(pub HashMap<Entity, WindowSize>);
@@ -229,8 +225,8 @@ pub struct EguiRenderOutput {
     pub textures_delta: egui::TexturesDelta,
 }
 
-/// Is used for storing Egui output ine the [`EguiOutputContainer`] resource..
-#[derive(Clone, Default, Resource)]
+/// Is used for storing Egui output on each window
+#[derive(Component, Clone, Default, Resource)]
 pub struct EguiOutput {
     /// The field gets updated during the [`EguiSystem::ProcessOutput`] system in the [`CoreStage::PostUpdate`].
     pub platform_output: egui::PlatformOutput,
@@ -352,7 +348,6 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         let world = &mut app.world;
         world.insert_resource(EguiSettings::default());
-        world.insert_resource(EguiOutputContainer(HashMap::<Entity, EguiOutput>::default()));
         world.insert_resource(EguiWindowSizeContainer(
             HashMap::<Entity, WindowSize>::default(),
         ));
@@ -454,6 +449,7 @@ pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entit
             EguiMousePosition::default(),
             EguiRenderOutputContainer::default(),
             EguiInput::default(),
+            EguiOutput::default(),
         ));
     }
 }
