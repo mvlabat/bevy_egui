@@ -82,15 +82,13 @@ pub fn setup_new_windows_render_system(
 pub fn extract_egui_render_data_system(
     mut commands: Commands,
     egui_settings: Extract<Res<EguiSettings>>,
-    contexts: Extract<Query<EguiContextQueryReadOnly, With<Window>>>,
+    contexts: Extract<Query<EguiContextQueryReadOnly>>,
 ) {
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     for context in contexts.iter() {
-        commands.get_or_spawn(context.window_entity).insert((
-            context.ctx.clone(),
-            context.render_output.clone(),
-            *context.window_size,
-        ));
+        commands
+            .get_or_spawn(context.window_entity)
+            .insert((*context.window_size, context.render_output.clone()));
     }
 }
 

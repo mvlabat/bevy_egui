@@ -96,7 +96,7 @@ pub struct EguiPlugin;
 /// A resource for storing global UI settings.
 #[derive(Clone, Debug, PartialEq, Resource)]
 pub struct EguiSettings {
-    /// Global scale factor for egui widgets (`1.0` by default).
+    /// Global scale factor for Egui widgets (`1.0` by default).
     ///
     /// This setting can be used to force the UI to render in physical pixels regardless of DPI as follows:
     /// ```rust
@@ -210,7 +210,7 @@ pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
     /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreІуе::PostUpdate`]) and reset during `EguiNode::update`.
-    pub shapes: Vec<egui::epaint::ClippedShape>,
+    pub paint_jobs: Vec<egui::ClippedPrimitive>,
 
     /// The change in egui textures since last frame.
     pub textures_delta: egui::TexturesDelta,
@@ -373,14 +373,18 @@ impl Plugin for EguiPlugin {
             (
                 setup_new_windows_system,
                 apply_system_buffers,
-                init_contexts_startup_system,
+                update_window_contexts_system,
             )
                 .chain()
                 .in_set(EguiStartupSet::InitContexts)
                 .in_base_set(StartupSet::PreStartup),
         );
         app.add_systems(
-            (setup_new_windows_system, apply_system_buffers)
+            (
+                setup_new_windows_system,
+                apply_system_buffers,
+                update_window_contexts_system,
+            )
                 .chain()
                 .in_set(EguiSet::InitContexts)
                 .in_base_set(CoreSet::PreUpdate),

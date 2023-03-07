@@ -69,14 +69,6 @@ pub struct ContextSystemParams<'w, 's> {
     _marker: PhantomData<&'s ()>,
 }
 
-/// Initialises Egui contexts (for multiple windows) on startup.
-pub fn init_contexts_startup_system(
-    mut context_params: ContextSystemParams,
-    egui_settings: Res<EguiSettings>,
-) {
-    update_window_contexts(&mut context_params, &egui_settings);
-}
-
 /// Processes Bevy input and feeds it to Egui.
 pub fn process_input_system(
     mut input_events: InputEvents,
@@ -99,8 +91,6 @@ pub fn process_input_system(
             None
         };
     }
-
-    update_window_contexts(&mut context_params, &egui_settings);
 
     let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
         || input_resources.keyboard_input.pressed(KeyCode::RShift);
@@ -291,8 +281,15 @@ pub fn process_input_system(
     input_events.clear();
 }
 
-fn update_window_contexts(context_params: &mut ContextSystemParams, egui_settings: &EguiSettings) {
+/// Initialises Egui contexts (for multiple windows).
+pub fn update_window_contexts_system(
+    mut context_params: ContextSystemParams,
+    egui_settings: Res<EguiSettings>,
+) {
     for mut context in context_params.contexts.iter_mut() {
+        //
+        context.render_output.paint_jobs.clear();
+
         let new_window_size = WindowSize::new(
             context.window.physical_width() as f32,
             context.window.physical_height() as f32,
@@ -339,15 +336,17 @@ pub fn process_output_system(
     #[cfg(windows)] mut last_cursor_icon: Local<bevy::utils::HashMap<Entity, egui::CursorIcon>>,
 ) {
     for mut context in contexts.iter_mut() {
-        let full_output = context.ctx.get_mut().end_frame();
+        let ctx = context.ctx.get_mut();
+        let full_output = ctx.end_frame();
         let egui::FullOutput {
             platform_output,
             shapes,
             textures_delta,
             repaint_after,
         } = full_output;
+        let paint_jobs = ctx.tessellate(shapes);
 
-        context.render_output.shapes = shapes;
+        context.render_output.paint_jobs = paint_jobs;
         context.render_output.textures_delta.append(textures_delta);
 
         context.egui_output.platform_output = platform_output.clone();

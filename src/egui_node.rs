@@ -3,7 +3,7 @@ use crate::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
         ExtractedEguiSettings,
     },
-    EguiContext, EguiRenderOutput, WindowSize,
+    EguiRenderOutput, WindowSize,
 };
 use bevy::{
     core::cast_slice,
@@ -190,16 +190,13 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut egui_contexts =
-            world.query::<(&mut EguiContext, &mut EguiRenderOutput, &WindowSize)>();
+        let mut window_sizes = world.query::<(&WindowSize, &mut EguiRenderOutput)>();
 
-        let Ok((mut egui_context, mut render_output, window_size)) = egui_contexts.get_mut(world, self.window_entity) else {
+        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity) else {
             return;
         };
         let window_size = *window_size;
-
-        let shapes = std::mem::take(&mut render_output.shapes);
-        let egui_paint_jobs = egui_context.get_mut().tessellate(shapes);
+        let paint_jobs = std::mem::take(&mut render_output.paint_jobs);
 
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
 
@@ -219,7 +216,7 @@ impl Node for EguiNode {
         for egui::epaint::ClippedPrimitive {
             clip_rect,
             primitive,
-        } in &egui_paint_jobs
+        } in &paint_jobs
         {
             let mesh = match primitive {
                 egui::epaint::Primitive::Mesh(mesh) => mesh,
