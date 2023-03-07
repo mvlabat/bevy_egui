@@ -287,9 +287,6 @@ pub fn update_window_contexts_system(
     egui_settings: Res<EguiSettings>,
 ) {
     for mut context in context_params.contexts.iter_mut() {
-        //
-        context.render_output.paint_jobs.clear();
-
         let new_window_size = WindowSize::new(
             context.window.physical_width() as f32,
             context.window.physical_height() as f32,
