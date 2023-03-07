@@ -348,7 +348,6 @@ pub fn begin_frame_system(
 #[derive(SystemParam)]
 pub struct OutputResources<'w, 's> {
     pub egui: ResMut<'w, EguiOutputContainer>,
-    pub egui_render: ResMut<'w, EguiRenderOutputContainer>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
 }
@@ -358,14 +357,18 @@ pub fn process_output_system(
     #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
         EguiSettings,
     >,
-    mut egui_context: Query<(Entity, &mut EguiContext)>,
+    mut windows: Query<(
+        Entity,
+        &mut Window,
+        &EguiContext,
+        &mut EguiRenderOutputContainer,
+    )>,
     mut output: OutputResources,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
-    mut windows: Query<&mut Window>,
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<HashMap<Entity, egui::CursorIcon>>,
 ) {
-    for (window_id, ctx) in egui_context.iter_mut() {
+    for (window_id, mut window, ctx, mut egui_render_output) in windows.iter_mut() {
         let full_output = ctx.end_frame();
         let egui::FullOutput {
             platform_output,
@@ -374,9 +377,8 @@ pub fn process_output_system(
             repaint_after,
         } = full_output;
 
-        let egui_render_output = output.egui_render.entry(window_id).or_default();
-        egui_render_output.shapes = shapes;
-        egui_render_output.textures_delta.append(textures_delta);
+        egui_render_output.0.shapes = shapes;
+        egui_render_output.0.textures_delta.append(textures_delta);
 
         output.egui.entry(window_id).or_default().platform_output = platform_output.clone();
 
@@ -385,23 +387,21 @@ pub fn process_output_system(
             egui_clipboard.set_contents(&platform_output.copied_text);
         }
 
-        if let Ok(mut window) = windows.get_mut(window_id) {
-            let mut set_icon = || {
-                window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
-                    .unwrap_or(bevy::window::CursorIcon::Default);
-            };
+        let mut set_icon = || {
+            window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
+                .unwrap_or(bevy::window::CursorIcon::Default);
+        };
 
-            #[cfg(windows)]
-            {
-                let last_cursor_icon = last_cursor_icon.entry(window_id).or_default();
-                if *last_cursor_icon != platform_output.cursor_icon {
-                    set_icon();
-                    *last_cursor_icon = platform_output.cursor_icon;
-                }
+        #[cfg(windows)]
+        {
+            let last_cursor_icon = last_cursor_icon.entry(window_id).or_default();
+            if *last_cursor_icon != platform_output.cursor_icon {
+                set_icon();
+                *last_cursor_icon = platform_output.cursor_icon;
             }
-            #[cfg(not(windows))]
-            set_icon();
         }
+        #[cfg(not(windows))]
+        set_icon();
 
         if repaint_after.is_zero() {
             event.send(RequestRedraw)

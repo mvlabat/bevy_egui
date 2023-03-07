@@ -1,7 +1,7 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer, EguiSettings,
-    EguiUserTextures, EguiWindowSizeContainer, WindowSize,
+    EguiContext, EguiManagedTextures, EguiRenderOutputContainer, EguiSettings, EguiUserTextures,
+    EguiWindowSizeContainer, WindowSize,
 };
 use bevy::{
     asset::HandleId,
@@ -21,10 +21,6 @@ use bevy::{
     },
     utils::HashMap,
 };
-
-/// Extracted Egui render output.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedRenderOutput(pub HashMap<Entity, EguiRenderOutput>);
 
 /// Extracted window sizes.
 #[derive(Resource, Deref, DerefMut, Default)]
@@ -90,16 +86,16 @@ pub fn setup_new_windows_render_system(
 /// Extracts Egui context, render output, settings and application window sizes.
 pub fn extract_egui_render_data_system(
     mut commands: Commands,
-    egui_render_output: Extract<Res<EguiRenderOutputContainer>>,
     window_sizes: Extract<Res<EguiWindowSizeContainer>>,
     egui_settings: Extract<Res<EguiSettings>>,
-    egui_context: Extract<Query<(Entity, &EguiContext)>>,
+    windows: Extract<Query<(Entity, &EguiContext, &EguiRenderOutputContainer), With<Window>>>,
 ) {
-    commands.insert_resource(ExtractedRenderOutput(egui_render_output.clone()));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
-    for (window_entity, ctx) in egui_context.iter() {
-        commands.get_or_spawn(window_entity).insert(ctx.clone());
+    for (window_entity, ctx, egui_render_output) in windows.iter() {
+        commands
+            .get_or_spawn(window_entity)
+            .insert((ctx.clone(), egui_render_output.clone()));
     }
 }
 

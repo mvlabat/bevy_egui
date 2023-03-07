@@ -1,9 +1,9 @@
 use crate::{
     render_systems::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
-        ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
+        ExtractedEguiSettings, ExtractedWindowSizes,
     },
-    EguiContext,
+    EguiContext, EguiRenderOutputContainer,
 };
 use bevy::{
     core::cast_slice,
@@ -194,17 +194,19 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
-        let mut shapes = world.get_resource_mut::<ExtractedRenderOutput>().unwrap();
-        let shapes = match shapes.0.get_mut(&self.window_entity) {
-            Some(shapes) => shapes,
-            None => return,
-        };
-        let shapes = std::mem::take(&mut shapes.shapes);
+        let mut windows = world.query::<(&EguiContext, &mut EguiRenderOutputContainer)>();
 
-        let egui_ctx = world.query::<&EguiContext>();
+        let Ok(
+            (egui_context, mut render_output),
+        ) = windows.get_mut(world, self.window_entity) else {
+            // No egui context
+            return;
+        };
+        let shapes = std::mem::take(&mut render_output.shapes);
+        let egui_paint_jobs = egui_context.tessellate(shapes);
 
         let window_size =
-            &world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_entity];
+            world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_entity];
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
@@ -213,15 +215,6 @@ impl Node for EguiNode {
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
             return;
         }
-
-        let Ok(
-            egui_context,
-        ) = egui_ctx.get_manual(world, self.window_entity) else {
-            // No egui context
-            return;
-        };
-
-        let egui_paint_jobs = egui_context.tessellate(shapes);
 
         let mut index_offset = 0;
 

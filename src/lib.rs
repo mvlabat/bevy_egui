@@ -75,7 +75,7 @@ use bevy::{
     log,
     prelude::{
         Added, Commands, Component, CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs,
-        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet,
+        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet, With,
     },
     render::{
         render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
@@ -128,8 +128,8 @@ impl Default for EguiSettings {
 }
 
 /// Stores [`EguiRenderOutput`] for each window.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiRenderOutputContainer(pub HashMap<Entity, EguiRenderOutput>);
+#[derive(Component, Clone, Deref, DerefMut, Default)]
+pub struct EguiRenderOutputContainer(pub EguiRenderOutput);
 
 /// Stores [`EguiInput`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
@@ -363,9 +363,6 @@ impl Plugin for EguiPlugin {
         world.insert_resource(EguiWindowSizeContainer(
             HashMap::<Entity, WindowSize>::default(),
         ));
-        world.insert_resource(EguiRenderOutputContainer(
-            HashMap::<Entity, EguiRenderOutput>::default(),
-        ));
         world.insert_resource(EguiManagedTextures::default());
         #[cfg(feature = "manage_clipboard")]
         world.insert_resource(EguiClipboard::default());
@@ -459,19 +456,21 @@ pub struct EguiManagedTexture {
 /// Adds bevy_egui components to newly created windows.
 pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entity, Added<Window>>) {
     for window in new_windows.iter() {
-        commands
-            .entity(window)
-            .insert((EguiContext::default(), EguiMousePosition::default()));
+        commands.entity(window).insert((
+            EguiContext::default(),
+            EguiMousePosition::default(),
+            EguiRenderOutputContainer::default(),
+        ));
     }
 }
 
 /// Updates textures painted by Egui.
 pub fn update_egui_textures_system(
-    mut egui_render_output: ResMut<EguiRenderOutputContainer>,
+    mut egui_render_output: Query<(Entity, &mut EguiRenderOutputContainer), With<Window>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+    for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (texture_id, image_delta) in set_textures {
@@ -520,12 +519,12 @@ pub fn update_egui_textures_system(
 
 fn free_egui_textures_system(
     mut egui_user_textures: ResMut<EguiUserTextures>,
-    mut egui_render_output: ResMut<EguiRenderOutputContainer>,
+    mut egui_render_output: Query<(Entity, &mut EguiRenderOutputContainer), With<Window>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+    for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
         for texture_id in free_textures {
             if let egui::TextureId::Managed(texture_id) = texture_id {
