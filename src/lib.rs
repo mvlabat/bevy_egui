@@ -131,10 +131,6 @@ impl Default for EguiSettings {
 #[derive(Component, Clone, Deref, DerefMut, Default)]
 pub struct EguiRenderOutputContainer(pub EguiRenderOutput);
 
-/// Stores [`EguiInput`] for each window.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct EguiRenderInputContainer(pub HashMap<Entity, EguiInput>);
-
 /// Stores [`EguiOutputContainer`] for each window.
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiOutputContainer(pub HashMap<Entity, EguiOutput>);
@@ -146,7 +142,7 @@ pub struct EguiWindowSizeContainer(pub HashMap<Entity, WindowSize>);
 /// Is used for storing the input passed to Egui in the [`EguiRenderInputContainer`] resource.
 ///
 /// It gets reset during the [`EguiSystem::ProcessInput`] system.
-#[derive(Clone, Debug, Default, Deref, DerefMut)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
 pub struct EguiInput(pub egui::RawInput);
 
 /// A resource for accessing clipboard.
@@ -356,9 +352,6 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         let world = &mut app.world;
         world.insert_resource(EguiSettings::default());
-        world.insert_resource(EguiRenderInputContainer(
-            HashMap::<Entity, EguiInput>::default(),
-        ));
         world.insert_resource(EguiOutputContainer(HashMap::<Entity, EguiOutput>::default()));
         world.insert_resource(EguiWindowSizeContainer(
             HashMap::<Entity, WindowSize>::default(),
@@ -460,6 +453,7 @@ pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entit
             EguiContext::default(),
             EguiMousePosition::default(),
             EguiRenderOutputContainer::default(),
+            EguiInput::default(),
         ));
     }
 }
