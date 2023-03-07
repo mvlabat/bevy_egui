@@ -26,11 +26,10 @@ fn main() {
 }
 
 fn ui_example_system(
-    mut egui_context: ResMut<EguiContext>,
+    egui_ctx: Query<&EguiContext>,
     mut occupied_screen_space: ResMut<OccupiedScreenSpace>,
-    windows: Query<Entity, With<Window>>,
 ) {
-    let ctx = egui_context.ctx_for_window_mut(windows.iter().next().unwrap());
+    let ctx = egui_ctx.iter().next().unwrap();
 
     occupied_screen_space.left = egui::SidePanel::left("left_panel")
         .resizable(true)

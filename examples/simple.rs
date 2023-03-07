@@ -11,11 +11,8 @@ fn main() {
         .run();
 }
 
-fn ui_example_system(mut egui_context: ResMut<EguiContext>, windows: Query<Entity, With<Window>>) {
-    egui::Window::new("Hello").show(
-        egui_context.ctx_for_window_mut(windows.iter().next().unwrap()),
-        |ui| {
-            ui.label("world");
-        },
-    );
+fn ui_example_system(egui_ctx: Query<&EguiContext>) {
+    egui::Window::new("Hello").show(egui_ctx.iter().next().unwrap(), |ui| {
+        ui.label("world");
+    });
 }

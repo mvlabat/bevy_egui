@@ -1,14 +1,14 @@
 use crate::{
     egui_node::{EguiPipeline, EguiPipelineKey},
     setup_pipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiRenderOutputContainer,
-    EguiSettings, EguiWindowSizeContainer, RenderGraphConfig, WindowSize,
+    EguiSettings, EguiUserTextures, EguiWindowSizeContainer, RenderGraphConfig, WindowSize,
 };
 use bevy::{
     asset::HandleId,
+    ecs::system::SystemState,
     prelude::*,
     render::{
         render_asset::RenderAssets,
-        render_graph::RenderGraph,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
             CachedRenderPipelineId, DynamicUniformBuffer, PipelineCache, ShaderType,
@@ -33,10 +33,6 @@ pub struct ExtractedWindowSizes(pub HashMap<Entity, WindowSize>);
 /// Extracted Egui settings.
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct ExtractedEguiSettings(pub EguiSettings);
-
-/// Extracted Egui contexts.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedEguiContext(pub HashMap<Entity, egui::Context>);
 
 /// Corresponds to Egui's [`egui::TextureId`].
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -73,22 +69,23 @@ impl ExtractedEguiTextures {
 }
 
 /// Calls [`setup_pipeline`] for newly created windows to ensure egui works on them.
-pub fn setup_new_windows_system(
-    mut graph: ResMut<RenderGraph>,
-    new_windows: Extract<Query<Entity, Added<Window>>>,
-) {
-    for window in new_windows.iter() {
-        setup_pipeline(
-            &mut graph,
-            RenderGraphConfig {
-                window,
-                egui_pass: std::borrow::Cow::Owned(format!(
-                    "egui-{}-{}",
-                    window.index(),
-                    window.generation()
-                )),
-            },
-        )
+pub fn setup_new_windows_render_system(world: &mut World) {
+    let mut system_state: SystemState<Extract<Query<Entity, Added<Window>>>> =
+        SystemState::new(world);
+    let mut new_render_configs = Vec::new();
+    for window in system_state.get_mut(world).iter() {
+        // TODO This is running every frame for some reason
+        new_render_configs.push(RenderGraphConfig {
+            window,
+            egui_pass: std::borrow::Cow::Owned(format!(
+                "egui-{}-{}",
+                window.index(),
+                window.generation()
+            )),
+        });
+    }
+    for render_config in new_render_configs {
+        setup_pipeline(world, render_config);
     }
 }
 
@@ -98,18 +95,20 @@ pub fn extract_egui_render_data_system(
     egui_render_output: Extract<Res<EguiRenderOutputContainer>>,
     window_sizes: Extract<Res<EguiWindowSizeContainer>>,
     egui_settings: Extract<Res<EguiSettings>>,
-    egui_context: Extract<Res<EguiContext>>,
+    egui_context: Extract<Query<(Entity, &EguiContext)>>,
 ) {
     commands.insert_resource(ExtractedRenderOutput(egui_render_output.clone()));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
-    commands.insert_resource(ExtractedEguiContext(egui_context.ctx.clone()));
     commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
+    for (window_entity, ctx) in egui_context.iter() {
+        commands.get_or_spawn(window_entity).insert(ctx.clone());
+    }
 }
 
 /// Extracts Egui textures.
 pub fn extract_egui_textures_system(
     mut commands: Commands,
-    egui_context: Extract<Res<EguiContext>>,
+    egui_user_textures: Extract<Res<EguiUserTextures>>,
     egui_managed_textures: Extract<Res<EguiManagedTextures>>,
 ) {
     commands.insert_resource(ExtractedEguiTextures {
@@ -119,7 +118,7 @@ pub fn extract_egui_textures_system(
                 ((window_id, texture_id), managed_texture.handle.clone())
             })
             .collect(),
-        user_textures: egui_context.user_textures.clone(),
+        user_textures: egui_user_textures.textures.clone(),
     });
 }
 
@@ -245,7 +244,7 @@ pub struct EguiPipelines(pub HashMap<Entity, CachedRenderPipelineId>);
 /// Queue [`EguiPipeline`]s specialized on each window's swap chain texture format.
 pub fn queue_pipelines_system(
     mut commands: Commands,
-    mut pipeline_cache: ResMut<PipelineCache>,
+    pipeline_cache: Res<PipelineCache>,
     mut pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
     egui_pipeline: Res<EguiPipeline>,
     windows: Res<ExtractedWindows>,
@@ -256,7 +255,7 @@ pub fn queue_pipelines_system(
             let key = EguiPipelineKey {
                 texture_format: window.swap_chain_texture_format?,
             };
-            let pipeline_id = pipelines.specialize(&mut pipeline_cache, &egui_pipeline, key);
+            let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
             Some((*window_id, pipeline_id))
         })

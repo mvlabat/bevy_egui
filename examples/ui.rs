@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
+use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings, EguiUserTextures};
 
 struct Images {
     bevy_icon: Handle<Image>,
@@ -43,16 +43,11 @@ struct UiState {
     is_window_open: bool,
 }
 
-fn configure_visuals_system(
-    mut egui_ctx: ResMut<EguiContext>,
-    windows: Query<Entity, With<Window>>,
-) {
-    egui_ctx
-        .ctx_for_window_mut(windows.iter().next().unwrap())
-        .set_visuals(egui::Visuals {
-            window_rounding: 0.0.into(),
-            ..Default::default()
-        });
+fn configure_visuals_system(egui_ctx: Query<&EguiContext>) {
+    egui_ctx.iter().next().unwrap().set_visuals(egui::Visuals {
+        window_rounding: 0.0.into(),
+        ..Default::default()
+    });
 }
 
 fn configure_ui_state_system(mut ui_state: ResMut<UiState>) {
@@ -80,7 +75,7 @@ fn update_ui_scale_factor_system(
 }
 
 fn ui_example_system(
-    mut egui_ctx: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut ui_state: ResMut<UiState>,
     // You are not required to store Egui texture ids in systems. We store this one here just to
     // demonstrate that rendering by using a texture id of a removed image is handled without
@@ -90,10 +85,9 @@ fn ui_example_system(
     // If you need to access the ids from multiple systems, you can also initialize the `Images`
     // resource while building the app and use `Res<Images>` instead.
     images: Local<Images>,
-    windows: Query<Entity, With<Window>>,
+    egui_ctx: Query<&EguiContext>,
 ) {
-    let primary_window = windows.iter().next().unwrap();
-    let ctx = egui_ctx.ctx_for_window_mut(primary_window);
+    let ctx = egui_ctx.iter().next().unwrap();
     let egui_texture_handle = ui_state
         .egui_texture_handle
         .get_or_insert_with(|| {
@@ -111,10 +105,10 @@ fn ui_example_system(
 
     if !*is_initialized {
         *is_initialized = true;
-        *rendered_texture_id = egui_ctx.add_image(images.bevy_icon.clone_weak());
+        *rendered_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     }
 
-    let ctx = egui_ctx.ctx_for_window_mut(primary_window);
+    let ctx = egui_ctx.iter().next().unwrap();
 
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -208,14 +202,15 @@ fn ui_example_system(
     if load || invert {
         // If an image is already added to the context, it'll return an existing texture id.
         if ui_state.inverted {
-            *rendered_texture_id = egui_ctx.add_image(images.bevy_icon_inverted.clone_weak());
+            *rendered_texture_id =
+                egui_user_textures.add_image(images.bevy_icon_inverted.clone_weak());
         } else {
-            *rendered_texture_id = egui_ctx.add_image(images.bevy_icon.clone_weak());
+            *rendered_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
         };
     }
     if remove {
-        egui_ctx.remove_image(&images.bevy_icon);
-        egui_ctx.remove_image(&images.bevy_icon_inverted);
+        egui_user_textures.remove_image(&images.bevy_icon);
+        egui_user_textures.remove_image(&images.bevy_icon_inverted);
     }
 }
 

@@ -9,7 +9,7 @@ use bevy::{
         view::RenderLayers,
     },
 };
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{egui, EguiContext, EguiPlugin, EguiUserTextures};
 use egui::Widget;
 
 fn main() {
@@ -34,7 +34,7 @@ struct MainPassCube;
 struct CubePreviewImage(Handle<Image>);
 
 fn setup(
-    mut egui_ctx: ResMut<EguiContext>,
+    mut egui_ctx: ResMut<EguiUserTextures>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -146,18 +146,18 @@ fn setup(
 }
 
 fn render_to_image_example_system(
-    mut egui_ctx: ResMut<EguiContext>,
+    egui_user_textures: Res<EguiUserTextures>,
     cube_preview_image: Res<CubePreviewImage>,
     preview_cube_query: Query<&Handle<StandardMaterial>, With<PreviewPassCube>>,
     main_cube_query: Query<&Handle<StandardMaterial>, With<MainPassCube>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    windows: Query<Entity, With<Window>>,
+    egui_ctx: Query<&EguiContext, With<Window>>,
 ) {
-    let cube_preview_texture_id = egui_ctx.image_id(&cube_preview_image).unwrap();
+    let cube_preview_texture_id = egui_user_textures.image_id(&cube_preview_image).unwrap();
     let preview_material_handle = preview_cube_query.single();
     let preview_material = materials.get_mut(preview_material_handle).unwrap();
 
-    let ctx = egui_ctx.ctx_for_window_mut(windows.iter().next().unwrap());
+    let ctx = egui_ctx.iter().next().unwrap();
     let mut apply = false;
     egui::Window::new("Cube material preview").show(ctx, |ui| {
         ui.image(cube_preview_texture_id, [300.0, 300.0]);

@@ -1,11 +1,14 @@
-use crate::render_systems::{
-    EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
-    ExtractedEguiContext, ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
+use crate::{
+    render_systems::{
+        EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
+        ExtractedEguiSettings, ExtractedRenderOutput, ExtractedWindowSizes,
+    },
+    EguiContext,
 };
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
-    prelude::{Entity, HandleUntyped, Resource},
+    prelude::{Entity, HandleUntyped, QueryState, Resource},
     reflect::TypeUuid,
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
@@ -171,11 +174,12 @@ pub struct EguiNode {
     index_buffer_capacity: usize,
     index_buffer: Option<Buffer>,
     draw_commands: Vec<DrawCommand>,
+    query: QueryState<&'static EguiContext>,
 }
 
 impl EguiNode {
     /// Constructs Egui render node.
-    pub fn new(window_entity: Entity) -> Self {
+    pub fn new(world: &mut World, window_entity: Entity) -> Self {
         EguiNode {
             window_entity,
             draw_commands: Vec::new(),
@@ -185,6 +189,7 @@ impl EguiNode {
             index_data: Vec::new(),
             index_buffer_capacity: 0,
             index_buffer: None,
+            query: world.query_filtered(),
         }
     }
 }
@@ -201,7 +206,6 @@ impl Node for EguiNode {
         let window_size =
             &world.get_resource::<ExtractedWindowSizes>().unwrap()[&self.window_entity];
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
-        let egui_context = &world.get_resource::<ExtractedEguiContext>().unwrap();
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
@@ -210,7 +214,14 @@ impl Node for EguiNode {
             return;
         }
 
-        let egui_paint_jobs = egui_context[&self.window_entity].tessellate(shapes);
+        let Ok(
+            egui_context,
+        ) = self.query.get_manual(world, self.window_entity) else {
+            // No egui context
+            return;
+        };
+
+        let egui_paint_jobs = egui_context.tessellate(shapes);
 
         let mut index_offset = 0;
 

@@ -3,7 +3,7 @@ use bevy::{
     render::camera::RenderTarget,
     window::{PresentMode, WindowRef, WindowResolution},
 };
-use bevy_egui::{EguiContext, EguiPlugin};
+use bevy_egui::{EguiContext, EguiPlugin, EguiUserTextures};
 
 #[derive(Resource)]
 struct Images {
@@ -62,17 +62,16 @@ struct SharedUiState {
 }
 
 fn ui_first_window_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
     images: Res<Images>,
-    windows: Query<Entity, With<Window>>,
+    egui_ctx: Query<&EguiContext>,
 ) {
-    let first_window = windows.iter().next().unwrap();
-    let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
-    egui::Window::new("First Window").vscroll(true).show(
-        egui_context.ctx_for_window_mut(first_window),
-        |ui| {
+    let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
+    egui::Window::new("First Window")
+        .vscroll(true)
+        .show(egui_ctx.iter().next().unwrap(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
                 ui.text_edit_singleline(&mut ui_state.input);
@@ -83,22 +82,22 @@ fn ui_first_window_system(
             });
 
             ui.add(egui::widgets::Image::new(bevy_texture_id, [256.0, 256.0]));
-        },
-    );
+        });
 }
 
 fn ui_second_window_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
     images: Res<Images>,
-    windows: Query<Entity, With<Window>>,
+    egui_ctx: Query<&EguiContext>,
 ) {
-    let second_window = windows.iter().nth(1).unwrap();
-    let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
-    let ctx = match egui_context.try_ctx_for_window_mut(second_window) {
+    let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
+    let ctx = match egui_ctx.iter().nth(1) {
         Some(ctx) => ctx,
-        None => return,
+        None => {
+            return;
+        }
     };
     egui::Window::new("Second Window")
         .vscroll(true)
