@@ -68,6 +68,7 @@ use crate::{
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
+    a11y::AccessibilityRequested,
     app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
@@ -79,8 +80,8 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
-        Shader, SystemSet, With, Without,
+        Added, Commands, Component, Deref, DerefMut, DetectChanges, Entity, IntoSystemConfigs,
+        NonSend, Query, Resource, Shader, SystemSet, With, Without,
     },
     reflect::Reflect,
     render::{
@@ -92,10 +93,11 @@ use bevy::{
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
+    winit::accessibility::AccessKitAdapters,
 };
-use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
+use std::{borrow::Cow, sync::atomic::Ordering};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -671,6 +673,8 @@ impl Plugin for EguiPlugin {
                     render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
                 );
         }
+
+        app.add_systems(PostUpdate, (enable_accessibility, update_accessibility));
     }
 }
 
@@ -815,6 +819,39 @@ pub struct RenderGraphConfig {
     pub window: Entity,
     /// Render pass name.
     pub egui_pass: Cow<'static, str>,
+}
+
+fn enable_accessibility(
+    requested: Res<AccessibilityRequested>,
+    mut contexts: EguiContexts,
+    adapters: NonSend<AccessKitAdapters>,
+) {
+    if requested.is_changed() && requested.load(Ordering::SeqCst) {
+        for (_, context, _) in contexts.q.iter_mut() {
+            context.0.enable_accesskit();
+            for (_, adapter) in adapters.iter() {
+                adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
+            }
+        }
+    }
+}
+
+fn update_accessibility(
+    requested: Res<AccessibilityRequested>,
+    mut contexts: EguiContexts,
+    adapters: NonSend<AccessKitAdapters>,
+) {
+    if requested.load(Ordering::SeqCst) {
+        for (_, context, _) in contexts.q.iter_mut() {
+            for (_, adapter) in adapters.iter() {
+                context.0.output(|output| {
+                    if let Some(update) = &output.accesskit_update {
+                        adapter.update_if_active(|| update.clone());
+                    }
+                });
+            }
+        }
+    }
 }
 
 #[cfg(test)]
