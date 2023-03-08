@@ -20,8 +20,8 @@
 //! Here's a minimal usage example:
 //!
 //! ```no_run,rust
-//! use bevy::{prelude::*, window::PrimaryWindow};
-//! use bevy_egui::{egui, EguiContext, EguiPlugin};
+//! use bevy::prelude::*;
+//! use bevy_egui::{egui, EguiContexts, EguiPlugin};
 //!
 //! fn main() {
 //!     App::new()
@@ -33,8 +33,8 @@
 //!         .run();
 //! }
 //!
-//! fn ui_example_system(mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>) {
-//!     egui::Window::new("Hello").show(egui_ctx.single_mut().get_mut(), |ui| {
+//! fn ui_example_system(mut contexts: EguiContexts) {
+//!     egui::Window::new("Hello").show(contexts.ctx_mut(), |ui| {
 //!         ui.label("world");
 //!     });
 //! }

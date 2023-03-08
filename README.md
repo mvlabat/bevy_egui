@@ -44,8 +44,8 @@ bevy_egui = "0.19"
 ```
 
 ```rust
-use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy::prelude::*;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 fn main() {
     App::new()
@@ -57,11 +57,12 @@ fn main() {
         .run();
 }
 
-fn ui_example_system(mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>) {
-    egui::Window::new("Hello").show(egui_ctx.single_mut().get_mut(), |ui| {
+fn ui_example_system(mut contexts: EguiContexts) {
+    egui::Window::new("Hello").show(contexts.ctx_mut(), |ui| {
         ui.label("world");
     });
 }
+
 ```
 
 For a more advanced example, see [examples/ui.rs](https://github.com/mvlabat/bevy_egui/blob/v0.15.0/examples/ui.rs).
