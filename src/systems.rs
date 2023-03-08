@@ -1,6 +1,5 @@
 use crate::{
-    EguiContext, EguiInput, EguiOutputContainer, EguiRenderInputContainer,
-    EguiRenderOutputContainer, EguiSettings, EguiWindowSizeContainer, WindowSize,
+    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -14,11 +13,10 @@ use bevy::{
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         ButtonState, Input,
     },
-    prelude::{EventReader, Time},
-    utils::HashMap,
+    prelude::{Entity, EventReader, Query, Time},
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
-        WindowFocused, WindowId, Windows,
+        WindowFocused,
     },
 };
 use std::marker::PhantomData;
@@ -58,61 +56,41 @@ pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
     pub egui_clipboard: Res<'w, crate::EguiClipboard>,
     pub keyboard_input: Res<'w, Input<KeyCode>>,
-    pub egui_input: ResMut<'w, EguiRenderInputContainer>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
 }
 
 #[allow(missing_docs)]
 #[derive(SystemParam)]
-pub struct WindowResources<'w, 's> {
-    pub focused_window: Local<'s, Option<WindowId>>,
-    pub windows: ResMut<'w, Windows>,
-    pub window_sizes: ResMut<'w, EguiWindowSizeContainer>,
+pub struct ContextSystemParams<'w, 's> {
+    pub focused_window: Local<'s, Option<Entity>>,
+    pub contexts: Query<'w, 's, EguiContextQuery>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
 }
 
-/// Initialises Egui contexts (for multiple windows) on startup.
-pub fn init_contexts_startup_system(
-    mut egui_context: ResMut<EguiContext>,
-    mut egui_input: ResMut<EguiRenderInputContainer>,
-    mut window_resources: WindowResources,
-    egui_settings: Res<EguiSettings>,
-) {
-    update_window_contexts(
-        &mut egui_context,
-        &mut egui_input.0,
-        &mut window_resources,
-        &egui_settings,
-    );
-}
-
 /// Processes Bevy input and feeds it to Egui.
 pub fn process_input_system(
-    mut egui_context: ResMut<EguiContext>,
     mut input_events: InputEvents,
-    mut input_resources: InputResources,
-    mut window_resources: WindowResources,
+    input_resources: InputResources,
+    mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
+    mut egui_mouse_position: ResMut<EguiMousePosition>,
     time: Res<Time>,
 ) {
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
-    if let Some(event) = input_events.ev_window_created.iter().next_back() {
-        *window_resources.focused_window = Some(event.id);
+    if let Some(event) = input_events.ev_window_created.iter().last() {
+        *context_params.focused_window = Some(event.window);
     }
 
     for event in input_events.ev_window_focused.iter() {
-        *window_resources.focused_window = if event.focused { Some(event.id) } else { None };
+        *context_params.focused_window = if event.focused {
+            Some(event.window)
+        } else {
+            None
+        };
     }
-
-    update_window_contexts(
-        &mut egui_context,
-        &mut input_resources.egui_input.0,
-        &mut window_resources,
-        &egui_settings,
-    );
 
     let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
         || input_resources.keyboard_input.pressed(KeyCode::RShift);
@@ -139,14 +117,14 @@ pub fn process_input_system(
     };
 
     let mut cursor_left_window = None;
-    if let Some(cursor_left) = input_events.ev_cursor_left.iter().next_back() {
-        cursor_left_window = Some(cursor_left.id);
+    if let Some(cursor_left) = input_events.ev_cursor_left.iter().last() {
+        cursor_left_window = Some(cursor_left.window);
     }
     let cursor_entered_window = input_events
         .ev_cursor_entered
         .iter()
-        .next_back()
-        .map(|event| event.id);
+        .last()
+        .map(|event| event.window);
 
     // When a user releases a mouse button, Safari emits both `CursorLeft` and `CursorEntered`
     // events during the same frame. We don't want to reset mouse position in such a case, otherwise
@@ -154,26 +132,26 @@ pub fn process_input_system(
     let prev_mouse_position =
         if cursor_left_window.is_some() && cursor_left_window != cursor_entered_window {
             // If it's not the Safari edge case, reset the mouse position.
-            egui_context.mouse_position.take()
+            egui_mouse_position.take()
         } else {
             None
         };
 
-    if let Some(cursor_moved) = input_events.ev_cursor.iter().next_back() {
+    if let Some(cursor_moved) = input_events.ev_cursor.iter().last() {
         // If we've left the window, it's unlikely that we've moved the cursor back to the same
         // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
         // that has been left.
-        if cursor_left_window != Some(cursor_moved.id) {
+        if cursor_left_window != Some(cursor_moved.window) {
             let scale_factor = egui_settings.scale_factor as f32;
             let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-            mouse_position.1 = window_resources.window_sizes[&cursor_moved.id].height()
-                / scale_factor
-                - mouse_position.1;
-            egui_context.mouse_position = Some((cursor_moved.id, mouse_position.into()));
-            input_resources
+            let mut context = context_params
+                .contexts
+                .get_mut(cursor_moved.window)
+                .unwrap();
+            mouse_position.1 = context.window_size.height() / scale_factor - mouse_position.1;
+            egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
+            context
                 .egui_input
-                .get_mut(&cursor_moved.id)
-                .unwrap()
                 .events
                 .push(egui::Event::PointerMoved(egui::pos2(
                     mouse_position.0,
@@ -185,13 +163,9 @@ pub fn process_input_system(
     // If we pressed a button, started dragging a cursor inside a window and released
     // the button when being outside, some platforms will fire `CursorLeft` again together
     // with `MouseButtonInput` - this is why we also take `prev_mouse_position` into account.
-    if let Some((window_id, position)) = egui_context
-        .mouse_position
-        .as_ref()
-        .or(prev_mouse_position.as_ref())
-    {
-        if let Some(egui_input) = input_resources.egui_input.get_mut(window_id) {
-            let events = &mut egui_input.events;
+    if let Some((window_id, position)) = egui_mouse_position.or(prev_mouse_position) {
+        if let Ok(mut context) = context_params.contexts.get_mut(window_id) {
+            let events = &mut context.egui_input.events;
 
             for mouse_button_event in input_events.ev_mouse_button_input.iter() {
                 let button = match mouse_button_event.button {
@@ -221,10 +195,6 @@ pub fn process_input_system(
                     delta *= 50.0;
                 }
 
-                // Winit has inverted hscroll.
-                // TODO: remove this line when Bevy updates winit after https://github.com/rust-windowing/winit/pull/2105 is merged and released.
-                delta.x *= -1.0;
-
                 if ctrl || mac_cmd {
                     // Treat as zoom instead.
                     let factor = (delta.y / 200.0).exp();
@@ -243,20 +213,25 @@ pub fn process_input_system(
     if !ctrl && !win {
         for event in input_events.ev_received_character.iter() {
             if !event.char.is_control() {
-                input_resources
+                let mut context = context_params.contexts.get_mut(event.window).unwrap();
+                context
                     .egui_input
-                    .get_mut(&event.id)
-                    .unwrap()
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
             }
         }
     }
 
-    if let Some(focused_input) = window_resources
+    if let Some(mut focused_input) = context_params
         .focused_window
         .as_ref()
-        .and_then(|window_id| input_resources.egui_input.get_mut(window_id))
+        .and_then(|window_id| {
+            if let Ok(context) = context_params.contexts.get_mut(*window_id) {
+                Some(context.egui_input)
+            } else {
+                None
+            }
+        })
     {
         for ev in input_events.ev_keyboard_input.iter() {
             if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
@@ -297,8 +272,8 @@ pub fn process_input_system(
         focused_input.modifiers = modifiers;
     }
 
-    for egui_input in input_resources.egui_input.values_mut() {
-        egui_input.predicted_dt = time.delta_seconds();
+    for mut context in context_params.contexts.iter_mut() {
+        context.egui_input.predicted_dt = time.delta_seconds();
     }
 
     // In some cases, we may skip certain events. For example, we ignore `ReceivedCharacter` events
@@ -306,64 +281,45 @@ pub fn process_input_system(
     input_events.clear();
 }
 
-fn update_window_contexts(
-    egui_context: &mut EguiContext,
-    egui_input: &mut HashMap<WindowId, EguiInput>,
-    window_resources: &mut WindowResources,
-    egui_settings: &EguiSettings,
+/// Initialises Egui contexts (for multiple windows).
+pub fn update_window_contexts_system(
+    mut context_params: ContextSystemParams,
+    egui_settings: Res<EguiSettings>,
 ) {
-    for window in window_resources.windows.iter() {
-        let egui_input = egui_input.entry(window.id()).or_default();
-
-        let window_size = WindowSize::new(
-            window.physical_width() as f32,
-            window.physical_height() as f32,
-            window.scale_factor() as f32,
+    for mut context in context_params.contexts.iter_mut() {
+        let new_window_size = WindowSize::new(
+            context.window.physical_width() as f32,
+            context.window.physical_height() as f32,
+            context.window.scale_factor() as f32,
         );
-        let width = window_size.physical_width
-            / window_size.scale_factor
+        let width = new_window_size.physical_width
+            / new_window_size.scale_factor
             / egui_settings.scale_factor as f32;
-        let height = window_size.physical_height
-            / window_size.scale_factor
+        let height = new_window_size.physical_height
+            / new_window_size.scale_factor
             / egui_settings.scale_factor as f32;
 
         if width < 1.0 || height < 1.0 {
             continue;
         }
 
-        egui_input.screen_rect = Some(egui::Rect::from_min_max(
+        context.egui_input.screen_rect = Some(egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
             egui::pos2(width, height),
         ));
 
-        egui_input.pixels_per_point =
-            Some(window_size.scale_factor * egui_settings.scale_factor as f32);
+        context.egui_input.pixels_per_point =
+            Some(new_window_size.scale_factor * egui_settings.scale_factor as f32);
 
-        window_resources
-            .window_sizes
-            .insert(window.id(), window_size);
-        egui_context.ctx.entry(window.id()).or_default();
+        *context.window_size = new_window_size;
     }
 }
 
 /// Marks frame start for Egui.
-pub fn begin_frame_system(
-    mut egui_context: ResMut<EguiContext>,
-    mut egui_input: ResMut<EguiRenderInputContainer>,
-) {
-    for (id, ctx) in egui_context.ctx.iter_mut() {
-        let raw_input = egui_input.get_mut(id).unwrap().take();
-        ctx.begin_frame(raw_input);
+pub fn begin_frame_system(mut contexts: Query<(&mut EguiContext, &mut EguiInput)>) {
+    for (mut ctx, mut egui_input) in contexts.iter_mut() {
+        ctx.get_mut().begin_frame(egui_input.take());
     }
-}
-
-#[allow(missing_docs)]
-#[derive(SystemParam)]
-pub struct OutputResources<'w, 's> {
-    pub egui: ResMut<'w, EguiOutputContainer>,
-    pub egui_render: ResMut<'w, EguiRenderOutputContainer>,
-    #[system_param(ignore)]
-    _marker: PhantomData<&'s ()>,
 }
 
 /// Reads Egui output.
@@ -371,14 +327,13 @@ pub fn process_output_system(
     #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
         EguiSettings,
     >,
-    mut egui_context: ResMut<EguiContext>,
-    mut output: OutputResources,
+    mut contexts: Query<EguiContextQuery>,
     #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
-    mut windows: Option<ResMut<Windows>>,
     mut event: EventWriter<RequestRedraw>,
-    #[cfg(windows)] mut last_cursor_icon: Local<HashMap<WindowId, egui::CursorIcon>>,
+    #[cfg(windows)] mut last_cursor_icon: Local<bevy::utils::HashMap<Entity, egui::CursorIcon>>,
 ) {
-    for (window_id, ctx) in egui_context.ctx.iter_mut() {
+    for mut context in contexts.iter_mut() {
+        let ctx = context.ctx.get_mut();
         let full_output = ctx.end_frame();
         let egui::FullOutput {
             platform_output,
@@ -386,39 +341,33 @@ pub fn process_output_system(
             textures_delta,
             repaint_after,
         } = full_output;
+        let paint_jobs = ctx.tessellate(shapes);
 
-        let egui_render_output = output.egui_render.entry(*window_id).or_default();
-        egui_render_output.shapes = shapes;
-        egui_render_output.textures_delta.append(textures_delta);
+        context.render_output.paint_jobs = paint_jobs;
+        context.render_output.textures_delta.append(textures_delta);
 
-        output.egui.entry(*window_id).or_default().platform_output = platform_output.clone();
+        context.egui_output.platform_output = platform_output.clone();
 
         #[cfg(feature = "manage_clipboard")]
         if !platform_output.copied_text.is_empty() {
             egui_clipboard.set_contents(&platform_output.copied_text);
         }
 
-        if let Some(ref mut windows) = windows {
-            if let Some(window) = windows.get_mut(*window_id) {
-                let mut set_icon = || {
-                    window.set_cursor_icon(
-                        egui_to_winit_cursor_icon(platform_output.cursor_icon)
-                            .unwrap_or(bevy::window::CursorIcon::Default),
-                    )
-                };
+        let mut set_icon = || {
+            context.window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
+                .unwrap_or(bevy::window::CursorIcon::Default);
+        };
 
-                #[cfg(windows)]
-                {
-                    let last_cursor_icon = last_cursor_icon.entry(*window_id).or_default();
-                    if *last_cursor_icon != platform_output.cursor_icon {
-                        set_icon();
-                        *last_cursor_icon = platform_output.cursor_icon;
-                    }
-                }
-                #[cfg(not(windows))]
+        #[cfg(windows)]
+        {
+            let last_cursor_icon = last_cursor_icon.entry(context.window_entity).or_default();
+            if *last_cursor_icon != platform_output.cursor_icon {
                 set_icon();
+                *last_cursor_icon = platform_output.cursor_icon;
             }
         }
+        #[cfg(not(windows))]
+        set_icon();
 
         if repaint_after.is_zero() {
             event.send(RequestRedraw)

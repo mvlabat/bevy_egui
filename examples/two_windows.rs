@@ -1,12 +1,9 @@
 use bevy::{
     prelude::*,
     render::camera::RenderTarget,
-    window::{CreateWindow, PresentMode, WindowId},
+    window::{PresentMode, PrimaryWindow, WindowRef, WindowResolution},
 };
-use bevy_egui::{EguiContext, EguiPlugin};
-use once_cell::sync::Lazy;
-
-static SECOND_WINDOW_ID: Lazy<WindowId> = Lazy::new(WindowId::new);
+use bevy_egui::{EguiContext, EguiPlugin, EguiUserTextures};
 
 #[derive(Resource)]
 struct Images {
@@ -26,25 +23,21 @@ fn main() {
     app.run();
 }
 
-fn create_new_window_system(
-    mut create_window_events: EventWriter<CreateWindow>,
-    mut commands: Commands,
-) {
-    // sends out a "CreateWindow" event, which will be received by the windowing backend
-    create_window_events.send(CreateWindow {
-        id: *SECOND_WINDOW_ID,
-        descriptor: WindowDescriptor {
-            width: 800.,
-            height: 600.,
+fn create_new_window_system(mut commands: Commands) {
+    // Spawn a second window
+    let second_window_id = commands
+        .spawn(Window {
+            title: "Second window".to_owned(),
+            resolution: WindowResolution::new(800.0, 600.0),
             present_mode: PresentMode::AutoVsync,
-            title: "Second window".to_string(),
             ..Default::default()
-        },
-    });
+        })
+        .id();
+
     // second window camera
     commands.spawn(Camera3dBundle {
         camera: Camera {
-            target: RenderTarget::Window(*SECOND_WINDOW_ID),
+            target: RenderTarget::Window(WindowRef::Entity(second_window_id)),
             ..Default::default()
         },
         transform: Transform::from_xyz(6.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -69,15 +62,16 @@ struct SharedUiState {
 }
 
 fn ui_first_window_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
     images: Res<Images>,
+    mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
 ) {
-    let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
+    let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     egui::Window::new("First Window")
         .vscroll(true)
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(egui_ctx.single_mut().get_mut(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
                 ui.text_edit_singleline(&mut ui_state.input);
@@ -92,19 +86,22 @@ fn ui_first_window_system(
 }
 
 fn ui_second_window_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut ui_state: Local<UiState>,
     mut shared_ui_state: ResMut<SharedUiState>,
     images: Res<Images>,
+    mut egui_ctx: Query<&mut EguiContext, Without<PrimaryWindow>>,
 ) {
-    let bevy_texture_id = egui_context.add_image(images.bevy_icon.clone_weak());
-    let ctx = match egui_context.try_ctx_for_window_mut(*SECOND_WINDOW_ID) {
+    let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
+    let mut ctx = match egui_ctx.get_single_mut().ok() {
         Some(ctx) => ctx,
-        None => return,
+        None => {
+            return;
+        }
     };
     egui::Window::new("Second Window")
         .vscroll(true)
-        .show(ctx, |ui| {
+        .show(ctx.get_mut(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Write something else: ");
                 ui.text_edit_singleline(&mut ui_state.input);

@@ -9,7 +9,7 @@ use bevy::{
         view::RenderLayers,
     },
 };
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiUserTextures};
 use egui::Widget;
 
 fn main() {
@@ -34,7 +34,7 @@ struct MainPassCube;
 struct CubePreviewImage(Handle<Image>);
 
 fn setup(
-    mut egui_ctx: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -58,6 +58,7 @@ fn setup(
             usage: TextureUsages::TEXTURE_BINDING
                 | TextureUsages::COPY_DST
                 | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
         },
         ..default()
     };
@@ -66,7 +67,7 @@ fn setup(
     image.resize(size);
 
     let image_handle = images.add(image);
-    egui_ctx.add_image(image_handle.clone());
+    egui_user_textures.add_image(image_handle.clone());
     commands.insert_resource(CubePreviewImage(image_handle.clone()));
 
     let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 4.0 }));
@@ -107,7 +108,7 @@ fn setup(
             },
             camera: Camera {
                 // render before the "main pass" camera
-                priority: -1,
+                order: -1,
                 target: RenderTarget::Image(image_handle),
                 ..default()
             },
@@ -145,17 +146,17 @@ fn setup(
 }
 
 fn render_to_image_example_system(
-    mut egui_ctx: ResMut<EguiContext>,
     cube_preview_image: Res<CubePreviewImage>,
     preview_cube_query: Query<&Handle<StandardMaterial>, With<PreviewPassCube>>,
     main_cube_query: Query<&Handle<StandardMaterial>, With<MainPassCube>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut contexts: EguiContexts,
 ) {
-    let cube_preview_texture_id = egui_ctx.image_id(&cube_preview_image).unwrap();
+    let cube_preview_texture_id = contexts.image_id(&cube_preview_image).unwrap();
     let preview_material_handle = preview_cube_query.single();
     let preview_material = materials.get_mut(preview_material_handle).unwrap();
 
-    let ctx = egui_ctx.ctx_mut();
+    let ctx = contexts.ctx_mut();
     let mut apply = false;
     egui::Window::new("Cube material preview").show(ctx, |ui| {
         ui.image(cube_preview_texture_id, [300.0, 300.0]);

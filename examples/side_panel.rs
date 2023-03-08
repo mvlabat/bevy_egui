@@ -1,5 +1,5 @@
-use bevy::{prelude::*, render::camera::Projection};
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy::{prelude::*, render::camera::Projection, window::PrimaryWindow};
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 #[derive(Default, Resource)]
 struct OccupiedScreenSpace {
@@ -26,12 +26,14 @@ fn main() {
 }
 
 fn ui_example_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut contexts: EguiContexts,
     mut occupied_screen_space: ResMut<OccupiedScreenSpace>,
 ) {
+    let ctx = contexts.ctx_mut();
+
     occupied_screen_space.left = egui::SidePanel::left("left_panel")
         .resizable(true)
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -39,7 +41,7 @@ fn ui_example_system(
         .width();
     occupied_screen_space.right = egui::SidePanel::right("right_panel")
         .resizable(true)
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -47,7 +49,7 @@ fn ui_example_system(
         .width();
     occupied_screen_space.top = egui::TopBottomPanel::top("top_panel")
         .resizable(true)
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -55,7 +57,7 @@ fn ui_example_system(
         .height();
     occupied_screen_space.bottom = egui::TopBottomPanel::bottom("bottom_panel")
         .resizable(true)
-        .show(egui_context.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -69,7 +71,10 @@ fn setup_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+        mesh: meshes.add(Mesh::from(shape::Plane {
+            size: 5.0,
+            subdivisions: 0,
+        })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..Default::default()
     });
@@ -103,7 +108,7 @@ fn setup_system(
 fn update_camera_transform_system(
     occupied_screen_space: Res<OccupiedScreenSpace>,
     original_camera_transform: Res<OriginalCameraTransform>,
-    windows: Res<Windows>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut camera_query: Query<(&Projection, &mut Transform)>,
 ) {
     let (camera_projection, mut transform) = match camera_query.get_single_mut() {
@@ -115,7 +120,7 @@ fn update_camera_transform_system(
     let frustum_height = 2.0 * distance_to_target * (camera_projection.fov * 0.5).tan();
     let frustum_width = frustum_height * camera_projection.aspect_ratio;
 
-    let window = windows.get_primary().unwrap();
+    let window = windows.single();
 
     let left_taken = occupied_screen_space.left / window.width();
     let right_taken = occupied_screen_space.right / window.width();
