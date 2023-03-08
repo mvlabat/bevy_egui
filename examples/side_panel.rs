@@ -1,5 +1,5 @@
 use bevy::{prelude::*, render::camera::Projection, window::PrimaryWindow};
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 #[derive(Default, Resource)]
 struct OccupiedScreenSpace {
@@ -26,14 +26,14 @@ fn main() {
 }
 
 fn ui_example_system(
-    mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
+    mut contexts: EguiContexts,
     mut occupied_screen_space: ResMut<OccupiedScreenSpace>,
 ) {
-    let mut ctx = egui_ctx.single_mut();
+    let ctx = contexts.ctx_mut();
 
     occupied_screen_space.left = egui::SidePanel::left("left_panel")
         .resizable(true)
-        .show(ctx.get_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -41,7 +41,7 @@ fn ui_example_system(
         .width();
     occupied_screen_space.right = egui::SidePanel::right("right_panel")
         .resizable(true)
-        .show(ctx.get_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -49,7 +49,7 @@ fn ui_example_system(
         .width();
     occupied_screen_space.top = egui::TopBottomPanel::top("top_panel")
         .resizable(true)
-        .show(ctx.get_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -57,7 +57,7 @@ fn ui_example_system(
         .height();
     occupied_screen_space.bottom = egui::TopBottomPanel::bottom("bottom_panel")
         .resizable(true)
-        .show(ctx.get_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response

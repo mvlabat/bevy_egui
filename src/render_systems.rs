@@ -59,7 +59,7 @@ impl ExtractedEguiTextures {
     }
 }
 
-/// Calls [`setup_pipeline`] for newly created windows to ensure egui works on them.
+/// Sets up the pipeline for newly created windows.
 pub fn setup_new_windows_render_system(
     windows: Extract<Query<Entity, Added<Window>>>,
     mut render_graph: ResMut<RenderGraph>,

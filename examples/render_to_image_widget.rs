@@ -8,9 +8,8 @@ use bevy::{
         },
         view::RenderLayers,
     },
-    window::PrimaryWindow,
 };
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiUserTextures};
+use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiUserTextures};
 use egui::Widget;
 
 fn main() {
@@ -147,20 +146,19 @@ fn setup(
 }
 
 fn render_to_image_example_system(
-    egui_user_textures: Res<EguiUserTextures>,
     cube_preview_image: Res<CubePreviewImage>,
     preview_cube_query: Query<&Handle<StandardMaterial>, With<PreviewPassCube>>,
     main_cube_query: Query<&Handle<StandardMaterial>, With<MainPassCube>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
+    mut contexts: EguiContexts,
 ) {
-    let cube_preview_texture_id = egui_user_textures.image_id(&cube_preview_image).unwrap();
+    let cube_preview_texture_id = contexts.image_id(&cube_preview_image).unwrap();
     let preview_material_handle = preview_cube_query.single();
     let preview_material = materials.get_mut(preview_material_handle).unwrap();
 
-    let mut ctx = egui_ctx.single_mut();
+    let ctx = contexts.ctx_mut();
     let mut apply = false;
-    egui::Window::new("Cube material preview").show(ctx.get_mut(), |ui| {
+    egui::Window::new("Cube material preview").show(ctx, |ui| {
         ui.image(cube_preview_texture_id, [300.0, 300.0]);
         egui::Grid::new("preview").show(ui, |ui| {
             ui.label("Base color:");

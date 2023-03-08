@@ -70,7 +70,12 @@ use arboard::Clipboard;
 use bevy::{
     app::{App, Plugin},
     asset::{AssetEvent, Assets, Handle},
-    ecs::{event::EventReader, query::WorldQuery, schedule::apply_system_buffers, system::ResMut},
+    ecs::{
+        event::EventReader,
+        query::{QueryEntityError, WorldQuery},
+        schedule::apply_system_buffers,
+        system::{ResMut, SystemParam},
+    },
     input::InputSystem,
     log,
     prelude::{
@@ -82,7 +87,7 @@ use bevy::{
         RenderSet,
     },
     utils::HashMap,
-    window::Window,
+    window::{PrimaryWindow, Window},
 };
 use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -126,7 +131,7 @@ impl Default for EguiSettings {
     }
 }
 
-/// Is used for storing the input passed to Egui in the [`EguiRenderInputContainer`] resource.
+/// Is used for storing Egui context input..
 ///
 /// It gets reset during the [`EguiSet::ProcessInput`] system.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
@@ -209,7 +214,7 @@ impl EguiClipboard {
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreІуе::PostUpdate`]) and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]) and reset during `EguiNode::update`.
     pub paint_jobs: Vec<egui::ClippedPrimitive>,
 
     /// The change in egui textures since last frame.
@@ -219,7 +224,7 @@ pub struct EguiRenderOutput {
 /// Is used for storing Egui output.
 #[derive(Component, Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreStage::PostUpdate`]).
+    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]).
     pub platform_output: egui::PlatformOutput,
 }
 
@@ -238,6 +243,7 @@ impl EguiContext {
     /// sure that the context isn't accessed concurrently and can perform other useful work
     /// instead of busy-waiting.
     #[cfg(feature = "immutable_ctx")]
+    #[must_use]
     pub fn get(&self) -> &egui::Context {
         &self.0
     }
@@ -251,8 +257,165 @@ impl EguiContext {
     /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
     /// sure that the context isn't accessed concurrently and can perform other useful work
     /// instead of busy-waiting.
+    #[must_use]
     pub fn get_mut(&mut self) -> &mut egui::Context {
         &mut self.0
+    }
+}
+
+#[derive(SystemParam)]
+/// A helper SystemParam that provides a way to get `[EguiContext]` with less boilerplate and
+/// combines a proxy interface to the [`EguiUserTextures`] resource.
+pub struct EguiContexts<'w, 's> {
+    q: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static mut EguiContext,
+            Option<&'static PrimaryWindow>,
+        ),
+        With<Window>,
+    >,
+    user_textures: ResMut<'w, EguiUserTextures>,
+}
+
+impl<'w, 's> EguiContexts<'w, 's> {
+    /// Egui context of the primary window.
+    #[must_use]
+    pub fn ctx_mut(&mut self) -> &mut egui::Context {
+        let (_window, ctx, _primary_window) = self
+            .q
+            .iter_mut()
+            .find(|(_window_entity, _ctx, primary_window)| primary_window.is_some())
+            .expect("`EguiContexts::ctx_mut` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
+        ctx.into_inner().get_mut()
+    }
+
+    /// Egui context for a specific window.
+    #[must_use]
+    pub fn ctx_for_window_mut(&mut self, window: Entity) -> &mut egui::Context {
+        let (_window, ctx, _primary_window) = self
+            .q
+            .iter_mut()
+            .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
+            .expect("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (window {window}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
+        ctx.into_inner().get_mut()
+    }
+
+    /// Fallible variant of [`EguiContexts::ctx_for_window_mut`].
+    #[must_use]
+    #[track_caller]
+    pub fn try_ctx_for_window_mut(&mut self, window: Entity) -> Option<&mut egui::Context> {
+        self.q
+            .iter_mut()
+            .find_map(|(window_entity, ctx, _primary_window)| {
+                if window_entity == window {
+                    Some(ctx.into_inner().get_mut())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Allows to get multiple contexts at the same time. This function is useful when you want
+    /// to get multiple window contexts without using the `immutable_ctx` feature.
+    #[track_caller]
+    pub fn ctx_for_windows_mut<const N: usize>(
+        &mut self,
+        ids: [Entity; N],
+    ) -> Result<[&mut egui::Context; N], QueryEntityError> {
+        self.q
+            .get_many_mut(ids)
+            .map(|arr| arr.map(|(_window_entity, ctx, _primary_window)| ctx.into_inner().get_mut()))
+    }
+
+    /// Egui context of the primary window.
+    ///
+    /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
+    /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
+    /// borrow is discouraged as it may cause unpredictable blocking in UI systems.
+    ///
+    /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
+    /// sure that the context isn't accessed concurrently and can perform other useful work
+    /// instead of busy-waiting.
+    #[cfg(feature = "immutable_ctx")]
+    #[must_use]
+    pub fn ctx(&self) -> &egui::Context {
+        let (_window, ctx, _primary_window) = self
+            .q
+            .iter()
+            .find(|(_window_entity, _ctx, primary_window)| primary_window.is_some())
+            .expect("`EguiContexts::ctx` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
+        ctx.get()
+    }
+
+    /// Egui context for a specific window.
+    ///
+    /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
+    /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
+    /// borrow is discouraged as it may cause unpredictable blocking in UI systems.
+    ///
+    /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
+    /// sure that the context isn't accessed concurrently and can perform other useful work
+    /// instead of busy-waiting.
+    #[must_use]
+    #[cfg(feature = "immutable_ctx")]
+    pub fn ctx_for_window(&self, window: Entity) -> &egui::Context {
+        let (_window, ctx, _primary_window) = self
+            .q
+            .iter()
+            .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
+            .expect("`EguiContexts::ctx_for_window` was called for an uninitialized context (window {window}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
+        ctx.get()
+    }
+
+    /// Fallible variant of [`EguiContexts::ctx_for_window_mut`].
+    ///
+    /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
+    /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
+    /// borrow is discouraged as it may cause unpredictable blocking in UI systems.
+    ///
+    /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
+    /// sure that the context isn't accessed concurrently and can perform other useful work
+    /// instead of busy-waiting.
+    #[must_use]
+    #[track_caller]
+    #[cfg(feature = "immutable_ctx")]
+    pub fn try_ctx_for_window(&self, window: Entity) -> Option<&egui::Context> {
+        self.q
+            .iter()
+            .find_map(|(window_entity, ctx, _primary_window)| {
+                if window_entity == window {
+                    Some(ctx.get())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Can accept either a strong or a weak handle.
+    ///
+    /// You may want to pass a weak handle if you control removing texture assets in your
+    /// application manually and you don't want to bother with cleaning up textures in Egui.
+    ///
+    /// You'll want to pass a strong handle if a texture is used only in Egui and there are no
+    /// handle copies stored anywhere else.
+    pub fn add_image(&mut self, image: Handle<Image>) -> egui::TextureId {
+        self.user_textures.add_image(image)
+    }
+
+    /// Removes the image handle and an Egui texture id associated with it.
+    #[track_caller]
+    pub fn remove_image(&mut self, image: &Handle<Image>) -> Option<egui::TextureId> {
+        self.user_textures.remove_image(image)
+    }
+
+    /// Returns an associated Egui texture id.
+    #[must_use]
+    #[track_caller]
+    pub fn image_id(&self, image: &Handle<Image>) -> Option<egui::TextureId> {
+        self.user_textures.image_id(image)
     }
 }
 
