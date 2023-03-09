@@ -827,9 +827,9 @@ fn enable_accessibility(
     adapters: NonSend<AccessKitAdapters>,
 ) {
     if requested.is_changed() && requested.load(Ordering::SeqCst) {
-        for (_, context, _) in contexts.q.iter_mut() {
+        for (entity, context, _) in contexts.q.iter_mut() {
             context.0.enable_accesskit();
-            for (_, adapter) in adapters.iter() {
+            if let Some(adapter) = adapters.get(&entity) {
                 adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
             }
         }
@@ -842,8 +842,8 @@ fn update_accessibility(
     adapters: NonSend<AccessKitAdapters>,
 ) {
     if requested.load(Ordering::SeqCst) {
-        for (_, context, _) in contexts.q.iter_mut() {
-            for (_, adapter) in adapters.iter() {
+        for (entity, context, _) in contexts.q.iter_mut() {
+            if let Some(adapter) = adapters.get(&entity) {
                 context.0.output(|output| {
                     if let Some(update) = &output.accesskit_update {
                         adapter.update_if_active(|| update.clone());
