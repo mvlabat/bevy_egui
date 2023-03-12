@@ -18,7 +18,7 @@ An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](ht
 - Desktop and web platforms support
 - Clipboard (web support is limited to the same window, see [rust-windowing/winit#1829](https://github.com/rust-windowing/winit/issues/1829))
 - Opening URLs
-- Multiple windows support (see [./examples/two_windows.rs](https://github.com/mvlabat/bevy_egui/blob/v0.15.0/examples/two_windows.rs))
+- Multiple windows support (see [./examples/two_windows.rs](https://github.com/mvlabat/bevy_egui/blob/v0.20.1/examples/two_windows.rs))
 
 `bevy_egui` can be compiled with using only `bevy` and `egui` as dependencies: `manage_clipboard` and `open_url` features,
 that require additional crates, can be disabled.
@@ -65,7 +65,7 @@ fn ui_example_system(mut contexts: EguiContexts) {
 
 ```
 
-For a more advanced example, see [examples/ui.rs](https://github.com/mvlabat/bevy_egui/blob/v0.15.0/examples/ui.rs).
+For a more advanced example, see [examples/ui.rs](https://github.com/mvlabat/bevy_egui/blob/v0.20.1/examples/ui.rs).
 
 ```bash
 cargo run --example ui
