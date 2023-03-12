@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix recreation of `EguiContext` on startup ([#162](https://github.com/mvlabat/bevy_egui/pull/162 by @encounter))
-- Set image sampler address modes to `ClampToEdge` ([#158](https://github.com/mvlabat/bevy_egui/pull/158 by @galop1n))
+- Fix recreation of `EguiContext` on startup ([#162](https://github.com/mvlabat/bevy_egui/pull/162) by @encounter)
+- Set image sampler address modes to `ClampToEdge` ([#158](https://github.com/mvlabat/bevy_egui/pull/158) by @galop1n)
 
 ## [0.20.0] - 8-Mar-2023
 
