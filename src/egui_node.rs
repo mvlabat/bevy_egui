@@ -13,17 +13,18 @@ use bevy::{
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
-            BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
-            BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-            Extent3d, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
-            PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-            RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType,
-            SpecializedRenderPipeline, TextureDimension, TextureFormat, TextureSampleType,
-            TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+            AddressMode, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+            BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer,
+            BufferAddress, BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState,
+            ColorWrites, Extent3d, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState,
+            Operations, PipelineCache, PrimitiveState, RenderPassColorAttachment,
+            RenderPassDescriptor, RenderPipelineDescriptor, SamplerBindingType, SamplerDescriptor,
+            Shader, ShaderStages, ShaderType, SpecializedRenderPipeline, TextureDimension,
+            TextureFormat, TextureSampleType, TextureViewDimension, VertexBufferLayout,
+            VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::Image,
+        texture::{Image, ImageSampler},
         view::ExtractedWindows,
     },
 };
@@ -431,14 +432,21 @@ pub(crate) fn color_image_as_bevy_image(egui_image: &egui::ColorImage) -> Image 
         .flat_map(|color| color.to_srgba_unmultiplied())
         .collect();
 
-    Image::new(
-        Extent3d {
-            width: egui_image.width() as u32,
-            height: egui_image.height() as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        pixels,
-        TextureFormat::Rgba8UnormSrgb,
-    )
+    Image {
+        sampler_descriptor: ImageSampler::Descriptor(SamplerDescriptor {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            ..ImageSampler::linear_descriptor()
+        }),
+        ..Image::new(
+            Extent3d {
+                width: egui_image.width() as u32,
+                height: egui_image.height() as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            pixels,
+            TextureFormat::Rgba8UnormSrgb,
+        )
+    }
 }
