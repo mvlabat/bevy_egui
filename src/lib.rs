@@ -81,6 +81,7 @@ use bevy::{
     prelude::{
         Added, Commands, Component, CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs,
         IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet, With,
+        Without,
     },
     render::{
         render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
@@ -639,7 +640,10 @@ pub struct EguiManagedTexture {
 }
 
 /// Adds bevy_egui components to newly created windows.
-pub fn setup_new_windows_system(mut commands: Commands, new_windows: Query<Entity, Added<Window>>) {
+pub fn setup_new_windows_system(
+    mut commands: Commands,
+    new_windows: Query<Entity, (Added<Window>, Without<EguiContext>)>,
+) {
     for window in new_windows.iter() {
         commands.entity(window).insert((
             EguiContext::default(),
