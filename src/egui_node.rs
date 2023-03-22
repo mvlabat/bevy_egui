@@ -388,11 +388,11 @@ impl Node for EguiNode {
                     draw_command
                         .clipping_zone
                         .2
-                        .min(extracted_window.physical_width),
+                        .min(extracted_window.physical_width.saturating_sub(draw_command.clipping_zone.0)),
                     draw_command
                         .clipping_zone
                         .3
-                        .min(extracted_window.physical_height),
+                        .min(extracted_window.physical_height.saturating_sub(draw_command.clipping_zone.1)),
                 );
 
                 render_pass.draw_indexed(
