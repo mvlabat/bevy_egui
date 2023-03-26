@@ -1,6 +1,6 @@
 [package]
 name = "bevy_egui"
-version = "0.20.1"
+version = "0.20.2"
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
