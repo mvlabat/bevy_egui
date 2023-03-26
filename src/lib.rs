@@ -300,7 +300,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
             .q
             .iter_mut()
             .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
-            .expect("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (window {window}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
+            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
         ctx.into_inner().get_mut()
     }
 
@@ -367,7 +367,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
             .q
             .iter()
             .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
-            .expect("`EguiContexts::ctx_for_window` was called for an uninitialized context (window {window}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
+            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
         ctx.get()
     }
 
