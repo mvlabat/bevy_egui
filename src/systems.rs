@@ -143,12 +143,13 @@ pub fn process_input_system(
         // that has been left.
         if cursor_left_window != Some(cursor_moved.window) {
             let scale_factor = egui_settings.scale_factor as f32;
-            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
+            let mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
             let mut context = context_params
                 .contexts
                 .get_mut(cursor_moved.window)
                 .unwrap();
-            mouse_position.1 = context.window_size.height() / scale_factor - mouse_position.1;
+            // Breaks with bevy#8306 changing flipping the y coordinate
+            // mouse_position.1 = context.window_size.height() / scale_factor - mouse_position.1;
             egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
             context
                 .egui_input

@@ -22,7 +22,7 @@ default_fonts = ["egui/default_fonts"]
 serde = ["egui/serde"]
 
 [dependencies]
-bevy = { version = "0.10", default-features = false, features = ["bevy_render", "bevy_asset"] }
+bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = ["bevy_render", "bevy_asset"] }
 egui = { version = "0.21.0", default-features = false, features = ["bytemuck"] }
 webbrowser = { version = "0.8.2", optional = true }
 
@@ -33,7 +33,7 @@ thread_local = { version = "1.1.0", optional = true }
 [dev-dependencies]
 once_cell = "1.16.0"
 version-sync = "0.9.4"
-bevy = { version = "0.10", default-features = false, features = [
+bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = [
     "x11",
     "png",
     "bevy_pbr",
