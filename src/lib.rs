@@ -27,8 +27,8 @@
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugin(EguiPlugin)
-//!         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
-//!         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
+//!         // Systems that create Egui widgets should be run during the `Update` set,
+//!         // or after the `EguiSet::BeginFrame` system (which belongs to the `PreUpdate` set).
 //!         .add_system(ui_example_system)
 //!         .run();
 //! }
@@ -83,7 +83,8 @@ use bevy::{
         PreStartup, PreUpdate, Query, Resource, Shader, SystemSet, With, Without,
     },
     render::{
-        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, Render, RenderApp, RenderSet,
+        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, Render,
+        RenderApp, RenderSet,
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
@@ -213,7 +214,7 @@ impl EguiClipboard {
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]) and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`PostUpdate`]) and reset during `EguiNode::update`.
     pub paint_jobs: Vec<egui::ClippedPrimitive>,
 
     /// The change in egui textures since last frame.
@@ -223,7 +224,7 @@ pub struct EguiRenderOutput {
 /// Is used for storing Egui output.
 #[derive(Component, Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]).
+    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`PostUpdate`]).
     pub platform_output: egui::PlatformOutput,
 }
 
@@ -566,13 +567,11 @@ impl Plugin for EguiPlugin {
         );
         app.add_systems(
             PostUpdate,
-            process_output_system
-                .in_set(EguiSet::ProcessOutput),
+            process_output_system.in_set(EguiSet::ProcessOutput),
         );
         app.add_systems(
             PostUpdate,
-            update_egui_textures_system
-                .after(EguiSet::ProcessOutput),
+            update_egui_textures_system.after(EguiSet::ProcessOutput),
         );
         app.add_systems(Last, free_egui_textures_system);
 
@@ -602,11 +601,11 @@ impl Plugin for EguiPlugin {
                 )
                 .add_systems(
                     Render,
-                    render_systems::queue_bind_groups_system.in_set(RenderSet::Queue)
+                    render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
                 )
                 .add_systems(
                     Render,
-                    render_systems::queue_pipelines_system.in_set(RenderSet::Queue)
+                    render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
                 );
         }
     }

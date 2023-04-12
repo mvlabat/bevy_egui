@@ -11,16 +11,13 @@ struct Images {
 }
 
 fn main() {
-    let mut app = App::new();
-    app.add_plugins(DefaultPlugins)
+    App::new()
+        .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
-        .add_startup_system(load_assets_system)
-        .add_startup_system(create_new_window_system)
-        .add_system(ui_first_window_system)
-        .add_system(ui_second_window_system);
-
-    app.run();
+        .add_systems(Startup, (load_assets_system, create_new_window_system))
+        .add_systems(Update, (ui_first_window_system, ui_second_window_system))
+        .run();
 }
 
 fn create_new_window_system(mut commands: Commands) {

@@ -19,9 +19,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .init_resource::<OccupiedScreenSpace>()
-        .add_startup_system(setup_system)
-        .add_system(ui_example_system)
-        .add_system(update_camera_transform_system)
+        .add_systems(Startup, setup_system)
+        .add_systems(Update, (ui_example_system, update_camera_transform_system))
         .run();
 }
 

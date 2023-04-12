@@ -27,10 +27,8 @@ fn main() {
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_startup_system(configure_visuals_system)
-        .add_startup_system(configure_ui_state_system)
-        .add_system(update_ui_scale_factor_system)
-        .add_system(ui_example_system)
+        .add_systems(Startup, (configure_visuals_system, configure_ui_state_system))
+        .add_systems(Update, (update_ui_scale_factor_system, ui_example_system))
         .run();
 }
 #[derive(Default, Resource)]
