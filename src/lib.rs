@@ -1,4 +1,5 @@
-#![warn(missing_docs)]
+// TODO: bring this back with Bevy 0.11.
+// #![warn(missing_docs)]
 
 //! This crate provides a [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
 //!
