@@ -444,6 +444,7 @@ fn bevy_to_egui_key(key_code: KeyCode) -> Option<egui::Key> {
         KeyCode::Tab => egui::Key::Tab,
         KeyCode::Back => egui::Key::Backspace,
         KeyCode::Return => egui::Key::Enter,
+        KeyCode::NumpadEnter => egui::Key::Enter,
         KeyCode::Space => egui::Key::Space,
         KeyCode::Insert => egui::Key::Insert,
         KeyCode::Delete => egui::Key::Delete,
