@@ -49,7 +49,10 @@ web-sys = { version = "*", features = [
     "Window",
     "Navigator",
     "Permissions",
+    "ClipboardPermissionDescriptor",
+    "PermissionName",
 ] }
+js-sys = "*"
 wasm-bindgen-futures = "*"
 
 [workspace]

@@ -2,6 +2,7 @@ use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use egui::{text_edit::CursorRange, TextEdit, Widget};
 use wasm_bindgen_futures::spawn_local;
+use web_sys::ClipboardPermissionDescriptor;
 
 fn main() {
     App::new()
@@ -36,8 +37,11 @@ fn clipboard_copy(mut text: ResMut<CustomText>) {
     };
     let _task = spawn_local(async move {
         let window = web_sys::window().expect("window"); // { obj: val };
-        let nav = window.navigator().clipboard();
-        match nav {
+
+        let nav = window.navigator();
+
+        let clipboard = nav.clipboard();
+        match clipboard {
             Some(a) => {
                 let p = a.write_text(&text);
                 let result = wasm_bindgen_futures::JsFuture::from(p)
@@ -46,12 +50,43 @@ fn clipboard_copy(mut text: ResMut<CustomText>) {
                 info!("clippyboy worked");
             }
             None => {
-                warn!("failed to copy clippyboy");
+                warn!("failed to write clippyboy");
             }
         };
     });
 }
 
 fn clipboard_paste(mut text: ResMut<CustomText>) {
-    text.0 = "paste".into();
+    let _task = spawn_local(async move {
+        let window = web_sys::window().expect("window"); // { obj: val };
+
+        let nav = window.navigator();
+        let clipboard = nav.clipboard();
+
+        let Ok(permissions) = nav.permissions() else {
+            return;
+        };
+        let clipboard_permission_desc = js_sys::Object::new();
+        js_sys::Reflect::set(
+            &clipboard_permission_desc,
+            &"name".into(),
+            // 'clipboard-read' fails on firefox because it's not implemented.
+            // more info: https://developer.mozilla.org/en-US/docs/Web/API/Permissions_API#browser_compatibility
+            &"clipboard-read".into(),
+        );
+        dbg!(permissions.query(&clipboard_permission_desc.into()));
+        match clipboard {
+            Some(a) => {
+                let p = a.read();
+                let result = wasm_bindgen_futures::JsFuture::from(p)
+                    .await
+                    .expect("clipboard populated");
+                dbg!("result: ", &result);
+                info!("clippyboy worked");
+            }
+            None => {
+                warn!("failed to read clippyboy");
+            }
+        };
+    });
 }
