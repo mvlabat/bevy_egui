@@ -1,19 +1,28 @@
-use bevy::{input::common_conditions::input_just_pressed, prelude::*};
+use std::sync::mpsc::{self, Receiver, Sender};
+
+use bevy::{input::common_conditions::input_just_pressed, prelude::*, winit::WinitWindows};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use egui::{text_edit::CursorRange, TextEdit, Widget};
 use wasm_bindgen_futures::spawn_local;
-use web_sys::ClipboardPermissionDescriptor;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                prevent_default_event_handling: false,
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugin(EguiPlugin)
         .init_resource::<CustomText>()
+        .init_non_send_resource::<ClipboardChannel>()
         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
+        .add_startup_system(setup_clipboard_paste)
         .add_system(ui_edit)
         .add_system(clipboard_copy.run_if(input_just_pressed(KeyCode::C)))
-        .add_system(clipboard_paste.run_if(input_just_pressed(KeyCode::V)))
+        .add_system(read_clipboard_channel)
         .run();
 }
 
@@ -56,37 +65,64 @@ fn clipboard_copy(mut text: ResMut<CustomText>) {
     });
 }
 
-fn clipboard_paste(mut text: ResMut<CustomText>) {
-    let _task = spawn_local(async move {
-        let window = web_sys::window().expect("window"); // { obj: val };
+#[derive(Default)]
+struct ClipboardChannel {
+    pub rx: Option<Receiver<String>>,
+}
 
-        let nav = window.navigator();
-        let clipboard = nav.clipboard();
+fn setup_clipboard_paste(
+    mut commands: Commands,
+    windows: Query<Entity, With<Window>>,
+    winit_windows: NonSendMut<WinitWindows>,
+    mut clipboardChannel: NonSendMut<ClipboardChannel>,
+) {
+    let Some(first_window) = windows.iter().next() else {
+        return;
+    };
+    let Some(winit_window_instance) = winit_windows.get_window(first_window) else {
+        return;
+    };
+    let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
 
-        let Ok(permissions) = nav.permissions() else {
-            return;
-        };
-        let clipboard_permission_desc = js_sys::Object::new();
-        js_sys::Reflect::set(
-            &clipboard_permission_desc,
-            &"name".into(),
-            // 'clipboard-read' fails on firefox because it's not implemented.
-            // more info: https://developer.mozilla.org/en-US/docs/Web/API/Permissions_API#browser_compatibility
-            &"clipboard-read".into(),
-        );
-        dbg!(permissions.query(&clipboard_permission_desc.into()));
-        match clipboard {
-            Some(a) => {
-                let p = a.read();
-                let result = wasm_bindgen_futures::JsFuture::from(p)
-                    .await
-                    .expect("clipboard populated");
-                dbg!("result: ", &result);
-                info!("clippyboy worked");
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::prelude::*;
+    use winit::platform::web::WindowExtWebSys;
+    let canvas = winit_window_instance.canvas();
+    info!("canvas found");
+    let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
+        tx.send("test".to_string());
+        match event
+            .clipboard_data()
+            .expect("could not get clipboard data.")
+            .get_data("text/plain")
+        {
+            Ok(data) => {
+                tx.send(data);
             }
-            None => {
-                warn!("failed to read clippyboy");
+            _ => {
+                info!("Not implemented.");
             }
-        };
+        }
+        info!("{:?}", event.clipboard_data())
     });
+
+    canvas
+        .add_event_listener_with_callback("paste", closure.as_ref().unchecked_ref())
+        .expect("Could not edd paste event listener.");
+    closure.forget();
+    *clipboardChannel = ClipboardChannel { rx: Some(rx) };
+
+    //        winit_window_instance.can
+    info!("setup_clipboard_paste OK");
+}
+
+fn read_clipboard_channel(mut clipboardChannel: NonSendMut<ClipboardChannel>) {
+    match &mut clipboardChannel.rx {
+        Some(rx) => {
+            if let Ok(clipboard_string) = rx.try_recv() {
+                info!("received: {}", clipboard_string);
+            }
+        }
+        None => {}
+    }
 }

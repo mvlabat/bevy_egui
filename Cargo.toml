@@ -44,15 +44,16 @@ bevy = { version = "0.10", default-features = false, features = [
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+winit = "0.28"
 web-sys = { version = "*", features = [
     "Clipboard",
+    "ClipboardEvent",
+    "DataTransfer",
     "Window",
     "Navigator",
-    "Permissions",
-    "ClipboardPermissionDescriptor",
-    "PermissionName",
 ] }
 js-sys = "*"
+wasm-bindgen = "0.2.84"
 wasm-bindgen-futures = "*"
 
 [workspace]
