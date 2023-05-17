@@ -1,8 +1,8 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use bevy::{input::common_conditions::input_just_pressed, prelude::*, winit::WinitWindows};
+use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
-use egui::{text_edit::CursorRange, TextEdit, Widget};
+use egui::{text_edit::CursorRange, TextEdit};
 use wasm_bindgen_futures::spawn_local;
 
 fn main() {
@@ -40,7 +40,7 @@ fn clipboard_copy(mut text: ResMut<CustomText>) {
     //text.0 = "copy".into();
 
     let text = if let Some(selected) = text.1 {
-        text.0[selected.primary.ccursor.index..selected.secondary.ccursor.index].to_string()
+        text.0[selected.as_sorted_char_range()].to_string()
     } else {
         "".into()
     };
@@ -56,10 +56,10 @@ fn clipboard_copy(mut text: ResMut<CustomText>) {
                 let result = wasm_bindgen_futures::JsFuture::from(p)
                     .await
                     .expect("clipboard populated");
-                info!("clippyboy worked");
+                info!("copy to clipboard worked");
             }
             None => {
-                warn!("failed to write clippyboy");
+                warn!("failed to write clipboard data");
             }
         };
     });
@@ -70,27 +70,15 @@ struct ClipboardChannel {
     pub rx: Option<Receiver<String>>,
 }
 
-fn setup_clipboard_paste(
-    mut commands: Commands,
-    windows: Query<Entity, With<Window>>,
-    winit_windows: NonSendMut<WinitWindows>,
-    mut clipboardChannel: NonSendMut<ClipboardChannel>,
-) {
-    let Some(first_window) = windows.iter().next() else {
-        return;
-    };
-    let Some(winit_window_instance) = winit_windows.get_window(first_window) else {
-        return;
-    };
+fn setup_clipboard_paste(mut clipboard_channel: NonSendMut<ClipboardChannel>) {
     let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
 
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::prelude::*;
-    use winit::platform::web::WindowExtWebSys;
-    let canvas = winit_window_instance.canvas();
-    info!("canvas found");
+
     let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
-        tx.send("test".to_string());
+        // TODO: maybe we should check if current canvas is selected ? not sure it's possible,
+        // but reacting to event at the document level will lead to problems if multiple games are on the samge page.
         match event
             .clipboard_data()
             .expect("could not get clipboard data.")
@@ -106,21 +94,37 @@ fn setup_clipboard_paste(
         info!("{:?}", event.clipboard_data())
     });
 
-    canvas
+    // TODO: a lot of unwraps ; it's using documents because paste event set on a canvas do not trigger (also tested on firefox in vanilla javascript)
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
         .add_event_listener_with_callback("paste", closure.as_ref().unchecked_ref())
         .expect("Could not edd paste event listener.");
     closure.forget();
-    *clipboardChannel = ClipboardChannel { rx: Some(rx) };
+    *clipboard_channel = ClipboardChannel { rx: Some(rx) };
 
-    //        winit_window_instance.can
     info!("setup_clipboard_paste OK");
 }
 
-fn read_clipboard_channel(mut clipboardChannel: NonSendMut<ClipboardChannel>) {
-    match &mut clipboardChannel.rx {
+fn read_clipboard_channel(
+    mut clipboard_channel: NonSendMut<ClipboardChannel>,
+    mut text: ResMut<CustomText>,
+) {
+    match &mut clipboard_channel.rx {
         Some(rx) => {
             if let Ok(clipboard_string) = rx.try_recv() {
+                // TODO: a global res is not the way to go, we should detect which element is focused when the paste is triggered.
                 info!("received: {}", clipboard_string);
+                // TODO: sometime I receive a single string, and it's printed twice in the edit field,
+                // I guess some concurrency problem with ui_edit but I'm not sure.
+                if let Some(selected) = text.1 {
+                    text.0
+                        .replace_range(selected.as_sorted_char_range(), &clipboard_string);
+                } else {
+                    text.0 = clipboard_string;
+                };
+                // TODO: set cursor to the end of the copied text.
             }
         }
         None => {}
