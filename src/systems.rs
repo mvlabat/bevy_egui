@@ -210,15 +210,13 @@ pub fn process_input_system(
         }
     }
 
-    if !command || cfg!(target_os = "windows") && ctrl && alt {
-        for event in input_events.ev_received_character.iter() {
-            if !event.char.is_control() {
-                let mut context = context_params.contexts.get_mut(event.window).unwrap();
-                context
-                    .egui_input
-                    .events
-                    .push(egui::Event::Text(event.char.to_string()));
-            }
+    for event in input_events.ev_received_character.iter() {
+        if !event.char.is_control() {
+            let mut context = context_params.contexts.get_mut(event.window).unwrap();
+            context
+                .egui_input
+                .events
+                .push(egui::Event::Text(event.char.to_string()));
         }
     }
 
