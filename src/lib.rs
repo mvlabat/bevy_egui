@@ -58,6 +58,10 @@ pub mod systems;
 /// Egui render node.
 pub mod egui_node;
 
+/// Clipboard management for web
+#[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+pub mod web_clipboard;
+
 pub use egui;
 
 use crate::{
@@ -147,7 +151,7 @@ pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
     #[cfg(target_arch = "wasm32")]
-    clipboard: String,
+    clipboard: web_clipboard::WebClipboardPaste,
 }
 
 #[cfg(feature = "manage_clipboard")]
@@ -159,12 +163,20 @@ impl EguiClipboard {
 
     /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
     #[must_use]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn get_contents(&self) -> Option<String> {
         self.get_contents_impl()
     }
 
+    /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
+    #[must_use]
+    #[cfg(target_arch = "wasm32")]
+    pub fn get_contents(&mut self) -> Option<String> {
+        self.get_contents_impl()
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
-    fn set_contents_impl(&self, contents: &str) {
+    fn set_contents_impl(&mut self, contents: &str) {
         if let Some(mut clipboard) = self.get() {
             if let Err(err) = clipboard.set_text(contents.to_owned()) {
                 log::error!("Failed to set clipboard contents: {:?}", err);
@@ -173,8 +185,8 @@ impl EguiClipboard {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn set_contents_impl(&mut self, contents: &str) {
-        self.clipboard = contents.to_owned();
+    fn set_contents_impl(&self, contents: &str) {
+        web_clipboard::clipboard_copy(contents.to_owned());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -190,8 +202,8 @@ impl EguiClipboard {
 
     #[cfg(target_arch = "wasm32")]
     #[allow(clippy::unnecessary_wraps)]
-    fn get_contents_impl(&self) -> Option<String> {
-        Some(self.clipboard.clone())
+    fn get_contents_impl(&mut self) -> Option<String> {
+        self.clipboard.try_read_clipboard_event()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -533,6 +545,8 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
 
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        app.add_startup_system(web_clipboard::startup);
         app.add_startup_systems(
             (
                 setup_new_windows_system,

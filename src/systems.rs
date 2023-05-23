@@ -53,7 +53,9 @@ impl<'w, 's> InputEvents<'w, 's> {
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
-    #[cfg(feature = "manage_clipboard")]
+    #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+    pub egui_clipboard: ResMut<'w, crate::EguiClipboard>,
+    #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
     pub egui_clipboard: Res<'w, crate::EguiClipboard>,
     pub keyboard_input: Res<'w, Input<KeyCode>>,
     #[system_param(ignore)]
@@ -72,7 +74,7 @@ pub struct ContextSystemParams<'w, 's> {
 /// Processes Bevy input and feeds it to Egui.
 pub fn process_input_system(
     mut input_events: InputEvents,
-    input_resources: InputResources,
+    mut input_resources: InputResources,
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     mut egui_mouse_position: ResMut<EguiMousePosition>,
@@ -250,20 +252,29 @@ pub fn process_input_system(
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
                 #[cfg(feature = "manage_clipboard")]
-                if command && pressed {
-                    match key {
-                        egui::Key::C => {
-                            focused_input.events.push(egui::Event::Copy);
-                        }
-                        egui::Key::X => {
-                            focused_input.events.push(egui::Event::Cut);
-                        }
-                        egui::Key::V => {
-                            if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                                focused_input.events.push(egui::Event::Text(contents))
+                {
+                    if command && pressed {
+                        match key {
+                            egui::Key::C => {
+                                focused_input.events.push(egui::Event::Copy);
                             }
+                            egui::Key::X => {
+                                focused_input.events.push(egui::Event::Cut);
+                            }
+                            egui::Key::V => {
+                                #[cfg(not(target_arch = "wasm32"))]
+                                if let Some(contents) =
+                                    input_resources.egui_clipboard.get_contents()
+                                {
+                                    focused_input.events.push(egui::Event::Text(contents))
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    if let Some(contents) = input_resources.egui_clipboard.get_contents() {
+                        focused_input.events.push(egui::Event::Text(contents));
                     }
                 }
             }
