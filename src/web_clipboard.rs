@@ -85,7 +85,7 @@ impl WebClipboardPaste {
 /// Puts argument string to the web clipboard
 pub fn clipboard_copy(text: String) {
     spawn_local(async move {
-        let window = web_sys::window().expect("window"); // { obj: val };
+        let window = web_sys::window().expect("window");
 
         let nav = window.navigator();
 
