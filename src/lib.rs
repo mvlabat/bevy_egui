@@ -164,7 +164,7 @@ impl EguiClipboard {
     /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
     #[must_use]
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn get_contents(&self) -> Option<String> {
+    pub fn get_contents(&mut self) -> Option<String> {
         self.get_contents_impl()
     }
 
@@ -185,12 +185,12 @@ impl EguiClipboard {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn set_contents_impl(&self, contents: &str) {
+    fn set_contents_impl(&mut self, contents: &str) {
         web_clipboard::clipboard_copy(contents.to_owned());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn get_contents_impl(&self) -> Option<String> {
+    fn get_contents_impl(&mut self) -> Option<String> {
         if let Some(mut clipboard) = self.get() {
             match clipboard.get_text() {
                 Ok(contents) => return Some(contents),

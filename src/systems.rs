@@ -53,10 +53,8 @@ impl<'w, 's> InputEvents<'w, 's> {
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
-    #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+    #[cfg(feature = "manage_clipboard")]
     pub egui_clipboard: ResMut<'w, crate::EguiClipboard>,
-    #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
-    pub egui_clipboard: Res<'w, crate::EguiClipboard>,
     pub keyboard_input: Res<'w, Input<KeyCode>>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
