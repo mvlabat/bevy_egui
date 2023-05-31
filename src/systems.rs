@@ -1,5 +1,5 @@
 use crate::{
-    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
+    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, IsMac, WindowSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -71,6 +71,7 @@ pub struct ContextSystemParams<'w, 's> {
 
 /// Processes Bevy input and feeds it to Egui.
 pub fn process_input_system(
+    mut is_mac: Res<IsMac>,
     mut input_events: InputEvents,
     mut input_resources: InputResources,
     mut context_params: ContextSystemParams,
@@ -101,12 +102,8 @@ pub fn process_input_system(
     let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
         || input_resources.keyboard_input.pressed(KeyCode::RWin);
 
-    let mac_cmd = if cfg!(target_os = "macos") {
-        win
-    } else {
-        false
-    };
-    let command = if cfg!(target_os = "macos") { win } else { ctrl };
+    let mac_cmd = if is_mac.0 { win } else { false };
+    let command = if is_mac.0 { win } else { ctrl };
 
     let modifiers = egui::Modifiers {
         alt,
