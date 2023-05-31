@@ -1,20 +1,17 @@
-use std::sync::{
-    mpsc::{self, Receiver, Sender},
-    Arc, Mutex,
-};
+use crossbeam_channel::{Receiver, Sender};
 
 use bevy::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::EguiClipboard;
 
-/// startup system for bevy to initialize clipboard.
-pub fn startup(mut clipboard_channel: ResMut<EguiClipboard>) {
+/// startup system for bevy to initialize web events.
+pub fn startup_setup_web_events(mut clipboard_channel: ResMut<EguiClipboard>) {
     setup_clipboard_paste(&mut clipboard_channel.clipboard)
 }
 
 fn setup_clipboard_paste(clipboard_channel: &mut WebClipboardPaste) {
-    let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+    let (tx, rx): (Sender<String>, Receiver<String>) = crossbeam_channel::bounded(1);
 
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::prelude::*;
@@ -45,9 +42,7 @@ fn setup_clipboard_paste(clipboard_channel: &mut WebClipboardPaste) {
         .add_event_listener_with_callback("paste", closure.as_ref().unchecked_ref())
         .expect("Could not edd paste event listener.");
     closure.forget();
-    *clipboard_channel = WebClipboardPaste {
-        rx: Some(Arc::new(Mutex::new(rx))),
-    };
+    *clipboard_channel = WebClipboardPaste { rx: Some(rx) };
 
     info!("setup_clipboard_paste OK");
 }
@@ -55,7 +50,7 @@ fn setup_clipboard_paste(clipboard_channel: &mut WebClipboardPaste) {
 /// To get data from web paste events
 #[derive(Default)]
 pub struct WebClipboardPaste {
-    rx: Option<Arc<Mutex<Receiver<String>>>>,
+    rx: Option<Receiver<String>>,
 }
 
 impl WebClipboardPaste {
@@ -64,11 +59,7 @@ impl WebClipboardPaste {
     pub fn try_read_clipboard_event(&mut self) -> Option<String> {
         match &mut self.rx {
             Some(rx) => {
-                let Ok(unlock) = rx.try_lock() else {
-                    info!("fail lock");
-                    return None;
-                };
-                if let Ok(clipboard_string) = unlock.try_recv() {
+                if let Ok(clipboard_string) = rx.try_recv() {
                     info!("received: {}", clipboard_string);
                     return Some(clipboard_string);
                 }

@@ -60,7 +60,7 @@ pub mod egui_node;
 
 /// Clipboard management for web
 #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-pub mod web_clipboard;
+pub mod web;
 
 pub use egui;
 
@@ -151,7 +151,7 @@ pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
     #[cfg(target_arch = "wasm32")]
-    clipboard: web_clipboard::WebClipboardPaste,
+    clipboard: web::WebClipboardPaste,
 }
 
 #[cfg(feature = "manage_clipboard")]
@@ -186,7 +186,7 @@ impl EguiClipboard {
 
     #[cfg(target_arch = "wasm32")]
     fn set_contents_impl(&mut self, contents: &str) {
-        web_clipboard::clipboard_copy(contents.to_owned());
+        web::clipboard_copy(contents.to_owned());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -546,7 +546,7 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiMousePosition>();
 
         #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-        app.add_startup_system(web_clipboard::startup);
+        app.add_startup_system(web::startup_setup_web_events);
         app.add_startup_systems(
             (
                 setup_new_windows_system,
