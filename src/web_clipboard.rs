@@ -12,16 +12,6 @@ pub fn startup_setup_web_events(mut clipboard_channel: ResMut<EguiClipboard>) {
     setup_clipboard_copy(&mut clipboard_channel.web_copy);
     setup_clipboard_cut(&mut clipboard_channel.web_cut);
     setup_clipboard_paste(&mut clipboard_channel.web_paste);
-
-    let window = web_sys::window().expect("window");
-
-    let nav = window.navigator();
-    let platform = nav.platform();
-    match platform {
-        Ok(p) => info!(p),
-        Err(e) => ,
-    }
-    info!("{:?}", platform)
 }
 
 /// To get data from web events
@@ -31,13 +21,12 @@ pub struct WebChannel<T> {
 }
 
 impl<T> WebChannel<T> {
-    /// Only returns Some if user explicitly triggered a paste event.
-    /// We are not querying the clipboard data without user input here (it would require permissions).
+    /// Only returns Some if user explicitly triggered an event. Should be called each frame to react as soon as the event is fired.
     pub fn try_read_clipboard_event(&mut self) -> Option<T> {
         match &mut self.rx {
             Some(rx) => {
-                if let Ok(clipboard_string) = rx.try_recv() {
-                    return Some(clipboard_string);
+                if let Ok(data) = rx.try_recv() {
+                    return Some(data);
                 }
                 None
             }
