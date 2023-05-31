@@ -1,13 +1,6 @@
 [alias]
 run-wasm = ["run", "--release", "--package", "run-wasm", "--"]
 
-# Credits to https://github.com/emilk/egui
-
-# clipboard api is still unstable, so web-sys requires the below flag to be passed for copy (ctrl + c) to work
-# https://rustwasm.github.io/docs/wasm-bindgen/web-sys/unstable-apis.html
-# check status at https://developer.mozilla.org/en-US/docs/Web/API/Clipboard#browser_compatibility
-#[build]
-#target = "wasm32-unknown-unknown"
-
+# Using unstable APIs is required for writing to clipboard
 [target.wasm32-unknown-unknown]
 rustflags = ["--cfg=web_sys_unstable_apis"]
