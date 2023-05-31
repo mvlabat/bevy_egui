@@ -1,5 +1,5 @@
 use crate::{
-    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, IsMac, WindowSize,
+    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
@@ -71,14 +71,33 @@ pub struct ContextSystemParams<'w, 's> {
 
 /// Processes Bevy input and feeds it to Egui.
 pub fn process_input_system(
-    mut is_mac: Res<IsMac>,
     mut input_events: InputEvents,
     mut input_resources: InputResources,
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     mut egui_mouse_position: ResMut<EguiMousePosition>,
     time: Res<Time>,
+    mut is_mac: Local<bool>,
 ) {
+    use std::sync::Once;
+    static START: Once = Once::new();
+
+    START.call_once(|| {
+        // run initialization here
+        *is_mac = cfg!(target_os = "macos");
+        #[cfg(target_arch = "wasm32")]
+        {
+            let window = web_sys::window().expect("window");
+
+            let nav = window.navigator();
+            let user_agent = nav.user_agent();
+            if let Ok(user_agent) = user_agent {
+                log::debug!("{:?}", user_agent);
+                *is_mac = user_agent.contains("Macintosh;");
+            }
+        }
+    });
+
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
     if let Some(event) = input_events.ev_window_created.iter().last() {
@@ -102,8 +121,8 @@ pub fn process_input_system(
     let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
         || input_resources.keyboard_input.pressed(KeyCode::RWin);
 
-    let mac_cmd = if is_mac.0 { win } else { false };
-    let command = if is_mac.0 { win } else { ctrl };
+    let mac_cmd = if *is_mac { win } else { false };
+    let command = if *is_mac { win } else { ctrl };
 
     let modifiers = egui::Modifiers {
         alt,

@@ -45,7 +45,7 @@ bevy = { version = "0.10", default-features = false, features = [
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 winit = "0.28"
-web-sys = { version = "*", features = [
+web-sys = { version = "0.3.63", features = [
     "Clipboard",
     "ClipboardEvent",
     "DataTransfer",

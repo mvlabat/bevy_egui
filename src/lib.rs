@@ -144,10 +144,6 @@ impl Default for EguiSettings {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
 pub struct EguiInput(pub egui::RawInput);
 
-/// A resource to check if we're on a mac, correctly detects on web too.
-#[derive(Resource)]
-pub struct IsMac(pub bool);
-
 /// A resource for accessing clipboard.
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
@@ -557,21 +553,6 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiClipboard>();
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
-        if !world.contains_resource::<IsMac>() {
-            let mut is_mac = cfg!(target_os = "macos");
-            #[cfg(target_arch = "wasm32")]
-            {
-                let window = web_sys::window().expect("window");
-
-                let nav = window.navigator();
-                let platform = nav.platform();
-                if let Ok(platform) = platform {
-                    is_mac = platform.starts_with("Mac");
-                }
-            }
-            log::info!(is_mac);
-            world.insert_resource(IsMac(is_mac));
-        }
 
         #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
         app.add_startup_system(web_clipboard::startup_setup_web_events);

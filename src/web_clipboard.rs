@@ -49,17 +49,14 @@ fn setup_clipboard_copy(clipboard_channel: &mut WebChannel<WebEventCopy>) {
     let (tx, rx): (Sender<WebEventCopy>, Receiver<WebEventCopy>) = crossbeam_channel::bounded(1);
 
     let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
-        // TODO: maybe we should check if current canvas is selected ? not sure it's possible,
-        // but reacting to event at the document level will lead to problems if multiple games are on the same page.
         tx.try_send(WebEventCopy);
     });
 
-    // TODO: a lot of unwraps ; it's using documents because paste event set on a canvas do not trigger (also tested on firefox in vanilla javascript)
     let listener = closure.as_ref().unchecked_ref();
     web_sys::window()
-        .unwrap()
+        .expect("Could not retrieve web_sys::window()")
         .document()
-        .unwrap()
+        .expect("Could not retrieve web_sys window's document")
         .add_event_listener_with_callback("copy", listener)
         .expect("Could not add copy event listener.");
     closure.forget();
@@ -70,17 +67,14 @@ fn setup_clipboard_cut(clipboard_channel: &mut WebChannel<WebEventCut>) {
     let (tx, rx): (Sender<WebEventCut>, Receiver<WebEventCut>) = crossbeam_channel::bounded(1);
 
     let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
-        // TODO: maybe we should check if current canvas is selected ? not sure it's possible,
-        // but reacting to event at the document level will lead to problems if multiple games are on the same page.
         tx.try_send(WebEventCut);
     });
 
-    // TODO: a lot of unwraps ; it's using documents because paste event set on a canvas do not trigger (also tested on firefox in vanilla javascript)
     let listener = closure.as_ref().unchecked_ref();
     web_sys::window()
-        .unwrap()
+        .expect("Could not retrieve web_sys::window()")
         .document()
-        .unwrap()
+        .expect("Could not retrieve web_sys window's document")
         .add_event_listener_with_callback("cut", listener)
         .expect("Could not add cut event listener.");
     closure.forget();
@@ -91,8 +85,6 @@ fn setup_clipboard_paste(clipboard_channel: &mut WebChannel<WebEventPaste>) {
     let (tx, rx): (Sender<WebEventPaste>, Receiver<WebEventPaste>) = crossbeam_channel::bounded(1);
 
     let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
-        // TODO: maybe we should check if current canvas is selected ? not sure it's possible,
-        // but reacting to event at the document level will lead to problems if multiple games are on the same page.
         match event
             .clipboard_data()
             .expect("could not get clipboard data.")
@@ -108,12 +100,11 @@ fn setup_clipboard_paste(clipboard_channel: &mut WebChannel<WebEventPaste>) {
         info!("{:?}", event.clipboard_data())
     });
 
-    // TODO: a lot of unwraps ; it's using documents because paste event set on a canvas do not trigger (also tested on firefox in vanilla javascript)
     let listener = closure.as_ref().unchecked_ref();
     web_sys::window()
-        .unwrap()
+        .expect("Could not retrieve web_sys::window()")
         .document()
-        .unwrap()
+        .expect("Could not retrieve web_sys window's document")
         .add_event_listener_with_callback("paste", listener)
         .expect("Could not add paste event listener.");
     closure.forget();
