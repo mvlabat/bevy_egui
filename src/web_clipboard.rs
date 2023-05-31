@@ -24,7 +24,7 @@ pub fn startup_setup_web_events(mut clipboard_channel: ResMut<EguiClipboard>) {
     info!("{:?}", platform)
 }
 
-/// To get data from web paste events
+/// To get data from web events
 #[derive(Default)]
 pub struct WebChannel<T> {
     rx: Option<Receiver<T>>,
