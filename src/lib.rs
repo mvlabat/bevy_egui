@@ -60,9 +60,11 @@ pub mod egui_node;
 
 /// Clipboard management for web
 #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-pub mod web;
+pub mod web_clipboard;
 
 pub use egui;
+#[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+use web_clipboard::{WebEventCopy, WebEventCut, WebEventPaste};
 
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
@@ -150,8 +152,15 @@ pub struct EguiInput(pub egui::RawInput);
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
+    /// for copy events.
     #[cfg(target_arch = "wasm32")]
-    clipboard: web::WebClipboardPaste,
+    pub web_copy: web_clipboard::WebChannel<WebEventCopy>,
+    /// for copy events.
+    #[cfg(target_arch = "wasm32")]
+    pub web_cut: web_clipboard::WebChannel<WebEventCut>,
+    /// for paste events, only supporting strings.
+    #[cfg(target_arch = "wasm32")]
+    pub web_paste: web_clipboard::WebChannel<WebEventPaste>,
 }
 
 #[cfg(feature = "manage_clipboard")]
@@ -186,7 +195,7 @@ impl EguiClipboard {
 
     #[cfg(target_arch = "wasm32")]
     fn set_contents_impl(&mut self, contents: &str) {
-        web::clipboard_copy(contents.to_owned());
+        web_clipboard::clipboard_copy(contents.to_owned());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -203,7 +212,7 @@ impl EguiClipboard {
     #[cfg(target_arch = "wasm32")]
     #[allow(clippy::unnecessary_wraps)]
     fn get_contents_impl(&mut self) -> Option<String> {
-        self.clipboard.try_read_clipboard_event()
+        self.web_paste.try_read_clipboard_event().map(|e| e.0)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -546,7 +555,7 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiMousePosition>();
 
         #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-        app.add_startup_system(web::startup_setup_web_events);
+        app.add_startup_system(web_clipboard::startup_setup_web_events);
         app.add_startup_systems(
             (
                 setup_new_windows_system,

@@ -251,6 +251,7 @@ pub fn process_input_system(
                 // copy, cut or paste on the key release.
                 #[cfg(feature = "manage_clipboard")]
                 {
+                    #[cfg(not(target_arch = "wasm32"))]
                     if command && pressed {
                         match key {
                             egui::Key::C => {
@@ -260,7 +261,6 @@ pub fn process_input_system(
                                 focused_input.events.push(egui::Event::Cut);
                             }
                             egui::Key::V => {
-                                #[cfg(not(target_arch = "wasm32"))]
                                 if let Some(contents) =
                                     input_resources.egui_clipboard.get_contents()
                                 {
@@ -271,8 +271,26 @@ pub fn process_input_system(
                         }
                     }
                     #[cfg(target_arch = "wasm32")]
-                    if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                        focused_input.events.push(egui::Event::Text(contents));
+                    {
+                        if input_resources
+                            .egui_clipboard
+                            .web_copy
+                            .try_read_clipboard_event()
+                            .is_some()
+                        {
+                            focused_input.events.push(egui::Event::Copy);
+                        }
+                        if input_resources
+                            .egui_clipboard
+                            .web_cut
+                            .try_read_clipboard_event()
+                            .is_some()
+                        {
+                            focused_input.events.push(egui::Event::Cut);
+                        }
+                        if let Some(contents) = input_resources.egui_clipboard.get_contents() {
+                            focused_input.events.push(egui::Event::Text(contents));
+                        }
                     }
                 }
             }
