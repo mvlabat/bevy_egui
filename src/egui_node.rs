@@ -316,9 +316,9 @@ impl Node for EguiNode {
                 return Ok(()); // No window
             };
 
-        let swap_chain_texture =
-            if let Some(swap_chain_texture) = extracted_window.swap_chain_texture.as_ref() {
-                swap_chain_texture
+        let swap_chain_texture_view =
+            if let Some(swap_chain_texture_view) = extracted_window.swap_chain_texture_view.as_ref() {
+                swap_chain_texture_view
             } else {
                 return Ok(()); // No swapchain texture
             };
@@ -343,7 +343,7 @@ impl Node for EguiNode {
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("egui render pass"),
                     color_attachments: &[Some(RenderPassColorAttachment {
-                        view: swap_chain_texture,
+                        view: swap_chain_texture_view,
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,

@@ -15,10 +15,10 @@ fn main() {
     app.add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .init_resource::<SharedUiState>()
-        .add_startup_system(load_assets_system)
-        .add_startup_system(create_new_window_system)
-        .add_system(ui_first_window_system)
-        .add_system(ui_second_window_system);
+        .add_systems(Startup, load_assets_system)
+        .add_systems(Startup, create_new_window_system)
+        .add_systems(Update, ui_first_window_system)
+        .add_systems(Update, ui_second_window_system);
 
     app.run();
 }
