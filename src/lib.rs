@@ -69,8 +69,8 @@ use crate::{
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
-    app::{App, Plugin, Last, PostUpdate, PreUpdate, PreStartup},
-    asset::{AssetEvent, Assets, Handle},
+    app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
+    asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
         event::EventReader,
         query::{QueryEntityError, WorldQuery},
@@ -80,13 +80,12 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity,
-        IntoSystemConfigs, Query, Resource, Shader, SystemSet, With,
-        Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
+        Shader, SystemSet, With, Without,
     },
     render::{
-        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
-        RenderSet, Render
+        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, Render,
+        RenderApp, RenderSet,
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
@@ -534,7 +533,8 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
 
-        app.add_systems(PreStartup,
+        app.add_systems(
+            PreStartup,
             (
                 setup_new_windows_system,
                 apply_deferred,
@@ -543,7 +543,8 @@ impl Plugin for EguiPlugin {
                 .chain()
                 .in_set(EguiStartupSet::InitContexts),
         );
-        app.add_systems(PreUpdate,
+        app.add_systems(
+            PreUpdate,
             (
                 setup_new_windows_system,
                 apply_deferred,
@@ -552,37 +553,42 @@ impl Plugin for EguiPlugin {
                 .chain()
                 .in_set(EguiSet::InitContexts),
         );
-        app.add_systems(PreUpdate, 
+        app.add_systems(
+            PreUpdate,
             process_input_system
                 .in_set(EguiSet::ProcessInput)
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
-        app.add_systems(PreUpdate,
+        app.add_systems(
+            PreUpdate,
             begin_frame_system
                 .in_set(EguiSet::BeginFrame)
                 .after(EguiSet::ProcessInput),
         );
-        app.add_systems(PostUpdate,
-            process_output_system
-                .in_set(EguiSet::ProcessOutput),
+        app.add_systems(
+            PostUpdate,
+            process_output_system.in_set(EguiSet::ProcessOutput),
         );
-        app.add_systems(PostUpdate,
-            update_egui_textures_system
-                .after(EguiSet::ProcessOutput),
+        app.add_systems(
+            PostUpdate,
+            update_egui_textures_system.after(EguiSet::ProcessOutput),
         );
         app.add_systems(Last, free_egui_textures_system)
-                .add_systems(Render,
-                    render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
-                )
-                .add_systems(Render, render_systems::queue_bind_groups_system.in_set(RenderSet::Queue))
-                .add_systems(Render, render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
+            .add_systems(
+                Render,
+                render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
+            )
+            .add_systems(
+                Render,
+                render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+            )
+            .add_systems(
+                Render,
+                render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+            );
 
-        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
-        shaders.set_untracked(
-            EGUI_SHADER_HANDLE,
-            Shader::from_wgsl(include_str!("egui.wgsl")),
-        );
+        load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
     }
 
     fn finish(&self, app: &mut App) {
@@ -591,19 +597,27 @@ impl Plugin for EguiPlugin {
                 .init_resource::<egui_node::EguiPipeline>()
                 .init_resource::<SpecializedRenderPipelines<EguiPipeline>>()
                 .init_resource::<EguiTransforms>()
-                .add_systems(ExtractSchedule,
+                .add_systems(
+                    ExtractSchedule,
                     (
                         render_systems::extract_egui_render_data_system,
                         render_systems::extract_egui_textures_system,
                         render_systems::setup_new_windows_render_system,
                     )
-                        .into_configs()
+                        .into_configs(),
                 )
-                .add_systems(Render,
+                .add_systems(
+                    Render,
                     render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
                 )
-                .add_systems(Render, render_systems::queue_bind_groups_system.in_set(RenderSet::Queue))
-                .add_systems(Render, render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
+                .add_systems(
+                    Render,
+                    render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+                )
+                .add_systems(
+                    Render,
+                    render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+                );
         }
     }
 }
@@ -773,7 +787,7 @@ mod tests {
                     .build()
                     .disable::<WinitPlugin>(),
             )
-            .add_plugin(EguiPlugin)
+            .add_plugins(EguiPlugin)
             .update();
     }
 }
