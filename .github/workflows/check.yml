@@ -30,12 +30,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        features: [
-            '',
-            'manage_clipboard',
-            'open_url',
-            'manage_clipboard,open_url',
-        ]
+        features:
+          ["", "manage_clipboard", "open_url", "manage_clipboard,open_url"]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -68,12 +64,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: [
-            'immutable_ctx',
-            'manage_clipboard',
-            'open_url',
-            'manage_clipboard,open_url',
-        ]
+        features:
+          [
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "manage_clipboard,open_url",
+          ]
+    env:
+      RUSTFLAGS: --cfg=web_sys_unstable_apis
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
