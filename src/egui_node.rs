@@ -193,7 +193,8 @@ impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
         let mut window_sizes = world.query::<(&WindowSize, &mut EguiRenderOutput)>();
 
-        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity) else {
+        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity)
+        else {
             return;
         };
         let window_size = *window_size;
@@ -354,8 +355,12 @@ impl Node for EguiNode {
                     depth_stencil_attachment: None,
                 });
 
-        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else { return Ok(()) };
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else { return Ok(()) };
+        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else {
+            return Ok(());
+        };
+        let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
+            return Ok(());
+        };
 
         render_pass.set_pipeline(pipeline);
         render_pass.set_vertex_buffer(0, *self.vertex_buffer.as_ref().unwrap().slice(..));
