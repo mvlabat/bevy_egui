@@ -316,12 +316,13 @@ impl Node for EguiNode {
                 return Ok(()); // No window
             };
 
-        let swap_chain_texture_view =
-            if let Some(swap_chain_texture_view) = extracted_window.swap_chain_texture_view.as_ref() {
-                swap_chain_texture_view
-            } else {
-                return Ok(()); // No swapchain texture
-            };
+        let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
+            extracted_window.swap_chain_texture_view.as_ref()
+        {
+            swap_chain_texture_view
+        } else {
+            return Ok(()); // No swapchain texture
+        };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 

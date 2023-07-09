@@ -95,7 +95,9 @@ pub fn process_input_system(
     let shift = input_resources.keyboard_input.pressed(KeyCode::ShiftLeft)
         || input_resources.keyboard_input.pressed(KeyCode::ShiftRight);
     let ctrl = input_resources.keyboard_input.pressed(KeyCode::ControlLeft)
-        || input_resources.keyboard_input.pressed(KeyCode::ControlRight);
+        || input_resources
+            .keyboard_input
+            .pressed(KeyCode::ControlRight);
     let alt = input_resources.keyboard_input.pressed(KeyCode::AltLeft)
         || input_resources.keyboard_input.pressed(KeyCode::AltRight);
     let win = input_resources.keyboard_input.pressed(KeyCode::SuperLeft)
