@@ -75,7 +75,7 @@ use bevy::{
         event::EventReader,
         query::{QueryEntityError, WorldQuery},
         schedule::apply_deferred,
-        system::{ResMut, SystemParam},
+        system::{Res, ResMut, SystemParam},
     },
     input::InputSystem,
     log,
@@ -84,8 +84,9 @@ use bevy::{
         Shader, SystemSet, With, Without,
     },
     render::{
-        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, Render,
-        RenderApp, RenderSet,
+        render_resource::{AddressMode, SamplerDescriptor, SpecializedRenderPipelines},
+        texture::{Image, ImageSampler},
+        ExtractSchedule, Render, RenderApp, RenderSet,
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
@@ -100,7 +101,7 @@ use thread_local::ThreadLocal;
 pub struct EguiPlugin;
 
 /// A resource for storing global UI settings.
-#[derive(Clone, Debug, PartialEq, Resource)]
+#[derive(Clone, Debug, Resource)]
 pub struct EguiSettings {
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
@@ -120,6 +121,30 @@ pub struct EguiSettings {
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
     pub default_open_url_target: Option<String>,
+    /// Used to change sampler properties
+    /// Defaults to linear and clamped to edge
+    pub sampler_descriptor: ImageSampler,
+}
+
+// Just to keep the PartialEq
+impl PartialEq for EguiSettings {
+    fn eq(&self, other: &Self) -> bool {
+        let eq = self.scale_factor == other.scale_factor;
+        #[cfg(feature = "open_url")]
+        let eq = eq && self.default_open_url_target == other.default_open_url_target;
+        eq && compare_descriptors(&self.sampler_descriptor, &other.sampler_descriptor)
+    }
+}
+
+// Since Eq is not implemented for ImageSampler
+fn compare_descriptors(a: &ImageSampler, b: &ImageSampler) -> bool {
+    match (a, b) {
+        (ImageSampler::Default, ImageSampler::Default) => true,
+        (ImageSampler::Descriptor(descriptor_a), ImageSampler::Descriptor(descriptor_b)) => {
+            descriptor_a == descriptor_b
+        }
+        _ => false,
+    }
 }
 
 impl Default for EguiSettings {
@@ -128,7 +153,27 @@ impl Default for EguiSettings {
             scale_factor: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
+            sampler_descriptor: ImageSampler::Descriptor(SamplerDescriptor {
+                address_mode_u: AddressMode::ClampToEdge,
+                address_mode_v: AddressMode::ClampToEdge,
+                ..ImageSampler::linear_descriptor()
+            }),
         }
+    }
+}
+
+impl EguiSettings {
+    /// Use nearest descriptor instead of linear.
+    pub fn use_nearest_descriptor(&mut self) {
+        self.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            ..ImageSampler::nearest_descriptor()
+        })
+    }
+    /// Use default image sampler, derived from the [`ImagePlugin`](bevy::render::texture::ImagePlugin) setup.
+    pub fn use_bevy_descriptor(&mut self) {
+        self.sampler_descriptor = ImageSampler::Default;
     }
 }
 
@@ -677,6 +722,7 @@ pub fn update_egui_textures_system(
     mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
+    egui_settings: Res<EguiSettings>,
 ) {
     for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
@@ -696,14 +742,20 @@ pub fn update_egui_textures_system(
                 {
                     // TODO: when bevy supports it, only update the part of the texture that changes.
                     update_image_rect(&mut managed_texture.color_image, pos, &color_image);
-                    let image = egui_node::color_image_as_bevy_image(&managed_texture.color_image);
+                    let image = egui_node::color_image_as_bevy_image(
+                        &managed_texture.color_image,
+                        egui_settings.sampler_descriptor.clone(),
+                    );
                     managed_texture.handle = image_assets.add(image);
                 } else {
                     log::warn!("Partial update of a missing texture (id: {:?})", texture_id);
                 }
             } else {
                 // Full update.
-                let image = egui_node::color_image_as_bevy_image(&color_image);
+                let image = egui_node::color_image_as_bevy_image(
+                    &color_image,
+                    egui_settings.sampler_descriptor.clone(),
+                );
                 let handle = image_assets.add(image);
                 egui_managed_textures.insert(
                     (window_id, texture_id),
