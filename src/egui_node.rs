@@ -193,7 +193,8 @@ impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
         let mut window_sizes = world.query::<(&WindowSize, &mut EguiRenderOutput)>();
 
-        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity) else {
+        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity)
+        else {
             return;
         };
         let window_size = *window_size;
@@ -316,12 +317,13 @@ impl Node for EguiNode {
                 return Ok(()); // No window
             };
 
-        let swap_chain_texture =
-            if let Some(swap_chain_texture) = extracted_window.swap_chain_texture.as_ref() {
-                swap_chain_texture
-            } else {
-                return Ok(()); // No swapchain texture
-            };
+        let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
+            extracted_window.swap_chain_texture_view.as_ref()
+        {
+            swap_chain_texture_view
+        } else {
+            return Ok(()); // No swapchain texture
+        };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
@@ -343,7 +345,7 @@ impl Node for EguiNode {
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("egui render pass"),
                     color_attachments: &[Some(RenderPassColorAttachment {
-                        view: swap_chain_texture,
+                        view: swap_chain_texture_view,
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,
@@ -353,8 +355,12 @@ impl Node for EguiNode {
                     depth_stencil_attachment: None,
                 });
 
-        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else { return Ok(()) };
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else { return Ok(()) };
+        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else {
+            return Ok(());
+        };
+        let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
+            return Ok(());
+        };
 
         render_pass.set_pipeline(pipeline);
         render_pass.set_vertex_buffer(0, *self.vertex_buffer.as_ref().unwrap().slice(..));

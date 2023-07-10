@@ -69,24 +69,23 @@ use crate::{
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
-    app::{App, Plugin},
-    asset::{AssetEvent, Assets, Handle},
+    app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
+    asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
         event::EventReader,
         query::{QueryEntityError, WorldQuery},
-        schedule::apply_system_buffers,
+        schedule::apply_deferred,
         system::{ResMut, SystemParam},
     },
     input::InputSystem,
     log,
     prelude::{
-        Added, Commands, Component, CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs,
-        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet, With,
-        Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
+        Shader, SystemSet, With, Without,
     },
     render::{
-        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
-        RenderSet,
+        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, Render,
+        RenderApp, RenderSet,
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
@@ -216,7 +215,7 @@ impl EguiClipboard {
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]) and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to bevy's [`PostUpdate`]) and reset during `EguiNode::update`.
     pub paint_jobs: Vec<egui::ClippedPrimitive>,
 
     /// The change in egui textures since last frame.
@@ -226,7 +225,7 @@ pub struct EguiRenderOutput {
 /// Is used for storing Egui output.
 #[derive(Component, Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]).
+    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`PostUpdate`]).
     pub platform_output: egui::PlatformOutput,
 }
 
@@ -535,76 +534,91 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiMousePosition>();
         world.insert_resource(TouchId::default());
 
-        app.add_startup_systems(
+        app.add_systems(
+            PreStartup,
             (
                 setup_new_windows_system,
-                apply_system_buffers,
+                apply_deferred,
                 update_window_contexts_system,
             )
                 .chain()
-                .in_set(EguiStartupSet::InitContexts)
-                .in_base_set(StartupSet::PreStartup),
+                .in_set(EguiStartupSet::InitContexts),
         );
         app.add_systems(
+            PreUpdate,
             (
                 setup_new_windows_system,
-                apply_system_buffers,
+                apply_deferred,
                 update_window_contexts_system,
             )
                 .chain()
-                .in_set(EguiSet::InitContexts)
-                .in_base_set(CoreSet::PreUpdate),
+                .in_set(EguiSet::InitContexts),
         );
-        app.add_system(
+        app.add_systems(
+            PreUpdate,
             process_input_system
                 .in_set(EguiSet::ProcessInput)
                 .after(InputSystem)
-                .after(EguiSet::InitContexts)
-                .in_base_set(CoreSet::PreUpdate),
+                .after(EguiSet::InitContexts),
         );
-        app.add_system(
+        app.add_systems(
+            PreUpdate,
             begin_frame_system
                 .in_set(EguiSet::BeginFrame)
-                .after(EguiSet::ProcessInput)
-                .in_base_set(CoreSet::PreUpdate),
+                .after(EguiSet::ProcessInput),
         );
-        app.add_system(
-            process_output_system
-                .in_set(EguiSet::ProcessOutput)
-                .in_base_set(CoreSet::PostUpdate),
+        app.add_systems(
+            PostUpdate,
+            process_output_system.in_set(EguiSet::ProcessOutput),
         );
-        app.add_system(
-            update_egui_textures_system
-                .after(EguiSet::ProcessOutput)
-                .in_base_set(CoreSet::PostUpdate),
+        app.add_systems(
+            PostUpdate,
+            update_egui_textures_system.after(EguiSet::ProcessOutput),
         );
-        app.add_system(free_egui_textures_system.in_base_set(CoreSet::Last));
+        app.add_systems(Last, free_egui_textures_system)
+            .add_systems(
+                Render,
+                render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
+            )
+            .add_systems(
+                Render,
+                render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+            )
+            .add_systems(
+                Render,
+                render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+            );
 
-        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
-        shaders.set_untracked(
-            EGUI_SHADER_HANDLE,
-            Shader::from_wgsl(include_str!("egui.wgsl")),
-        );
+        load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
+    }
 
+    fn finish(&self, app: &mut App) {
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<egui_node::EguiPipeline>()
                 .init_resource::<SpecializedRenderPipelines<EguiPipeline>>()
                 .init_resource::<EguiTransforms>()
                 .add_systems(
+                    ExtractSchedule,
                     (
                         render_systems::extract_egui_render_data_system,
                         render_systems::extract_egui_textures_system,
                         render_systems::setup_new_windows_render_system,
                     )
-                        .into_configs()
-                        .in_schedule(ExtractSchedule),
+                        .into_configs(),
                 )
-                .add_system(
+                .add_systems(
+                    Render,
                     render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
                 )
-                .add_system(render_systems::queue_bind_groups_system.in_set(RenderSet::Queue))
-                .add_system(render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
+                .add_systems(
+                    Render,
+                    render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+                )
+                .add_systems(
+                    Render,
+                    render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+                );
         }
     }
 }
@@ -774,7 +788,7 @@ mod tests {
                     .build()
                     .disable::<WinitPlugin>(),
             )
-            .add_plugin(EguiPlugin)
+            .add_plugins(EguiPlugin)
             .update();
     }
 }

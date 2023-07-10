@@ -100,14 +100,16 @@ pub fn process_input_system(
         };
     }
 
-    let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
-        || input_resources.keyboard_input.pressed(KeyCode::RShift);
-    let ctrl = input_resources.keyboard_input.pressed(KeyCode::LControl)
-        || input_resources.keyboard_input.pressed(KeyCode::RControl);
-    let alt = input_resources.keyboard_input.pressed(KeyCode::LAlt)
-        || input_resources.keyboard_input.pressed(KeyCode::RAlt);
-    let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
-        || input_resources.keyboard_input.pressed(KeyCode::RWin);
+    let shift = input_resources.keyboard_input.pressed(KeyCode::ShiftLeft)
+        || input_resources.keyboard_input.pressed(KeyCode::ShiftRight);
+    let ctrl = input_resources.keyboard_input.pressed(KeyCode::ControlLeft)
+        || input_resources
+            .keyboard_input
+            .pressed(KeyCode::ControlRight);
+    let alt = input_resources.keyboard_input.pressed(KeyCode::AltLeft)
+        || input_resources.keyboard_input.pressed(KeyCode::AltRight);
+    let win = input_resources.keyboard_input.pressed(KeyCode::SuperLeft)
+        || input_resources.keyboard_input.pressed(KeyCode::SuperRight);
 
     let mac_cmd = if cfg!(target_os = "macos") {
         win
@@ -151,12 +153,11 @@ pub fn process_input_system(
         // that has been left.
         if cursor_left_window != Some(cursor_moved.window) {
             let scale_factor = egui_settings.scale_factor as f32;
-            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
+            let mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
             let mut context = context_params
                 .contexts
                 .get_mut(cursor_moved.window)
                 .unwrap();
-            mouse_position.1 = context.window_size.height() / scale_factor - mouse_position.1;
             egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
             context
                 .egui_input
@@ -289,7 +290,7 @@ pub fn process_input_system(
                     bevy::input::touch::TouchPhase::Started => egui::TouchPhase::Start,
                     bevy::input::touch::TouchPhase::Moved => egui::TouchPhase::Move,
                     bevy::input::touch::TouchPhase::Ended => egui::TouchPhase::End,
-                    bevy::input::touch::TouchPhase::Cancelled => egui::TouchPhase::Cancel,
+                    bevy::input::touch::TouchPhase::Canceled => egui::TouchPhase::Cancel,
                 },
                 pos: egui::pos2(touch_position.0, touch_position.1),
                 force: match touch.force {
@@ -345,7 +346,7 @@ pub fn process_input_system(
                         });
                         focused_input.events.push(egui::Event::PointerGone);
                     }
-                    bevy::input::touch::TouchPhase::Cancelled => {
+                    bevy::input::touch::TouchPhase::Canceled => {
                         context_params.pointer_touch_id.0 = None;
                         focused_input.events.push(egui::Event::PointerGone);
                     }
