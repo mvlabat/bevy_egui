@@ -15,10 +15,10 @@ use egui::Widget;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
-        .add_startup_system(setup)
-        .add_system(rotator_system)
-        .add_system(render_to_image_example_system)
+        .add_plugins(EguiPlugin)
+        .add_systems(Startup, setup)
+        .add_systems(Update, rotator_system)
+        .add_systems(Update, render_to_image_example_system)
         .run();
 }
 
