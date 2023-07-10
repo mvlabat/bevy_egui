@@ -39,8 +39,8 @@ Here's a minimal usage example:
 ```toml
 # Cargo.toml
 [dependencies]
-bevy = "0.10"
-bevy_egui = "0.20"
+bevy = "0.11"
+bevy_egui = "0.21"
 ```
 
 ```rust
@@ -50,7 +50,7 @@ use bevy_egui::{egui, EguiContexts, EguiPlugin};
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
+        .add_plugins(EguiPlugin)
         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
         .add_systems(Update, ui_example_system)
@@ -81,6 +81,7 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
+| 0.11 | 0.21      |
 | 0.10 | 0.20      |
 | 0.9  | 0.17-0.19 |
 | 0.8  | 0.15-0.16 |
