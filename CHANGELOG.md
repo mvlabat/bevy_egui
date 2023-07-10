@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Update Bevy to 0.11 ([#188](https://github.com/mvlabat/bevy_egui/pull/188) by @Vrixyz).
-- Update Egui to 0.22 ([#190](https://github.com/mvlabat/bevy_egui/pull/190)).
+- Update Egui to 0.22 ([#184](https://github.com/mvlabat/bevy_egui/pull/184)).
 - Move sampler descriptor into `EguiSettings` ([#179](https://github.com/mvlabat/bevy_egui/pull/179) by @GlummixX).
 - Update GitHub Actions CI ([#183](https://github.com/mvlabat/bevy_egui/pull/183) by @striezel).
 
