@@ -174,7 +174,7 @@ fn ui_example_system(
         ui.separator();
 
         ui.heading("Central Panel");
-        ui.label("The central panel the region left after adding TopPanel's and SidePanel's");
+        ui.label("The central panel is the region left after adding TopPanels and SidePanels.");
         ui.label("It is often a great place for big things, like drawings:");
 
         ui.heading("Draw with your mouse to paint:");
