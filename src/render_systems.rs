@@ -1,6 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
     asset::HandleId,
@@ -20,10 +20,6 @@ use bevy::{
     },
     utils::HashMap,
 };
-
-/// Extracted Egui settings.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct ExtractedEguiSettings(pub EguiSettings);
 
 /// Corresponds to Egui's [`egui::TextureId`].
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -75,20 +71,6 @@ pub fn setup_new_windows_render_system(
             bevy::render::main_graph::node::CAMERA_DRIVER,
             egui_pass.to_string(),
         );
-    }
-}
-
-/// Extracts Egui context, render output, settings and application window sizes.
-pub fn extract_egui_render_data_system(
-    mut commands: Commands,
-    egui_settings: Extract<Res<EguiSettings>>,
-    contexts: Extract<Query<EguiContextQueryReadOnly>>,
-) {
-    commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
-    for context in contexts.iter() {
-        commands
-            .get_or_spawn(context.window_entity)
-            .insert((*context.window_size, context.render_output.clone()));
     }
 }
 
@@ -147,7 +129,7 @@ impl EguiTransform {
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
     window_sizes: Query<(Entity, &WindowSize)>,
-    egui_settings: Res<ExtractedEguiSettings>,
+    egui_settings: Res<EguiSettings>,
 
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
