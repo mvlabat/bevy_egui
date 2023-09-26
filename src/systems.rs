@@ -1,5 +1,8 @@
+//! Plugin systems.
+
 use crate::{
-    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
+    components::{EguiContext, EguiInput, EguiMousePosition, EguiSettings, WindowSize},
+    EguiContextQuery,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;

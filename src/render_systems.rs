@@ -1,6 +1,9 @@
+//! Plugin systems for the render app.
+
 use crate::{
+    components::{EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize},
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    EguiContextQueryReadOnly,
 };
 use bevy::{
     asset::HandleId,

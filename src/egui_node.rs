@@ -1,9 +1,9 @@
-use crate::{
-    render_systems::{
-        EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
-        ExtractedEguiSettings,
-    },
-    EguiRenderOutput, WindowSize,
+//! Egui render node
+
+use crate::components::{EguiRenderOutput, WindowSize};
+use crate::render_systems::{
+    EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
+    ExtractedEguiSettings,
 };
 use bevy::{
     core::cast_slice,
