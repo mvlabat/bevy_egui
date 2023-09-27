@@ -62,7 +62,7 @@ pub use egui;
 
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
-    render_systems::EguiTransforms,
+    render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
     systems::*,
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -83,6 +83,7 @@ use bevy::{
         Shader, SystemSet, With, Without,
     },
     render::{
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
         render_resource::{AddressMode, SamplerDescriptor, SpecializedRenderPipelines},
         texture::{Image, ImageSampler},
         ExtractSchedule, Render, RenderApp, RenderSet,
@@ -469,7 +470,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
 pub struct EguiMousePosition(pub Option<(Entity, egui::Vec2)>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource, Default)]
+#[derive(Clone, Resource, Default, ExtractResource)]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
@@ -577,6 +578,8 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
         world.insert_resource(TouchId::default());
+        app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
+        app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
 
         app.add_systems(
             PreStartup,
@@ -646,7 +649,6 @@ impl Plugin for EguiPlugin {
                     ExtractSchedule,
                     (
                         render_systems::extract_egui_render_data_system,
-                        render_systems::extract_egui_textures_system,
                         render_systems::setup_new_windows_render_system,
                     )
                         .into_configs(),
