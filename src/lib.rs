@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![allow(clippy::type_complexity)]
 
 //! This crate provides an [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
 //!
@@ -81,6 +82,7 @@ use bevy::{
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
         event::EventReader,
+        query::Or,
         system::{Res, ResMut},
     },
     prelude::Shader,
@@ -102,8 +104,8 @@ use bevy::{
     },
     input::InputSystem,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
-        SystemSet, With, Without,
+        Added, Bundle, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query,
+        Resource, SystemSet, With, Without,
     },
     reflect::Reflect,
     window::{PrimaryWindow, Window},
@@ -210,6 +212,11 @@ impl EguiSettings {
     }
 }
 
+/// Contains the texture [`Image`] to render to.
+#[cfg(feature = "render")]
+#[derive(Component, Clone, Debug, ExtractComponent)]
+pub struct EguiRenderToTexture(pub Handle<Image>);
+
 /// Is used for storing Egui context input..
 ///
 /// It gets reset during the [`EguiSet::ProcessInput`] system.
@@ -309,7 +316,7 @@ pub struct EguiOutput {
 }
 
 /// A component for storing `bevy_egui` context.
-#[derive(Clone, Component, Default)]
+#[derive(Clone, Component, Debug, Default)]
 #[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct EguiContext(egui::Context);
 
@@ -344,6 +351,12 @@ impl EguiContext {
     }
 }
 
+#[cfg(not(feature = "render"))]
+type EguiContextsFilter = With<Window>;
+
+#[cfg(feature = "render")]
+type EguiContextsFilter = Or<(With<Window>, With<EguiRenderToTexture>)>;
+
 #[derive(SystemParam)]
 /// A helper SystemParam that provides a way to get `[EguiContext]` with less boilerplate and
 /// combines a proxy interface to the [`EguiUserTextures`] resource.
@@ -356,7 +369,7 @@ pub struct EguiContexts<'w, 's> {
             &'static mut EguiContext,
             Option<&'static PrimaryWindow>,
         ),
-        With<Window>,
+        EguiContextsFilter,
     >,
     #[cfg(feature = "render")]
     user_textures: ResMut<'w, EguiUserTextures>,
@@ -366,7 +379,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
     /// Egui context of the primary window.
     #[must_use]
     pub fn ctx_mut(&mut self) -> &mut egui::Context {
-        let (_window, ctx, _primary_window) = self
+        let (_entity, ctx, _primary_window) = self
             .q
             .iter_mut()
             .find(|(_window_entity, _ctx, primary_window)| primary_window.is_some())
@@ -374,42 +387,40 @@ impl<'w, 's> EguiContexts<'w, 's> {
         ctx.into_inner().get_mut()
     }
 
-    /// Egui context for a specific window.
+    /// Egui context for a specific entity.
     #[must_use]
-    pub fn ctx_for_window_mut(&mut self, window: Entity) -> &mut egui::Context {
+    pub fn ctx_for_entity_mut(&mut self, entity: Entity) -> &mut egui::Context {
         let (_window, ctx, _primary_window) = self
             .q
             .iter_mut()
-            .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
-            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
+            .find(|(window_entity, _ctx, _primary_window)| *window_entity == entity)
+            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (entity {entity:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
         ctx.into_inner().get_mut()
     }
 
-    /// Fallible variant of [`EguiContexts::ctx_for_window_mut`].
+    /// Fallible variant of [`EguiContexts::ctx_for_entity_mut`].
     #[must_use]
     #[track_caller]
-    pub fn try_ctx_for_window_mut(&mut self, window: Entity) -> Option<&mut egui::Context> {
-        self.q
-            .iter_mut()
-            .find_map(|(window_entity, ctx, _primary_window)| {
-                if window_entity == window {
-                    Some(ctx.into_inner().get_mut())
-                } else {
-                    None
-                }
-            })
+    pub fn try_ctx_for_entity_mut(&mut self, entity: Entity) -> Option<&mut egui::Context> {
+        self.q.iter_mut().find_map(|(e, ctx, _primary_window)| {
+            if e == entity {
+                Some(ctx.into_inner().get_mut())
+            } else {
+                None
+            }
+        })
     }
 
     /// Allows to get multiple contexts at the same time. This function is useful when you want
-    /// to get multiple window contexts without using the `immutable_ctx` feature.
+    /// to get multiple contexts without using the `immutable_ctx` feature.
     #[track_caller]
-    pub fn ctx_for_windows_mut<const N: usize>(
+    pub fn ctx_for_entities_mut<const N: usize>(
         &mut self,
         ids: [Entity; N],
     ) -> Result<[&mut egui::Context; N], QueryEntityError> {
         self.q
             .get_many_mut(ids)
-            .map(|arr| arr.map(|(_window_entity, ctx, _primary_window)| ctx.into_inner().get_mut()))
+            .map(|arr| arr.map(|(_entity, ctx, _primary_window)| ctx.into_inner().get_mut()))
     }
 
     /// Egui context of the primary window.
@@ -424,15 +435,15 @@ impl<'w, 's> EguiContexts<'w, 's> {
     #[cfg(feature = "immutable_ctx")]
     #[must_use]
     pub fn ctx(&self) -> &egui::Context {
-        let (_window, ctx, _primary_window) = self
+        let (_entity, ctx, _primary_window) = self
             .q
             .iter()
-            .find(|(_window_entity, _ctx, primary_window)| primary_window.is_some())
+            .find(|(_entity, _ctx, primary_window)| primary_window.is_some())
             .expect("`EguiContexts::ctx` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
         ctx.get()
     }
 
-    /// Egui context for a specific window.
+    /// Egui context for a specific entity.
     ///
     /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
     /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
@@ -443,16 +454,16 @@ impl<'w, 's> EguiContexts<'w, 's> {
     /// instead of busy-waiting.
     #[must_use]
     #[cfg(feature = "immutable_ctx")]
-    pub fn ctx_for_window(&self, window: Entity) -> &egui::Context {
-        let (_window, ctx, _primary_window) = self
+    pub fn ctx_for_entity(&self, entity: Entity) -> &egui::Context {
+        let (_entity, ctx, _primary_window) = self
             .q
             .iter()
-            .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
-            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
+            .find(|(e, _ctx, _primary_window)| *e == entity)
+            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_entity` was called for an uninitialized context (entity {entity:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
         ctx.get()
     }
 
-    /// Fallible variant of [`EguiContexts::ctx_for_window_mut`].
+    /// Fallible variant of [`EguiContexts::ctx_for_entity_mut`].
     ///
     /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
     /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
@@ -464,16 +475,16 @@ impl<'w, 's> EguiContexts<'w, 's> {
     #[must_use]
     #[track_caller]
     #[cfg(feature = "immutable_ctx")]
-    pub fn try_ctx_for_window(&self, window: Entity) -> Option<&egui::Context> {
-        self.q
-            .iter()
-            .find_map(|(window_entity, ctx, _primary_window)| {
-                if window_entity == window {
+    pub fn try_ctx_for_entity(&self, entity: Entity) -> Option<&egui::Context> {
+        self.q.iter().find_map(
+            |(e, ctx, _primary_window)| {
+                if e == entity {
                     Some(ctx.get())
                 } else {
                     None
                 }
-            })
+            },
+        )
     }
 
     /// Can accept either a strong or a weak handle.
@@ -633,6 +644,8 @@ impl Plugin for EguiPlugin {
         #[cfg(feature = "render")]
         app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
         #[cfg(feature = "render")]
+        app.add_plugins(ExtractComponentPlugin::<EguiRenderToTexture>::default());
+        #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
         #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<WindowSize>::default());
@@ -642,9 +655,13 @@ impl Plugin for EguiPlugin {
         app.add_systems(
             PreStartup,
             (
-                setup_new_windows_system,
+                (
+                    #[cfg(feature = "render")]
+                    setup_new_render_to_texture_system,
+                    setup_new_windows_system,
+                ),
                 apply_deferred,
-                update_window_contexts_system,
+                update_contexts_system,
             )
                 .chain()
                 .in_set(EguiStartupSet::InitContexts),
@@ -652,9 +669,13 @@ impl Plugin for EguiPlugin {
         app.add_systems(
             PreUpdate,
             (
-                setup_new_windows_system,
+                (
+                    #[cfg(feature = "render")]
+                    setup_new_render_to_texture_system,
+                    setup_new_windows_system,
+                ),
                 apply_deferred,
-                update_window_contexts_system,
+                update_contexts_system,
             )
                 .chain()
                 .in_set(EguiSet::InitContexts),
@@ -730,10 +751,11 @@ impl Plugin for EguiPlugin {
 /// Queries all the Egui related components.
 #[derive(WorldQuery)]
 #[world_query(mutable)]
+#[non_exhaustive]
 pub struct EguiContextQuery {
-    /// Window entity.
-    pub window_entity: Entity,
-    /// Egui context associated with the window.
+    /// Context entity.
+    pub entity: Entity,
+    /// Egui context
     pub ctx: &'static mut EguiContext,
     /// Encapsulates [`egui::RawInput`].
     pub egui_input: &'static mut EguiInput,
@@ -743,8 +765,11 @@ pub struct EguiContextQuery {
     pub egui_output: &'static mut EguiOutput,
     /// Stores physical size of the window and its scale factor.
     pub window_size: &'static mut WindowSize,
-    /// [`Window`] component.
-    pub window: &'static mut Window,
+    /// [`Window`] component, if egui is rendering to the window.
+    pub window: Option<&'static mut Window>,
+    /// [`EguiRenderToTexture`] component, if egui is rendering to a texture.
+    #[cfg(feature = "render")]
+    pub render_to_tex: Option<&'static mut EguiRenderToTexture>,
 }
 
 /// Contains textures allocated and painted by Egui.
@@ -761,6 +786,29 @@ pub struct EguiManagedTexture {
     pub color_image: egui::ColorImage,
 }
 
+/// All required components of bevy_egui
+#[derive(Bundle, Default)]
+pub struct EguiRequiredComponentsBundle {
+    ctx: EguiContext,
+    input: EguiInput,
+    output: EguiOutput,
+    render_output: EguiRenderOutput,
+    window_size: WindowSize,
+}
+
+/// Adds bevy_egui components to newly created [`EguiRenderToTexture`]s.
+#[cfg(feature = "render")]
+pub fn setup_new_render_to_texture_system(
+    mut commands: Commands,
+    new_contexts: Query<Entity, (Added<EguiRenderToTexture>, Without<EguiContext>)>,
+) {
+    for entity in new_contexts.iter() {
+        commands
+            .entity(entity)
+            .insert(EguiRequiredComponentsBundle::default());
+    }
+}
+
 /// Adds bevy_egui components to newly created windows.
 pub fn setup_new_windows_system(
     mut commands: Commands,
@@ -768,12 +816,8 @@ pub fn setup_new_windows_system(
 ) {
     for window in new_windows.iter() {
         commands.entity(window).insert((
-            EguiContext::default(),
             EguiMousePosition::default(),
-            EguiRenderOutput::default(),
-            EguiInput::default(),
-            EguiOutput::default(),
-            WindowSize::default(),
+            EguiRequiredComponentsBundle::default(),
         ));
     }
 }
@@ -781,12 +825,15 @@ pub fn setup_new_windows_system(
 /// Updates textures painted by Egui.
 #[cfg(feature = "render")]
 pub fn update_egui_textures_system(
-    mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
+    mut egui_render_output: Query<
+        (Entity, &mut EguiRenderOutput),
+        Or<(With<Window>, With<EguiRenderToTexture>)>,
+    >,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     egui_settings: Res<EguiSettings>,
 ) {
-    for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
+    for (entity, mut egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (texture_id, image_delta) in set_textures {
@@ -799,8 +846,7 @@ pub fn update_egui_textures_system(
 
             if let Some(pos) = image_delta.pos {
                 // Partial update.
-                if let Some(managed_texture) =
-                    egui_managed_textures.get_mut(&(window_id, texture_id))
+                if let Some(managed_texture) = egui_managed_textures.get_mut(&(entity, texture_id))
                 {
                     // TODO: when bevy supports it, only update the part of the texture that changes.
                     update_image_rect(&mut managed_texture.color_image, pos, &color_image);
@@ -820,7 +866,7 @@ pub fn update_egui_textures_system(
                 );
                 let handle = image_assets.add(image);
                 egui_managed_textures.insert(
-                    (window_id, texture_id),
+                    (entity, texture_id),
                     EguiManagedTexture {
                         handle,
                         color_image,
@@ -842,16 +888,19 @@ pub fn update_egui_textures_system(
 #[cfg(feature = "render")]
 fn free_egui_textures_system(
     mut egui_user_textures: ResMut<EguiUserTextures>,
-    mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
+    mut egui_render_output: Query<
+        (Entity, &mut EguiRenderOutput),
+        Or<(With<Window>, With<EguiRenderToTexture>)>,
+    >,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
+    for (entity, mut egui_render_output) in egui_render_output.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
         for texture_id in free_textures {
             if let egui::TextureId::Managed(texture_id) = texture_id {
-                let managed_texture = egui_managed_textures.remove(&(window_id, texture_id));
+                let managed_texture = egui_managed_textures.remove(&(entity, texture_id));
                 if let Some(managed_texture) = managed_texture {
                     image_assets.remove(managed_texture.handle);
                 }
@@ -868,8 +917,8 @@ fn free_egui_textures_system(
 
 /// Egui's render graph config.
 pub struct RenderGraphConfig {
-    /// Target window.
-    pub window: Entity,
+    /// Target entity.
+    pub entity: Entity,
     /// Render pass name.
     pub egui_pass: Cow<'static, str>,
 }

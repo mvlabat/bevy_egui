@@ -37,6 +37,9 @@ required-features = ["render"]
 [[example]]
 name = "ui"
 required-features = ["render"]
+[[example]]
+name = "worldspace"
+required-features = ["render"]
 
 [dependencies]
 bevy = { version = "0.12", default-features = false, features = [
@@ -44,6 +47,7 @@ bevy = { version = "0.12", default-features = false, features = [
 ] }
 egui = { version = "0.24.0", default-features = false, features = ["bytemuck"] }
 webbrowser = { version = "0.8.2", optional = true }
+wgpu-types = "0.17"
 
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
 arboard = { version = "3.2.0", optional = true }

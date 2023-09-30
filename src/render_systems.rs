@@ -1,6 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    EguiManagedTextures, EguiRenderToTexture, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
     ecs::system::SystemParam,
@@ -74,20 +74,14 @@ impl ExtractedEguiTextures<'_> {
 
 /// Sets up the pipeline for newly created windows.
 pub fn setup_new_windows_render_system(
-    windows: Extract<Query<Entity, Added<Window>>>,
+    windows: Extract<Query<Entity, Or<(Added<Window>, Added<EguiRenderToTexture>)>>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    for window in windows.iter() {
-        let egui_pass = format!("egui-{}-{}", window.index(), window.generation());
-
-        let new_node = EguiNode::new(window);
-
-        render_graph.add_node(egui_pass.clone(), new_node);
-
-        render_graph.add_node_edge(
-            bevy::render::main_graph::node::CAMERA_DRIVER,
-            egui_pass.to_string(),
-        );
+    for entity in windows.iter() {
+        let node_name = format!("bevy_egui-{}-{}", entity.index(), entity.generation());
+        let new_node = EguiNode::new(entity);
+        let node_id = render_graph.add_node(node_name.clone(), new_node);
+        render_graph.add_node_edge(bevy::render::main_graph::node::CAMERA_DRIVER, node_id);
     }
 }
 
@@ -210,25 +204,41 @@ pub fn queue_bind_groups_system(
 #[derive(Resource)]
 pub struct EguiPipelines(pub HashMap<Entity, CachedRenderPipelineId>);
 
-/// Queue [`EguiPipeline`]s specialized on each window's swap chain texture format.
+/// Queue [`EguiPipeline`]s specialized on each render target's swap chain texture format.
 pub fn queue_pipelines_system(
     mut commands: Commands,
     pipeline_cache: Res<PipelineCache>,
     mut pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
     egui_pipeline: Res<EguiPipeline>,
     windows: Res<ExtractedWindows>,
+    render_to_tex: Query<(Entity, &EguiRenderToTexture)>,
+    imgs: Res<RenderAssets<Image>>,
 ) {
-    let pipelines = windows
-        .iter()
-        .filter_map(|(window_id, window)| {
-            let key = EguiPipelineKey {
-                texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
-            };
-            let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
+    // Add pipelines for `Window`
+    let mut egui_pipelines = EguiPipelines(
+        windows
+            .iter()
+            .filter_map(|(window_id, window)| {
+                let key = EguiPipelineKey {
+                    texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
+                };
+                let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
-            Some((*window_id, pipeline_id))
-        })
-        .collect();
+                Some((*window_id, pipeline_id))
+            })
+            .collect(),
+    );
 
-    commands.insert_resource(EguiPipelines(pipelines));
+    // Add pipelines for `EguiRenderToTexture`
+    for (entity, t) in render_to_tex.iter() {
+        let gpu_img = imgs.get(&t.0).unwrap();
+        let key = EguiPipelineKey {
+            texture_format: gpu_img.texture_format,
+        };
+        let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
+
+        egui_pipelines.0.insert(entity, pipeline_id);
+    }
+
+    commands.insert_resource(egui_pipelines);
 }
