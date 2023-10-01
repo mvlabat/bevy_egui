@@ -1,6 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures,
 };
 use bevy::{
     asset::HandleId,
@@ -87,7 +87,7 @@ pub fn extract_egui_render_data_system(
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     for context in contexts.iter() {
         commands
-            .get_or_spawn(context.window_entity)
+            .get_or_spawn(context.camera_entity)
             .insert((*context.window_size, context.render_output.clone()));
     }
 }
@@ -148,10 +148,8 @@ pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
     window_sizes: Query<(Entity, &WindowSize)>,
     egui_settings: Res<ExtractedEguiSettings>,
-
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
-
     egui_pipeline: Res<EguiPipeline>,
 ) {
     egui_transforms.buffer.clear();

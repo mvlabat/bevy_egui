@@ -1,17 +1,21 @@
-use crate::{
-    render_systems::{
-        EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
-        ExtractedEguiSettings,
-    },
-    EguiRenderOutput, WindowSize,
-};
+use crate::{render_systems::{
+    EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
+    ExtractedEguiSettings,
+}, EguiRenderOutput, ViewportSize};
 use bevy::{
+    asset::HandleUntyped,
     core::cast_slice,
-    ecs::world::{FromWorld, World},
-    prelude::{Entity, HandleUntyped, Resource},
+    ecs::{
+        entity::Entity,
+        query::QueryItem,
+        system::Resource,
+        world::{FromWorld, World},
+    },
+    math::Rect,
     reflect::TypeUuid,
     render::{
-        render_graph::{Node, NodeRunError, RenderGraphContext},
+        camera::{ExtractedCamera, Viewport},
+        render_graph::{Node, NodeRunError, RenderGraphContext, ViewNode},
         render_resource::{
             BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
             BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
@@ -24,7 +28,7 @@ use bevy::{
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::{Image, ImageSampler},
-        view::ExtractedWindows,
+        view::{ExtractedWindows, ViewTarget},
     },
 };
 
@@ -148,7 +152,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
             },
             depth_stencil: None,
             multisample: MultisampleState::default(),
-            push_constant_ranges: vec![],
+            push_constant_ranges: Vec::new(),
         }
     }
 }
@@ -162,7 +166,7 @@ struct DrawCommand {
 
 /// Egui render node.
 pub struct EguiNode {
-    window_entity: Entity,
+    camera_entity: Entity,
     vertex_data: Vec<u8>,
     vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
@@ -174,9 +178,9 @@ pub struct EguiNode {
 
 impl EguiNode {
     /// Constructs Egui render node.
-    pub fn new(window_entity: Entity) -> Self {
+    pub fn new(camera_entity: Entity) -> Self {
         EguiNode {
-            window_entity,
+            camera_entity,
             draw_commands: Vec::new(),
             vertex_data: Vec::new(),
             vertex_buffer_capacity: 0,
@@ -188,25 +192,39 @@ impl EguiNode {
     }
 }
 
-impl Node for EguiNode {
-    fn update(&mut self, world: &mut World) {
-        let mut window_sizes = world.query::<(&WindowSize, &mut EguiRenderOutput)>();
+impl ViewNode for EguiNode {
+    type ViewQuery = (&'static ExtractedCamera, &'static ViewTarget);
 
-        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity)
+    fn update(&mut self, world: &mut World) {
+        let mut queried_data = world.query::<(&ViewportSize, &mut EguiRenderOutput)>();
+
+        let Ok((camera, mut render_output)) = queried_data.get_mut(world, self.camera_entity)
         else {
             return;
         };
-        let window_size = *window_size;
-        let paint_jobs = std::mem::take(&mut render_output.paint_jobs);
-
         let egui_settings = &world.get_resource::<ExtractedEguiSettings>().unwrap();
 
-        let render_device = world.get_resource::<RenderDevice>().unwrap();
-
-        let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
-        if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
+        let (Some(physical_viewport_rect), Some(physical_viewport_size)) = (
+            camera.physical_viewport_rect(),
+            camera.physical_viewport_size(),
+        ) else {
+            return;
+        };
+        let Some(logical_viewport_rect) = camera.logical_viewport_rect().map(|rect| Rect {
+            min: rect.min / egui_settings.scale_factor,
+            max: rect.max / egui_settings.scale_factor,
+        }) else {
+            return;
+        };
+        if physical_viewport_size.x == 0 || physical_viewport_size.y == 0 {
             return;
         }
+        let camera_scale_factor = physical_viewport_rect.0.x as f32 / logical_viewport_rect.min.x;
+        let scale_factor = camera_scale_factor * egui_settings.scale_factor;
+
+        let paint_jobs = std::mem::take(&mut render_output.paint_jobs);
+
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
 
         let mut index_offset = 0;
 
@@ -233,11 +251,7 @@ impl Node for EguiNode {
                 (clip_rect.height() * scale_factor).round() as u32,
             );
 
-            if w < 1
-                || h < 1
-                || x >= window_size.physical_width as u32
-                || y >= window_size.physical_height as u32
-            {
+            if w < 1 || h < 1 || x >= physical_viewport_size.x || y >= physical_viewport_size.y {
                 continue;
             }
 
@@ -253,12 +267,12 @@ impl Node for EguiNode {
             index_offset += mesh.vertices.len() as u32;
 
             let texture_handle = match mesh.texture_id {
-                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.window_entity, id),
+                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.camera_entity, id),
                 egui::TextureId::User(id) => EguiTextureId::User(id),
             };
 
-            let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);
-            let y_viewport_clamp = (y + h).saturating_sub(window_size.physical_height as u32);
+            let x_viewport_clamp = (x + w).saturating_sub(physical_viewport_size.x);
+            let y_viewport_clamp = (y + h).saturating_sub(physical_viewport_size.y);
             self.draw_commands.push(DrawCommand {
                 vertices_count: mesh.indices.len(),
                 egui_texture: texture_handle,
@@ -303,6 +317,7 @@ impl Node for EguiNode {
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
+        (camera, view_target): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().0;
@@ -310,19 +325,19 @@ impl Node for EguiNode {
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
         let extracted_window =
-            if let Some(extracted_window) = extracted_windows.get(&self.window_entity) {
+            if let Some(extracted_window) = extracted_windows.get(&self.camera_entity) {
                 extracted_window
             } else {
-                return Ok(()); // No window
+                return Ok(());
             };
 
-        let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
-            extracted_window.swap_chain_texture_view.as_ref()
-        {
-            swap_chain_texture_view
-        } else {
-            return Ok(()); // No swapchain texture
-        };
+        // let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
+        //     extracted_window.swap_chain_texture_view.as_ref()
+        // {
+        //     swap_chain_texture_view
+        // } else {
+        //     return Ok(());
+        // };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
@@ -344,7 +359,7 @@ impl Node for EguiNode {
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("egui render pass"),
                     color_attachments: &[Some(RenderPassColorAttachment {
-                        view: swap_chain_texture_view,
+                        view: view_target.main_texture_view(),
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,
@@ -368,7 +383,7 @@ impl Node for EguiNode {
             IndexFormat::Uint32,
         );
 
-        let transform_buffer_offset = egui_transforms.offsets[&self.window_entity];
+        let transform_buffer_offset = egui_transforms.offsets[&self.camera_entity];
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
         render_pass.set_bind_group(0, transform_buffer_bind_group, &[transform_buffer_offset]);
 

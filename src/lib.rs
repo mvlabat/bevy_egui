@@ -60,6 +60,12 @@ pub mod egui_node;
 
 pub use egui;
 
+// TODO! IDEAS
+// 1. flag to make context consume mouse/keyboard input if hovered/used
+// 2. sorted contexts (useful when several contexts exist in the same window)
+// 3. writeable flag to (de/)activate context inputs
+// 4. we need some API to let users map inputs to contexts painted on 3d surface (see https://github.com/mvlabat/bevy_egui/issues/173)
+
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
     render_systems::EguiTransforms,
@@ -71,19 +77,19 @@ use bevy::{
     app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
+        component::Component,
+        entity::Entity,
         event::EventReader,
-        query::{QueryEntityError, WorldQuery},
-        schedule::apply_deferred,
-        system::{Res, ResMut, SystemParam},
+        query::{Added, Or, QueryEntityError, With, Without, WorldQuery},
+        schedule::{apply_deferred, IntoSystemConfigs, SystemSet},
+        system::{Commands, Query, Res, ResMut, Resource, SystemParam},
     },
     input::InputSystem,
     log,
-    prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
-        Shader, SystemSet, With, Without,
-    },
+    prelude::{Deref, DerefMut},
     render::{
-        render_resource::{AddressMode, SamplerDescriptor, SpecializedRenderPipelines},
+        camera::Camera,
+        render_resource::{AddressMode, SamplerDescriptor, Shader, SpecializedRenderPipelines},
         texture::{Image, ImageSampler},
         ExtractSchedule, Render, RenderApp, RenderSet,
     },
@@ -93,6 +99,7 @@ use bevy::{
 use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
+use bevy::render::camera::{NormalizedRenderTarget, RenderTarget};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -115,13 +122,15 @@ pub struct EguiSettings {
     ///     }
     /// }
     /// ```
-    pub scale_factor: f64,
+    // TODO! convert to a component
+    pub scale_factor: f32,
     /// Will be used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
     pub default_open_url_target: Option<String>,
     /// Used to change sampler properties
     /// Defaults to linear and clamped to edge
+    // TODO! convert to a component?
     pub sampler_descriptor: ImageSampler,
 }
 
@@ -308,6 +317,10 @@ impl EguiContext {
     }
 }
 
+/// Marker component to indicate a camera used for the main Egui context.
+#[derive(Component, Clone, Copy, Default)]
+pub struct MainEguiCamera;
+
 #[derive(SystemParam)]
 /// A helper SystemParam that provides a way to get `[EguiContext]` with less boilerplate and
 /// combines a proxy interface to the [`EguiUserTextures`] resource.
@@ -318,15 +331,15 @@ pub struct EguiContexts<'w, 's> {
         (
             Entity,
             &'static mut EguiContext,
-            Option<&'static PrimaryWindow>,
+            Option<&'static MainEguiCamera>,
         ),
-        With<Window>,
+        With<Camera>,
     >,
     user_textures: ResMut<'w, EguiUserTextures>,
 }
 
 impl<'w, 's> EguiContexts<'w, 's> {
-    /// Egui context of the primary window.
+    /// Egui context of the main camera.
     #[must_use]
     pub fn ctx_mut(&mut self) -> &mut egui::Context {
         let (_window, ctx, _primary_window) = self
@@ -511,13 +524,13 @@ impl EguiUserTextures {
 
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
 #[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
-pub struct WindowSize {
+pub struct ViewportSize {
     physical_width: f32,
     physical_height: f32,
     scale_factor: f32,
 }
 
-impl WindowSize {
+impl ViewportSize {
     fn new(physical_width: f32, physical_height: f32, scale_factor: f32) -> Self {
         Self {
             physical_width,
@@ -671,8 +684,8 @@ impl Plugin for EguiPlugin {
 #[derive(WorldQuery)]
 #[world_query(mutable)]
 pub struct EguiContextQuery {
-    /// Window entity.
-    pub window_entity: Entity,
+    /// Camera entity.
+    pub camera_entity: Entity,
     /// Egui context associated with the window.
     pub ctx: &'static mut EguiContext,
     /// Encapsulates [`egui::RawInput`].
@@ -682,9 +695,9 @@ pub struct EguiContextQuery {
     /// Encapsulates [`egui::PlatformOutput`].
     pub egui_output: &'static mut EguiOutput,
     /// Stores physical size of the window and its scale factor.
-    pub window_size: &'static mut WindowSize,
-    /// [`Window`] component.
-    pub window: &'static mut Window,
+    pub window_size: &'static mut ViewportSize,
+    /// [`Camera`] component.
+    pub camera: &'static mut Camera,
 }
 
 /// Contains textures allocated and painted by Egui.
@@ -711,7 +724,7 @@ pub fn setup_new_windows_system(
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),
-            WindowSize::default(),
+            ViewportSize::default(),
         ));
     }
 }
@@ -776,9 +789,9 @@ pub fn update_egui_textures_system(
     }
 }
 
-fn free_egui_textures_system(
+pub fn free_egui_textures_system(
     mut egui_user_textures: ResMut<EguiUserTextures>,
-    mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
+    mut egui_render_output: Query<(Entity, &mut EguiRenderOutput)>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
@@ -802,10 +815,13 @@ fn free_egui_textures_system(
     }
 }
 
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
+pub struct EguiImageTarget(pub Handle<Image>);
+
 /// Egui's render graph config.
 pub struct RenderGraphConfig {
     /// Target window.
-    pub window: Entity,
+    pub window: NormalizedRenderTarget,
     /// Render pass name.
     pub egui_pass: Cow<'static, str>,
 }

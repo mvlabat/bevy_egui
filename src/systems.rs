@@ -1,12 +1,13 @@
 use crate::{
-    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
+    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, ViewportSize,
 };
 #[cfg(feature = "open_url")]
 use bevy::log;
 use bevy::{
     ecs::{
-        event::EventWriter,
-        system::{Local, Res, ResMut, SystemParam},
+        entity::Entity,
+        event::{EventReader, EventWriter},
+        system::{Local, Query, Res, ResMut, Resource, SystemParam},
     },
     input::{
         keyboard::{KeyCode, KeyboardInput},
@@ -14,7 +15,7 @@ use bevy::{
         touch::TouchInput,
         ButtonState, Input,
     },
-    prelude::{Entity, EventReader, Query, Resource, Time},
+    time::Time,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
         WindowFocused,
@@ -22,7 +23,7 @@ use bevy::{
 };
 use std::marker::PhantomData;
 
-#[allow(missing_docs)]
+#[doc(hidden)]
 #[derive(SystemParam)]
 pub struct InputEvents<'w, 's> {
     pub ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
@@ -53,11 +54,11 @@ impl<'w, 's> InputEvents<'w, 's> {
     }
 }
 
-#[allow(missing_docs)]
+#[doc(hidden)]
 #[derive(Resource, Default)]
 pub struct TouchId(pub Option<u64>);
 
-#[allow(missing_docs)]
+#[doc(hidden)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
     #[cfg(feature = "manage_clipboard")]
@@ -67,7 +68,7 @@ pub struct InputResources<'w, 's> {
     _marker: PhantomData<&'s ()>,
 }
 
-#[allow(missing_docs)]
+#[doc(hidden)]
 #[derive(SystemParam)]
 pub struct ContextSystemParams<'w, 's> {
     pub focused_window: Local<'s, Option<Entity>>,
@@ -231,6 +232,7 @@ pub fn process_input_system(
         }
     }
 
+    // TODO! use the new Bevy API to get a focused window?
     if let Some(mut focused_input) = context_params
         .focused_window
         .as_ref()
@@ -369,11 +371,12 @@ pub fn process_input_system(
 /// Initialises Egui contexts (for multiple windows).
 pub fn update_window_contexts_system(
     mut context_params: ContextSystemParams,
+
     egui_settings: Res<EguiSettings>,
 ) {
     for mut context in context_params.contexts.iter_mut() {
-        let new_window_size = WindowSize::new(
-            context.window.physical_width() as f32,
+        let new_window_size = ViewportSize::new(
+            context.camera.physical_width() as f32,
             context.window.physical_height() as f32,
             context.window.scale_factor() as f32,
         );
@@ -438,21 +441,22 @@ pub fn process_output_system(
             egui_clipboard.set_contents(&platform_output.copied_text);
         }
 
-        let mut set_icon = || {
-            context.window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
-                .unwrap_or(bevy::window::CursorIcon::Default);
-        };
+        // TODO! update cursors
+        // let mut set_icon = || {
+        //     context.window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
+        //         .unwrap_or(bevy::window::CursorIcon::Default);
+        // };
 
-        #[cfg(windows)]
-        {
-            let last_cursor_icon = last_cursor_icon.entry(context.window_entity).or_default();
-            if *last_cursor_icon != platform_output.cursor_icon {
-                set_icon();
-                *last_cursor_icon = platform_output.cursor_icon;
-            }
-        }
-        #[cfg(not(windows))]
-        set_icon();
+        // #[cfg(windows)]
+        // {
+        //     let last_cursor_icon = last_cursor_icon.entry(context.window_entity).or_default();
+        //     if *last_cursor_icon != platform_output.cursor_icon {
+        //         set_icon();
+        //         *last_cursor_icon = platform_output.cursor_icon;
+        //     }
+        // }
+        // #[cfg(not(windows))]
+        // set_icon();
 
         if repaint_after.is_zero() {
             event.send(RequestRedraw)
