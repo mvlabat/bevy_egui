@@ -294,13 +294,13 @@ pub fn process_input_system(
                 },
                 pos: egui::pos2(touch_position.0, touch_position.1),
                 force: match touch.force {
-                    Some(bevy::input::touch::ForceTouch::Normalized(force)) => force as f32,
+                    Some(bevy::input::touch::ForceTouch::Normalized(force)) => Some(force as f32),
                     Some(bevy::input::touch::ForceTouch::Calibrated {
                         force,
                         max_possible_force,
                         ..
-                    }) => (force / max_possible_force) as f32,
-                    None => 0_f32,
+                    }) => Some((force / max_possible_force) as f32),
+                    None => None,
                 },
             });
 
