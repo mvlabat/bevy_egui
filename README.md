@@ -8,7 +8,7 @@
 [![Downloads](https://img.shields.io/crates/d/bevy_egui.svg)](https://crates.io/crates/bevy_egui)
 [![Rust](https://github.com/mvlabat/bevy_egui/workflows/CI/badge.svg)](https://github.com/mvlabat/bevy_egui/actions)
 
-This crate provides a [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+This crate provides an [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
 
 **Trying out:**
 
@@ -40,7 +40,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.11"
-bevy_egui = "0.21"
+bevy_egui = "0.22"
 ```
 
 ```rust
@@ -81,7 +81,7 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
-| 0.11 | 0.21      |
+| 0.11 | 0.21-0.22 |
 | 0.10 | 0.20      |
 | 0.9  | 0.17-0.19 |
 | 0.8  | 0.15-0.16 |
