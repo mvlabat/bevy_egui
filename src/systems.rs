@@ -247,9 +247,12 @@ pub fn process_input_system(
         match ev {
             Ime::Preedit {
                 window,
-                value: _,
+                value,
                 cursor: _,
-            } => push_ime_event(&mut context_params, window, egui::Event::CompositionStart),
+            } => {
+                push_ime_event(&mut context_params, window, egui::Event::CompositionStart);
+                push_ime_event(&mut context_params, window, egui::Event::CompositionUpdate(value.clone()));
+            },
             Ime::Commit { window, value } => push_ime_event(
                 &mut context_params,
                 window,
