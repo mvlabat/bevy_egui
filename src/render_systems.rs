@@ -1,6 +1,6 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
     asset::HandleId,
@@ -93,20 +93,6 @@ pub fn setup_new_windows_render_system(
     }
 }
 
-/// Extracts Egui context, render output, settings and application window sizes.
-pub fn extract_egui_render_data_system(
-    mut commands: Commands,
-    egui_settings: Extract<Res<EguiSettings>>,
-    contexts: Extract<Query<EguiContextQueryReadOnly>>,
-) {
-    commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
-    for context in contexts.iter() {
-        commands
-            .get_or_spawn(context.window_entity)
-            .insert((*context.window_size, context.render_output.clone()));
-    }
-}
-
 /// Describes the transform buffer.
 #[derive(Resource, Default)]
 pub struct EguiTransforms {
@@ -145,7 +131,7 @@ impl EguiTransform {
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
     window_sizes: Query<(Entity, &WindowSize)>,
-    egui_settings: Res<ExtractedEguiSettings>,
+    egui_settings: Res<EguiSettings>,
 
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
