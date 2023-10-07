@@ -62,7 +62,7 @@ pub use egui;
 
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
-    render_systems::EguiTransforms,
+    render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
     systems::*,
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -84,6 +84,8 @@ use bevy::{
     },
     reflect::Reflect,
     render::{
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
         render_resource::{AddressMode, SamplerDescriptor, SpecializedRenderPipelines},
         texture::{Image, ImageSampler},
         ExtractSchedule, Render, RenderApp, RenderSet,
@@ -101,7 +103,7 @@ use thread_local::ThreadLocal;
 pub struct EguiPlugin;
 
 /// A resource for storing global UI settings.
-#[derive(Clone, Debug, Resource, Reflect)]
+#[derive(Clone, Debug, Resource, ExtractResource, Reflect)]
 pub struct EguiSettings {
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
@@ -257,7 +259,7 @@ impl EguiClipboard {
 }
 
 /// Is used for storing Egui shapes and textures delta.
-#[derive(Component, Clone, Default, Debug, Resource)]
+#[derive(Component, Clone, Default, Debug, ExtractComponent)]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
@@ -276,7 +278,7 @@ pub struct EguiOutput {
 }
 
 /// A component for storing `bevy_egui` context.
-#[derive(Clone, Component, Default)]
+#[derive(Clone, Component, Default, ExtractComponent)]
 pub struct EguiContext(egui::Context);
 
 impl EguiContext {
@@ -471,7 +473,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
 pub struct EguiMousePosition(pub Option<(Entity, egui::Vec2)>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource, Default)]
+#[derive(Clone, Resource, Default, ExtractResource)]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
@@ -512,7 +514,7 @@ impl EguiUserTextures {
 }
 
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
-#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq, ExtractComponent)]
 pub struct WindowSize {
     physical_width: f32,
     physical_height: f32,
@@ -581,6 +583,12 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
         world.insert_resource(TouchId::default());
+        app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
+        app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
+        app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
+        app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
+        app.add_plugins(ExtractComponentPlugin::<WindowSize>::default());
+        app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
 
         app.add_systems(
             PreStartup,
@@ -648,12 +656,7 @@ impl Plugin for EguiPlugin {
                 .init_resource::<EguiTransforms>()
                 .add_systems(
                     ExtractSchedule,
-                    (
-                        render_systems::extract_egui_render_data_system,
-                        render_systems::extract_egui_textures_system,
-                        render_systems::setup_new_windows_render_system,
-                    )
-                        .into_configs(),
+                    render_systems::setup_new_windows_render_system,
                 )
                 .add_systems(
                     Render,
