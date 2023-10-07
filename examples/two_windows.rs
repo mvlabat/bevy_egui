@@ -84,7 +84,10 @@ fn ui_first_window_system(
                 ui.text_edit_singleline(&mut shared_ui_state.shared_input);
             });
 
-            ui.add(egui::widgets::Image::new(bevy_texture_id, [256.0, 256.0]));
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                bevy_texture_id,
+                [256.0, 256.0],
+            )));
         });
 }
 
@@ -111,6 +114,9 @@ fn ui_second_window_system(
                 ui.text_edit_singleline(&mut shared_ui_state.shared_input);
             });
 
-            ui.add(egui::widgets::Image::new(bevy_texture_id, [256.0, 256.0]));
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                bevy_texture_id,
+                [256.0, 256.0],
+            )));
         });
 }

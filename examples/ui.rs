@@ -118,10 +118,10 @@ fn ui_example_system(
                 ui.text_edit_singleline(&mut ui_state.label);
             });
 
-            ui.add(egui::widgets::Image::new(
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                 egui_texture_handle.id(),
                 egui_texture_handle.size_vec2(),
-            ));
+            )));
 
             ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
             if ui.button("Increment").clicked() {
@@ -135,10 +135,10 @@ fn ui_example_system(
                 remove = ui.button("Remove").clicked();
             });
 
-            ui.add(egui::widgets::Image::new(
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                 *rendered_texture_id,
                 [256.0, 256.0],
-            ));
+            )));
 
             ui.allocate_space(egui::Vec2::new(1.0, 10.0));
             ui.checkbox(&mut ui_state.is_window_open, "Window Is Open");
