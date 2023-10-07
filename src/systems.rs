@@ -16,8 +16,8 @@ use bevy::{
     },
     prelude::{Entity, EventReader, Query, Resource, Time},
     window::{
-        CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
-        WindowFocused,
+        CursorEntered, CursorLeft, CursorMoved, Ime, ReceivedCharacter, RequestRedraw,
+        WindowCreated, WindowFocused,
     },
 };
 use std::marker::PhantomData;
@@ -35,6 +35,7 @@ pub struct InputEvents<'w, 's> {
     pub ev_window_focused: EventReader<'w, 's, WindowFocused>,
     pub ev_window_created: EventReader<'w, 's, WindowCreated>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
+    pub ev_ime_input: EventReader<'w, 's, Ime>,
 }
 
 impl<'w, 's> InputEvents<'w, 's> {
@@ -50,6 +51,7 @@ impl<'w, 's> InputEvents<'w, 's> {
         self.ev_keyboard_input.iter().last();
         self.ev_window_focused.iter().last();
         self.ev_window_created.iter().last();
+        self.ev_ime_input.iter().last();
     }
 }
 
@@ -228,6 +230,42 @@ pub fn process_input_system(
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
             }
+        }
+    }
+
+    fn push_ime_event(params: &mut ContextSystemParams, window: &Entity, event: egui::Event) {
+        params
+            .contexts
+            .get_mut(*window)
+            .unwrap()
+            .egui_input
+            .events
+            .push(event);
+    }
+
+    for ev in input_events.ev_ime_input.iter() {
+        match ev {
+            Ime::Preedit {
+                window,
+                value,
+                cursor: _,
+            } => {
+                push_ime_event(&mut context_params, window, egui::Event::CompositionStart);
+                push_ime_event(&mut context_params, window, egui::Event::CompositionUpdate(value.clone()));
+            },
+            Ime::Commit { window, value } => push_ime_event(
+                &mut context_params,
+                window,
+                egui::Event::CompositionEnd(value.clone()),
+            ),
+            Ime::Enabled { window } => {
+                push_ime_event(&mut context_params, window, egui::Event::CompositionStart)
+            }
+            Ime::Disabled { window } => push_ime_event(
+                &mut context_params,
+                window,
+                egui::Event::CompositionEnd("".to_string()),
+            ),
         }
     }
 
