@@ -62,7 +62,7 @@ pub use egui;
 
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
-    render_systems::EguiTransforms,
+    render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
     systems::*,
 };
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -471,7 +471,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
 pub struct EguiMousePosition(pub Option<(Entity, egui::Vec2)>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource, Default)]
+#[derive(Clone, Resource, Default, ExtractResource)]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
@@ -579,6 +579,8 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
         world.insert_resource(TouchId::default());
+        app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
+        app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
         app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
         app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
         app.add_plugins(ExtractComponentPlugin::<WindowSize>::default());
@@ -650,11 +652,7 @@ impl Plugin for EguiPlugin {
                 .init_resource::<EguiTransforms>()
                 .add_systems(
                     ExtractSchedule,
-                    (
-                        render_systems::setup_new_windows_render_system,
-                        render_systems::extract_egui_textures_system,
-                    )
-                        .into_configs(),
+                    render_systems::setup_new_windows_render_system,
                 )
                 .add_systems(
                     Render,
