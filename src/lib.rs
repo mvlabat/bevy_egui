@@ -83,6 +83,8 @@ use bevy::{
         Shader, SystemSet, With, Without,
     },
     render::{
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
         render_resource::{AddressMode, SamplerDescriptor, SpecializedRenderPipelines},
         texture::{Image, ImageSampler},
         ExtractSchedule, Render, RenderApp, RenderSet,
@@ -100,7 +102,7 @@ use thread_local::ThreadLocal;
 pub struct EguiPlugin;
 
 /// A resource for storing global UI settings.
-#[derive(Clone, Debug, Resource)]
+#[derive(Clone, Debug, Resource, ExtractResource)]
 pub struct EguiSettings {
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
@@ -255,7 +257,7 @@ impl EguiClipboard {
 }
 
 /// Is used for storing Egui shapes and textures delta.
-#[derive(Component, Clone, Default, Debug, Resource)]
+#[derive(Component, Clone, Default, Debug, ExtractComponent)]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
@@ -274,7 +276,7 @@ pub struct EguiOutput {
 }
 
 /// A component for storing `bevy_egui` context.
-#[derive(Clone, Component, Default)]
+#[derive(Clone, Component, Default, ExtractComponent)]
 pub struct EguiContext(egui::Context);
 
 impl EguiContext {
@@ -510,7 +512,7 @@ impl EguiUserTextures {
 }
 
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
-#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq, ExtractComponent)]
 pub struct WindowSize {
     physical_width: f32,
     physical_height: f32,
@@ -577,6 +579,10 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
         world.insert_resource(TouchId::default());
+        app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
+        app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
+        app.add_plugins(ExtractComponentPlugin::<WindowSize>::default());
+        app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
 
         app.add_systems(
             PreStartup,
@@ -645,9 +651,8 @@ impl Plugin for EguiPlugin {
                 .add_systems(
                     ExtractSchedule,
                     (
-                        render_systems::extract_egui_render_data_system,
-                        render_systems::extract_egui_textures_system,
                         render_systems::setup_new_windows_render_system,
+                        render_systems::extract_egui_textures_system,
                     )
                         .into_configs(),
                 )
