@@ -82,6 +82,7 @@ use bevy::{
         Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
         Shader, SystemSet, With, Without,
     },
+    reflect::Reflect,
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
         extract_resource::{ExtractResource, ExtractResourcePlugin},
@@ -102,7 +103,7 @@ use thread_local::ThreadLocal;
 pub struct EguiPlugin;
 
 /// A resource for storing global UI settings.
-#[derive(Clone, Debug, Resource, ExtractResource)]
+#[derive(Clone, Debug, Resource, ExtractResource, Reflect)]
 pub struct EguiSettings {
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
@@ -124,6 +125,7 @@ pub struct EguiSettings {
     pub default_open_url_target: Option<String>,
     /// Used to change sampler properties
     /// Defaults to linear and clamped to edge
+    #[reflect(ignore)]
     pub sampler_descriptor: ImageSampler,
 }
 
@@ -571,6 +573,8 @@ pub enum EguiSet {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<EguiSettings>();
+
         let world = &mut app.world;
         world.init_resource::<EguiSettings>();
         world.init_resource::<EguiManagedTextures>();
