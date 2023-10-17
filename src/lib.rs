@@ -79,8 +79,8 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        Added, AssetId, AssetServer, Commands, Component, Deref, DerefMut, Entity,
-        IntoSystemConfigs, Query, Resource, Shader, SystemSet, With, Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
+        Shader, SystemSet, With, Without,
     },
     reflect::Reflect,
     render::{
@@ -789,7 +789,6 @@ fn free_egui_textures_system(
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
-    asset_server: Res<AssetServer>,
 ) {
     for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
@@ -805,8 +804,13 @@ fn free_egui_textures_system(
 
     for image_event in image_events.read() {
         if let AssetEvent::Removed { id } = image_event {
-            if let Some(id) = asset_server.get_id_handle(*id) {
-                egui_user_textures.remove_image(&id);
+            if let Some(handle) = egui_user_textures
+                .textures
+                .keys()
+                .find(|handle| handle.id() == *id)
+                .cloned()
+            {
+                egui_user_textures.remove_image(&handle);
             };
         }
     }
