@@ -79,8 +79,8 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        Added, AssetServer, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query,
-        Resource, Shader, SystemSet, With, Without,
+        Added, AssetId, AssetServer, Commands, Component, Deref, DerefMut, Entity,
+        IntoSystemConfigs, Query, Resource, Shader, SystemSet, With, Without,
     },
     reflect::Reflect,
     render::{
@@ -807,7 +807,7 @@ fn free_egui_textures_system(
         if let AssetEvent::Removed { id } = image_event {
             if let Some(id) = asset_server.get_id_handle(*id) {
                 egui_user_textures.remove_image(&id);
-            }
+            };
         }
     }
 }
@@ -825,7 +825,10 @@ mod tests {
     use super::*;
     use bevy::{
         app::PluginGroup,
-        render::{settings::{WgpuSettings, RenderCreation}, RenderPlugin},
+        render::{
+            settings::{RenderCreation, WgpuSettings},
+            RenderPlugin,
+        },
         winit::WinitPlugin,
         DefaultPlugins,
     };

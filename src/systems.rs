@@ -15,10 +15,11 @@ use bevy::{
         ButtonState, Input,
     },
     prelude::{Entity, EventReader, Query, Resource, Time},
+    time::Real,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
         WindowFocused,
-    }, time::Real,
+    },
 };
 use std::marker::PhantomData;
 

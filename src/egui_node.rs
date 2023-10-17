@@ -7,7 +7,7 @@ use crate::{
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
-    prelude::{Entity, Resource, Handle},
+    prelude::{Entity, Handle, Resource},
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
@@ -27,8 +27,7 @@ use bevy::{
 };
 
 /// Egui shader.
-pub const EGUI_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(9898276442290979394);
+pub const EGUI_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(9898276442290979394);
 
 /// Egui render pipeline.
 #[derive(Resource)]
