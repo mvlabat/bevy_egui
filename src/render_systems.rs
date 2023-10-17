@@ -184,8 +184,8 @@ pub fn queue_bind_groups_system(
 ) {
     let bind_groups = egui_textures
         .handles()
-        .filter_map(|(texture, handle_id)| {
-            let gpu_image = gpu_images.get(handle_id)?;
+        .filter_map(|(texture, asset_id)| {
+            let gpu_image = gpu_images.get(asset_id)?;
             let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
                 label: None,
                 layout: &egui_pipeline.texture_bind_group_layout,
