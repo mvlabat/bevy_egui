@@ -7,8 +7,7 @@ use crate::{
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
-    prelude::{Entity, HandleUntyped, Resource},
-    reflect::TypeUuid,
+    prelude::{Entity, Resource, Handle},
     render::{
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
@@ -28,8 +27,8 @@ use bevy::{
 };
 
 /// Egui shader.
-pub const EGUI_SHADER_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9898276442290979394);
+pub const EGUI_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(9898276442290979394);
 
 /// Egui render pipeline.
 #[derive(Resource)]
@@ -107,7 +106,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
                 self.texture_bind_group_layout.clone(),
             ],
             vertex: VertexState {
-                shader: EGUI_SHADER_HANDLE.typed(),
+                shader: EGUI_SHADER_HANDLE,
                 shader_defs: Vec::new(),
                 entry_point: "vs_main".into(),
                 buffers: vec![VertexBufferLayout::from_vertex_formats(
@@ -120,7 +119,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
                 )],
             },
             fragment: Some(FragmentState {
-                shader: EGUI_SHADER_HANDLE.typed(),
+                shader: EGUI_SHADER_HANDLE,
                 shader_defs: Vec::new(),
                 entry_point: "fs_main".into(),
                 targets: vec![Some(ColorTargetState {

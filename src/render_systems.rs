@@ -3,7 +3,6 @@ use crate::{
     EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
-    asset::HandleId,
     ecs::system::SystemParam,
     prelude::*,
     render::{
@@ -58,7 +57,7 @@ pub struct ExtractedEguiTextures<'w> {
 
 impl ExtractedEguiTextures<'_> {
     /// Returns an iterator over all textures (both Egui and Bevy managed).
-    pub fn handles(&self) -> impl Iterator<Item = (EguiTextureId, HandleId)> + '_ {
+    pub fn handles(&self) -> impl Iterator<Item = (EguiTextureId, AssetId<Image>)> + '_ {
         self.egui_textures
             .0
             .iter()
@@ -186,7 +185,7 @@ pub fn queue_bind_groups_system(
     let bind_groups = egui_textures
         .handles()
         .filter_map(|(texture, handle_id)| {
-            let gpu_image = gpu_images.get(&Handle::weak(handle_id))?;
+            let gpu_image = gpu_images.get(handle_id)?;
             let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
                 label: None,
                 layout: &egui_pipeline.texture_bind_group_layout,
