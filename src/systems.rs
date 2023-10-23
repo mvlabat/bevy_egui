@@ -40,16 +40,16 @@ pub struct InputEvents<'w, 's> {
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
-        self.ev_touch.iter().last();
-        self.ev_cursor_entered.iter().last();
-        self.ev_cursor_left.iter().last();
-        self.ev_cursor.iter().last();
-        self.ev_mouse_button_input.iter().last();
-        self.ev_mouse_wheel.iter().last();
-        self.ev_received_character.iter().last();
-        self.ev_keyboard_input.iter().last();
-        self.ev_window_focused.iter().last();
-        self.ev_window_created.iter().last();
+        self.ev_touch.read().last();
+        self.ev_cursor_entered.read().last();
+        self.ev_cursor_left.read().last();
+        self.ev_cursor.read().last();
+        self.ev_mouse_button_input.read().last();
+        self.ev_mouse_wheel.read().last();
+        self.ev_received_character.read().last();
+        self.ev_keyboard_input.read().last();
+        self.ev_window_focused.read().last();
+        self.ev_window_created.read().last();
     }
 }
 
@@ -88,11 +88,11 @@ pub fn process_input_system(
 ) {
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
-    if let Some(event) = input_events.ev_window_created.iter().last() {
+    if let Some(event) = input_events.ev_window_created.read().last() {
         *context_params.focused_window = Some(event.window);
     }
 
-    for event in input_events.ev_window_focused.iter() {
+    for event in input_events.ev_window_focused.read() {
         *context_params.focused_window = if event.focused {
             Some(event.window)
         } else {
@@ -127,12 +127,12 @@ pub fn process_input_system(
     };
 
     let mut cursor_left_window = None;
-    if let Some(cursor_left) = input_events.ev_cursor_left.iter().last() {
+    if let Some(cursor_left) = input_events.ev_cursor_left.read().last() {
         cursor_left_window = Some(cursor_left.window);
     }
     let cursor_entered_window = input_events
         .ev_cursor_entered
-        .iter()
+        .read()
         .last()
         .map(|event| event.window);
 
@@ -147,7 +147,7 @@ pub fn process_input_system(
             None
         };
 
-    if let Some(cursor_moved) = input_events.ev_cursor.iter().last() {
+    if let Some(cursor_moved) = input_events.ev_cursor.read().last() {
         // If we've left the window, it's unlikely that we've moved the cursor back to the same
         // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
         // that has been left.
@@ -176,7 +176,7 @@ pub fn process_input_system(
         if let Ok(mut context) = context_params.contexts.get_mut(window_id) {
             let events = &mut context.egui_input.events;
 
-            for mouse_button_event in input_events.ev_mouse_button_input.iter() {
+            for mouse_button_event in input_events.ev_mouse_button_input.read() {
                 let button = match mouse_button_event.button {
                     MouseButton::Left => Some(egui::PointerButton::Primary),
                     MouseButton::Right => Some(egui::PointerButton::Secondary),
@@ -197,7 +197,7 @@ pub fn process_input_system(
                 }
             }
 
-            for event in input_events.ev_mouse_wheel.iter() {
+            for event in input_events.ev_mouse_wheel.read() {
                 let mut delta = egui::vec2(event.x, event.y);
                 if let MouseScrollUnit::Line = event.unit {
                     // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
@@ -220,7 +220,7 @@ pub fn process_input_system(
     }
 
     if !command || cfg!(target_os = "windows") && ctrl && alt {
-        for event in input_events.ev_received_character.iter() {
+        for event in input_events.ev_received_character.read() {
             if !event.char.is_control() {
                 let mut context = context_params.contexts.get_mut(event.window).unwrap();
                 context
@@ -242,7 +242,7 @@ pub fn process_input_system(
             }
         })
     {
-        for ev in input_events.ev_keyboard_input.iter() {
+        for ev in input_events.ev_keyboard_input.read() {
             if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
                 let pressed = match ev.state {
                     ButtonState::Pressed => true,
@@ -278,7 +278,7 @@ pub fn process_input_system(
             }
         }
 
-        for touch in input_events.ev_touch.iter() {
+        for touch in input_events.ev_touch.read() {
             let scale_factor = egui_settings.scale_factor as f32;
             let touch_position: (f32, f32) = (touch.position / scale_factor).into();
 
@@ -358,7 +358,7 @@ pub fn process_input_system(
     }
 
     for mut context in context_params.contexts.iter_mut() {
-        context.egui_input.predicted_dt = time.raw_delta_seconds();
+        context.egui_input.predicted_dt = time.delta_seconds();
     }
 
     // In some cases, we may skip certain events. For example, we ignore `ReceivedCharacter` events

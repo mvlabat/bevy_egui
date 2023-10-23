@@ -802,9 +802,9 @@ fn free_egui_textures_system(
         }
     }
 
-    for image_event in image_events.iter() {
-        if let AssetEvent::Removed { handle } = image_event {
-            egui_user_textures.remove_image(handle);
+    for image_event in image_events.read() {
+        if let AssetEvent::Removed { id } = image_event {
+            egui_user_textures.remove_image(&Handle::<Image>::Weak(*id));
         }
     }
 }
@@ -838,10 +838,12 @@ mod tests {
             .add_plugins(
                 DefaultPlugins
                     .set(RenderPlugin {
-                        wgpu_settings: WgpuSettings {
-                            backends: None,
-                            ..Default::default()
-                        },
+                        render_creation: bevy::render::settings::RenderCreation::Automatic(
+                            WgpuSettings {
+                                backends: None,
+                                ..Default::default()
+                            },
+                        ),
                     })
                     .build()
                     .disable::<WinitPlugin>(),
