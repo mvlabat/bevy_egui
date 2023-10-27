@@ -440,7 +440,7 @@ pub(crate) fn color_image_as_bevy_image(
         .collect();
 
     Image {
-        sampler_descriptor,
+        sampler: sampler_descriptor,
         ..Image::new(
             Extent3d {
                 width: egui_image.width() as u32,

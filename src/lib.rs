@@ -86,8 +86,8 @@ use bevy::{
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
         extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_resource::{AddressMode, SamplerDescriptor, SpecializedRenderPipelines},
-        texture::{Image, ImageSampler},
+        render_resource::SpecializedRenderPipelines,
+        texture::{Image, ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
         ExtractSchedule, Render, RenderApp, RenderSet,
     },
     utils::HashMap,
@@ -144,7 +144,7 @@ fn compare_descriptors(a: &ImageSampler, b: &ImageSampler) -> bool {
     match (a, b) {
         (ImageSampler::Default, ImageSampler::Default) => true,
         (ImageSampler::Descriptor(descriptor_a), ImageSampler::Descriptor(descriptor_b)) => {
-            descriptor_a == descriptor_b
+            descriptor_a.label == descriptor_b.label
         }
         _ => false,
     }
@@ -156,10 +156,10 @@ impl Default for EguiSettings {
             scale_factor: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
-            sampler_descriptor: ImageSampler::Descriptor(SamplerDescriptor {
-                address_mode_u: AddressMode::ClampToEdge,
-                address_mode_v: AddressMode::ClampToEdge,
-                ..ImageSampler::linear_descriptor()
+            sampler_descriptor: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                address_mode_u: ImageAddressMode::ClampToEdge,
+                address_mode_v: ImageAddressMode::ClampToEdge,
+                ..ImageSamplerDescriptor::linear()
             }),
         }
     }
@@ -168,10 +168,10 @@ impl Default for EguiSettings {
 impl EguiSettings {
     /// Use nearest descriptor instead of linear.
     pub fn use_nearest_descriptor(&mut self) {
-        self.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            ..ImageSampler::nearest_descriptor()
+        self.sampler_descriptor = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::ClampToEdge,
+            address_mode_v: ImageAddressMode::ClampToEdge,
+            ..ImageSamplerDescriptor::linear()
         })
     }
     /// Use default image sampler, derived from the [`ImagePlugin`](bevy::render::texture::ImagePlugin) setup.
