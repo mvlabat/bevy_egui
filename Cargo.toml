@@ -22,7 +22,7 @@ default_fonts = ["egui/default_fonts"]
 serde = ["egui/serde"]
 
 [dependencies]
-bevy = { version = "0.11", default-features = false, features = [
+bevy = { version = "0.12", default-features = false, features = [
     "bevy_render",
     "bevy_asset",
 ] }
@@ -36,13 +36,9 @@ thread_local = { version = "1.1.0", optional = true }
 [dev-dependencies]
 once_cell = "1.16.0"
 version-sync = "0.9.4"
-bevy = { version = "0.11", default-features = false, features = [
+bevy = { version = "0.12", default-features = false, features = [
     "x11",
     "png",
     "bevy_pbr",
     "bevy_core_pipeline",
-    # TODO: remove the following features after https://github.com/bevyengine/bevy/pull/9073 is released:
-    "ktx2",
-    "tonemapping_luts",
-    "zstd",
 ] }
