@@ -93,7 +93,7 @@ use bevy::{
     utils::HashMap,
     window::{PrimaryWindow, Window},
 };
-use std::{borrow::Cow, mem::discriminant};
+use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
@@ -143,18 +143,8 @@ impl PartialEq for EguiSettings {
 fn compare_descriptors(a: &ImageSampler, b: &ImageSampler) -> bool {
     match (a, b) {
         (ImageSampler::Default, ImageSampler::Default) => true,
-        (ImageSampler::Descriptor(a), ImageSampler::Descriptor(b)) => {
-            a.label == b.label
-                && discriminant(&a.address_mode_u) == discriminant(&b.address_mode_u)
-                && discriminant(&a.address_mode_v) == discriminant(&b.address_mode_v)
-                && discriminant(&a.address_mode_w) == discriminant(&b.address_mode_w)
-                && discriminant(&a.mag_filter) == discriminant(&b.mag_filter)
-                && discriminant(&a.min_filter) == discriminant(&b.min_filter)
-                && discriminant(&a.mipmap_filter) == discriminant(&b.mipmap_filter)
-                && a.lod_min_clamp == b.lod_min_clamp
-                && a.lod_max_clamp == b.lod_max_clamp
-                && a.anisotropy_clamp == b.anisotropy_clamp
-                && discriminant(&a.border_color) == discriminant(&b.border_color)
+        (ImageSampler::Descriptor(descriptor_a), ImageSampler::Descriptor(descriptor_b)) => {
+            descriptor_a.as_wgpu() == descriptor_b.as_wgpu()
         }
         _ => false,
     }
