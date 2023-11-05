@@ -222,7 +222,7 @@ pub fn queue_pipelines_system(
         .iter()
         .filter_map(|(window_id, window)| {
             let key = EguiPipelineKey {
-                texture_format: window.swap_chain_texture_format?,
+                texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
             };
             let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
