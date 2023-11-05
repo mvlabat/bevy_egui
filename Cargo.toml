@@ -41,8 +41,4 @@ bevy = { version = "0.12", default-features = false, features = [
     "png",
     "bevy_pbr",
     "bevy_core_pipeline",
-    # TODO: remove the following features after https://github.com/bevyengine/bevy/pull/9073 is released:
-    "ktx2",
-    "tonemapping_luts",
-    "zstd",
 ] }
