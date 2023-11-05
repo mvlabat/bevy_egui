@@ -18,7 +18,7 @@ use bevy::{
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
         WindowFocused,
-    },
+    }, time::Real,
 };
 use std::marker::PhantomData;
 
@@ -84,7 +84,7 @@ pub fn process_input_system(
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     mut egui_mouse_position: ResMut<EguiMousePosition>,
-    time: Res<Time>,
+    time: Res<Time<Real>>,
 ) {
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
