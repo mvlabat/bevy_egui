@@ -171,7 +171,7 @@ impl EguiSettings {
         self.sampler_descriptor = ImageSampler::Descriptor(ImageSamplerDescriptor {
             address_mode_u: ImageAddressMode::ClampToEdge,
             address_mode_v: ImageAddressMode::ClampToEdge,
-            ..ImageSamplerDescriptor::linear()
+            ..ImageSamplerDescriptor::nearest()
         })
     }
     /// Use default image sampler, derived from the [`ImagePlugin`](bevy::render::texture::ImagePlugin) setup.
