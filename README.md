@@ -43,7 +43,7 @@ Here's a minimal usage example:
 ```toml
 # Cargo.toml
 [dependencies]
-bevy = "0.11"
+bevy = "0.12"
 bevy_egui = "0.23"
 ```
 
