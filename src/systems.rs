@@ -394,8 +394,10 @@ pub fn update_window_contexts_system(
             egui::pos2(width, height),
         ));
 
-        context.egui_input.pixels_per_point =
-            Some(new_window_size.scale_factor * egui_settings.scale_factor as f32);
+        context
+            .ctx
+            .0
+            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor as f32);
 
         *context.window_size = new_window_size;
     }
@@ -425,9 +427,10 @@ pub fn process_output_system(
             platform_output,
             shapes,
             textures_delta,
-            repaint_after,
+            pixels_per_point,
+            viewport_output,
         } = full_output;
-        let paint_jobs = ctx.tessellate(shapes);
+        let paint_jobs = ctx.tessellate(shapes, pixels_per_point);
 
         context.render_output.paint_jobs = paint_jobs;
         context.render_output.textures_delta.append(textures_delta);
@@ -455,7 +458,7 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if repaint_after.is_zero() {
+        if viewport_output.is_empty() {
             event.send(RequestRedraw)
         }
 
