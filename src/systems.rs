@@ -458,7 +458,7 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if viewport_output.is_empty()
+        if viewport_output.is_empty() {
             event.send(RequestRedraw)
         }
 
