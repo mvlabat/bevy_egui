@@ -397,7 +397,7 @@ pub fn update_window_contexts_system(
         context
             .ctx
             .0
-            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor as f32);    
+            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor as f32);
 
         *context.window_size = new_window_size;
     }
