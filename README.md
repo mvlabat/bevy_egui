@@ -44,7 +44,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.12"
-bevy_egui = "0.23"
+bevy_egui = "0.24"
 ```
 
 ```rust
@@ -85,7 +85,7 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
-| 0.12 | 0.23      |
+| 0.12 | 0.23-0.24 |
 | 0.11 | 0.21-0.22 |
 | 0.10 | 0.20      |
 | 0.9  | 0.17-0.19 |
