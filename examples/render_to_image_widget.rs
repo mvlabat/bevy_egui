@@ -210,13 +210,12 @@ fn color_picker_widget(ui: &mut egui::Ui, color: &mut Color) -> egui::Response {
         egui::color_picker::Alpha::Opaque,
     );
     let [r, g, b, a] = egui_color.to_srgba_unmultiplied();
-    *color = [
+    *color = Color::rgba(
         r as f32 / 255.0,
         g as f32 / 255.0,
         b as f32 / 255.0,
         a as f32 / 255.0,
-    ]
-    .into();
+    );
     res
 }
 
