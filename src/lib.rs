@@ -723,22 +723,20 @@ pub fn setup_new_windows_system(
     mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
 ) {
     for window in new_windows.iter() {
+        let context = EguiContext::default();
+        if let Some(adapter) = adapters.get(&window) {
+            context.0.enable_accesskit();
+            **manage_accessibility_updates = false;
+            adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
+        }
         commands.entity(window).insert((
-            EguiContext::default(),
+            context,
             EguiMousePosition::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),
             WindowSize::default(),
         ));
-        let context = EguiContext::default();
-        println!("here1");
-        if let Some(adapter) = adapters.get(&window) {
-            println!("here2");
-            context.0.enable_accesskit();
-            **manage_accessibility_updates = false;
-            adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
-        }
     }
 }
 
@@ -844,13 +842,9 @@ fn update_accessibility(
     mut focus: ResMut<Focus>,
 ) {
     if requested.get() {
-        // println!("here3");
         for (entity, output) in &outputs {
-            // println!("here4");
             if let Some(adapter) = adapters.get(&entity) {
-                // println!("here5");
                 if let Some(update) = &output.platform_output.accesskit_update {
-                    println!("here6");
                     **manage_accessibility_updates = false;
                     **focus = None;
                     adapter.update_if_active(|| update.clone());
