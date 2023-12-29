@@ -848,6 +848,8 @@ fn update_accessibility(
                 if let Some(update) = &output.platform_output.accesskit_update {
                     **manage_accessibility_updates = false;
                     adapter.update_if_active(|| update.clone());
+                } else if !**manage_accessibility_updates {
+                    **manage_accessibility_updates = true;
                 }
             }
         }
