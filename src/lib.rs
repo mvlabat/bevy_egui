@@ -68,7 +68,7 @@ use crate::{
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
-    a11y::{AccessibilityRequested, AccessibilitySystem, Focus, ManageAccessibilityUpdates},
+    a11y::{AccessibilityRequested, AccessibilitySystem, ManageAccessibilityUpdates},
     app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
@@ -841,14 +841,12 @@ fn update_accessibility(
     mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
     outputs: Query<(Entity, &EguiOutput)>,
     adapters: NonSend<AccessKitAdapters>,
-    mut focus: ResMut<Focus>,
 ) {
     if requested.get() {
         for (entity, output) in &outputs {
             if let Some(adapter) = adapters.get(&entity) {
                 if let Some(update) = &output.platform_output.accesskit_update {
                     **manage_accessibility_updates = false;
-                    **focus = None;
                     adapter.update_if_active(|| update.clone());
                 }
             }
