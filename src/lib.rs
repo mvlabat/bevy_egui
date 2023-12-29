@@ -68,7 +68,7 @@ use crate::{
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use arboard::Clipboard;
 use bevy::{
-    a11y::AccessibilityRequested,
+    a11y::{AccessibilityRequested, AccessibilitySystem, Focus, ManageAccessibilityUpdates},
     app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
@@ -80,8 +80,8 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, DetectChanges, Entity, IntoSystemConfigs,
-        NonSend, Query, Resource, Shader, SystemSet, With, Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, NonSend, Query,
+        Resource, Shader, SystemSet, With, Without,
     },
     reflect::Reflect,
     render::{
@@ -95,9 +95,9 @@ use bevy::{
     window::{PrimaryWindow, Window},
     winit::accessibility::AccessKitAdapters,
 };
+use std::borrow::Cow;
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use std::cell::{RefCell, RefMut};
-use std::{borrow::Cow, sync::atomic::Ordering};
 #[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
 use thread_local::ThreadLocal;
 
@@ -674,7 +674,12 @@ impl Plugin for EguiPlugin {
                 );
         }
 
-        app.add_systems(PostUpdate, (enable_accessibility, update_accessibility));
+        app.add_systems(
+            PostUpdate,
+            update_accessibility
+                .after(EguiSet::ProcessOutput)
+                .before(AccessibilitySystem::Update),
+        );
     }
 }
 
@@ -714,6 +719,8 @@ pub struct EguiManagedTexture {
 pub fn setup_new_windows_system(
     mut commands: Commands,
     new_windows: Query<Entity, (Added<Window>, Without<EguiContext>)>,
+    adapters: NonSend<AccessKitAdapters>,
+    mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
 ) {
     for window in new_windows.iter() {
         commands.entity(window).insert((
@@ -724,6 +731,14 @@ pub fn setup_new_windows_system(
             EguiOutput::default(),
             WindowSize::default(),
         ));
+        let context = EguiContext::default();
+        println!("here1");
+        if let Some(adapter) = adapters.get(&window) {
+            println!("here2");
+            context.0.enable_accesskit();
+            **manage_accessibility_updates = false;
+            adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
+        }
     }
 }
 
@@ -821,34 +836,25 @@ pub struct RenderGraphConfig {
     pub egui_pass: Cow<'static, str>,
 }
 
-fn enable_accessibility(
-    requested: Res<AccessibilityRequested>,
-    mut contexts: EguiContexts,
-    adapters: NonSend<AccessKitAdapters>,
-) {
-    if requested.is_changed() && requested.load(Ordering::SeqCst) {
-        for (entity, context, _) in contexts.q.iter_mut() {
-            context.0.enable_accesskit();
-            if let Some(adapter) = adapters.get(&entity) {
-                adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
-            }
-        }
-    }
-}
-
 fn update_accessibility(
     requested: Res<AccessibilityRequested>,
-    mut contexts: EguiContexts,
+    mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
+    outputs: Query<(Entity, &EguiOutput)>,
     adapters: NonSend<AccessKitAdapters>,
+    mut focus: ResMut<Focus>,
 ) {
-    if requested.load(Ordering::SeqCst) {
-        for (entity, context, _) in contexts.q.iter_mut() {
+    if requested.get() {
+        // println!("here3");
+        for (entity, output) in &outputs {
+            // println!("here4");
             if let Some(adapter) = adapters.get(&entity) {
-                context.0.output(|output| {
-                    if let Some(update) = &output.accesskit_update {
-                        adapter.update_if_active(|| update.clone());
-                    }
-                });
+                // println!("here5");
+                if let Some(update) = &output.platform_output.accesskit_update {
+                    println!("here6");
+                    **manage_accessibility_updates = false;
+                    **focus = None;
+                    adapter.update_if_active(|| update.clone());
+                }
             }
         }
     }
