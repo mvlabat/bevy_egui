@@ -719,15 +719,17 @@ pub struct EguiManagedTexture {
 pub fn setup_new_windows_system(
     mut commands: Commands,
     new_windows: Query<Entity, (Added<Window>, Without<EguiContext>)>,
-    adapters: NonSend<AccessKitAdapters>,
+    adapters: Option<NonSend<AccessKitAdapters>>,
     mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
 ) {
     for window in new_windows.iter() {
         let context = EguiContext::default();
-        if let Some(adapter) = adapters.get(&window) {
-            context.0.enable_accesskit();
-            **manage_accessibility_updates = false;
-            adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
+        if let Some(adapters) = &adapters {
+            if let Some(adapter) = adapters.get(&window) {
+                context.0.enable_accesskit();
+                **manage_accessibility_updates = false;
+                adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
+            }
         }
         commands.entity(window).insert((
             context,
