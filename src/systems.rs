@@ -458,7 +458,7 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if viewport_output.is_empty() {
+        if ctx.has_requested_repaint() {
             event.send(RequestRedraw)
         }
 
