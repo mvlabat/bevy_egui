@@ -65,8 +65,7 @@ use crate::{
     render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
     systems::*,
 };
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
-use arboard::Clipboard;
+
 use bevy::{
     app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
@@ -94,9 +93,12 @@ use bevy::{
     window::{PrimaryWindow, Window},
 };
 use std::borrow::Cow;
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+
+#[cfg(all(feature = "manage_clipboard", not(any(target_arch = "wasm32", target_os = "android"))))]
+use arboard::Clipboard;
+#[cfg(all(feature = "manage_clipboard", not(any(target_arch = "wasm32", target_os = "android"))))]
 use std::cell::{RefCell, RefMut};
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+#[cfg(all(feature = "manage_clipboard", not(any(target_arch = "wasm32", target_os = "android"))))]
 use thread_local::ThreadLocal;
 
 /// Adds all Egui resources and render graph nodes.
@@ -189,7 +191,7 @@ pub struct EguiInput(pub egui::RawInput);
 /// A resource for accessing clipboard.
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
-#[cfg(feature = "manage_clipboard")]
+#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
 #[derive(Default, Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
@@ -198,7 +200,7 @@ pub struct EguiClipboard {
     clipboard: String,
 }
 
-#[cfg(feature = "manage_clipboard")]
+#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
 impl EguiClipboard {
     /// Sets clipboard contents.
     pub fn set_contents(&mut self, contents: &str) {
@@ -578,8 +580,10 @@ impl Plugin for EguiPlugin {
         let world = &mut app.world;
         world.init_resource::<EguiSettings>();
         world.init_resource::<EguiManagedTextures>();
-        #[cfg(feature = "manage_clipboard")]
+
+        #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         world.init_resource::<EguiClipboard>();
+
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
         world.insert_resource(TouchId::default());
