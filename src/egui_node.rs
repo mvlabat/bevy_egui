@@ -9,6 +9,7 @@ use bevy::{
     ecs::world::{FromWorld, World},
     prelude::{Entity, Handle, Resource},
     render::{
+        render_asset::RenderAssetPersistencePolicy,
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
             BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
@@ -450,6 +451,7 @@ pub(crate) fn color_image_as_bevy_image(
             TextureDimension::D2,
             pixels,
             TextureFormat::Rgba8UnormSrgb,
+            RenderAssetPersistencePolicy::Keep,
         )
     }
 }
