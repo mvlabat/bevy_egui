@@ -82,6 +82,73 @@ jobs:
             cache-wasm32-cargo
       - run: cargo clippy --no-default-features --target=wasm32-unknown-unknown --all-targets --features=${{ matrix.features }} -- -D warnings
 
+  clippy_android:
+    name: Clippy check (android)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          [
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "manage_clipboard,open_url",
+          ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+          targets: aarch64-linux-android
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-android-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-android-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-android-cargo
+      - run: |
+          CC=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang \
+          AR=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar \
+          cargo clippy --target=aarch64-linux-android --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
+
+  clippy_ios:
+    name: Clippy check (ios)
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          [
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "manage_clipboard,open_url",
+          ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+          targets: aarch64-apple-ios
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-ios-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-ios-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-ios-cargo
+      - run: cargo clippy --target=aarch64-apple-ios --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
+
   doc:
     name: Check documentation
     runs-on: ubuntu-latest
