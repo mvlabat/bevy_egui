@@ -429,7 +429,7 @@ pub fn process_output_system(
             shapes,
             textures_delta,
             pixels_per_point,
-            viewport_output,
+            viewport_output: _,
         } = full_output;
         let paint_jobs = ctx.tessellate(shapes, pixels_per_point);
 
@@ -459,7 +459,7 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if viewport_output.is_empty() {
+        if ctx.has_requested_repaint() {
             event.send(RequestRedraw)
         }
 
