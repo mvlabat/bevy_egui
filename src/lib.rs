@@ -66,6 +66,7 @@ pub use egui;
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
     render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
+    systems::*,
 };
 #[cfg(all(
     feature = "manage_clipboard",
@@ -90,7 +91,6 @@ use bevy::{
     },
     utils::HashMap,
 };
-use crate::systems::*;
 use bevy::{
     app::{App, Plugin, PostUpdate, PreStartup, PreUpdate},
     ecs::{
@@ -152,22 +152,14 @@ pub struct EguiSettings {
 }
 
 // Just to keep the PartialEq
-#[cfg(feature = "render")]
 impl PartialEq for EguiSettings {
+    #[allow(clippy::let_and_return)]
     fn eq(&self, other: &Self) -> bool {
         let eq = self.scale_factor == other.scale_factor;
         #[cfg(feature = "open_url")]
         let eq = eq && self.default_open_url_target == other.default_open_url_target;
-        eq && compare_descriptors(&self.sampler_descriptor, &other.sampler_descriptor)
-    }
-}
-
-#[cfg(not(feature = "render"))]
-impl PartialEq for EguiSettings {
-    fn eq(&self, other: &Self) -> bool {
-        let eq = self.scale_factor == other.scale_factor;
-        #[cfg(feature = "open_url")]
-        let eq = eq && self.default_open_url_target == other.default_open_url_target;
+        #[cfg(feature = "render")]
+        let eq = eq && compare_descriptors(&self.sampler_descriptor, &other.sampler_descriptor);
         eq
     }
 }
