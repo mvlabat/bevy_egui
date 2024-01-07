@@ -25,8 +25,9 @@ serde = ["egui/serde"]
 bevy = { version = "0.12", default-features = false, features = [
     "bevy_render",
     "bevy_asset",
+    "bevy_winit",
 ] }
-egui = { version = "0.24.0", default-features = false, features = ["bytemuck"] }
+egui = { version = "0.24.0", default-features = false, features = ["accesskit", "bytemuck"] }
 webbrowser = { version = "0.8.2", optional = true }
 
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]

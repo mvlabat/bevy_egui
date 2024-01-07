@@ -71,6 +71,7 @@ use crate::{
 ))]
 use arboard::Clipboard;
 use bevy::{
+    a11y::{AccessibilityRequested, AccessibilitySystem, ManageAccessibilityUpdates},
     app::{App, Last, Plugin, PostUpdate, PreStartup, PreUpdate},
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
@@ -82,8 +83,8 @@ use bevy::{
     input::InputSystem,
     log,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
-        Shader, SystemSet, With, Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, NonSend, Query,
+        Resource, Shader, SystemSet, With, Without,
     },
     reflect::Reflect,
     render::{
@@ -95,6 +96,7 @@ use bevy::{
     },
     utils::HashMap,
     window::{PrimaryWindow, Window},
+    winit::accessibility::AccessKitAdapters,
 };
 use std::borrow::Cow;
 #[cfg(all(
@@ -680,6 +682,13 @@ impl Plugin for EguiPlugin {
                     render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
                 );
         }
+
+        app.add_systems(
+            PostUpdate,
+            update_accessibility
+                .after(EguiSet::ProcessOutput)
+                .before(AccessibilitySystem::Update),
+        );
     }
 }
 
@@ -719,10 +728,20 @@ pub struct EguiManagedTexture {
 pub fn setup_new_windows_system(
     mut commands: Commands,
     new_windows: Query<Entity, (Added<Window>, Without<EguiContext>)>,
+    adapters: Option<NonSend<AccessKitAdapters>>,
+    mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
 ) {
     for window in new_windows.iter() {
+        let context = EguiContext::default();
+        if let Some(adapters) = &adapters {
+            if let Some(adapter) = adapters.get(&window) {
+                context.0.enable_accesskit();
+                **manage_accessibility_updates = false;
+                adapter.update_if_active(|| context.0.accesskit_placeholder_tree_update());
+            }
+        }
         commands.entity(window).insert((
-            EguiContext::default(),
+            context,
             EguiMousePosition::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
@@ -824,6 +843,26 @@ pub struct RenderGraphConfig {
     pub window: Entity,
     /// Render pass name.
     pub egui_pass: Cow<'static, str>,
+}
+
+fn update_accessibility(
+    requested: Res<AccessibilityRequested>,
+    mut manage_accessibility_updates: ResMut<ManageAccessibilityUpdates>,
+    outputs: Query<(Entity, &EguiOutput)>,
+    adapters: NonSend<AccessKitAdapters>,
+) {
+    if requested.get() {
+        for (entity, output) in &outputs {
+            if let Some(adapter) = adapters.get(&entity) {
+                if let Some(update) = &output.platform_output.accesskit_update {
+                    **manage_accessibility_updates = false;
+                    adapter.update_if_active(|| update.clone());
+                } else if !**manage_accessibility_updates {
+                    **manage_accessibility_updates = true;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
