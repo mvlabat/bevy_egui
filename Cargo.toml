@@ -22,6 +22,22 @@ default_fonts = ["egui/default_fonts"]
 render = ["bevy/bevy_render"]
 serde = ["egui/serde"]
 
+[[example]]
+name = "render_to_image_widget"
+required-features = ["render"]
+[[example]]
+name = "side_panel"
+required-features = ["render"]
+[[example]]
+name = "simple"
+required-features = ["render"]
+[[example]]
+name = "two_windows"
+required-features = ["render"]
+[[example]]
+name = "ui"
+required-features = ["render"]
+
 [dependencies]
 bevy = { version = "0.12", default-features = false, features = [
     "bevy_asset",

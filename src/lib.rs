@@ -62,17 +62,19 @@ pub mod egui_node;
 
 pub use egui;
 
+use crate::systems::*;
 #[cfg(feature = "render")]
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
     render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
-    systems::*,
 };
 #[cfg(all(
     feature = "manage_clipboard",
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use arboard::Clipboard;
+#[allow(unused_imports)]
+use bevy::log;
 #[cfg(feature = "render")]
 use bevy::{
     app::Last,
@@ -99,7 +101,6 @@ use bevy::{
         system::SystemParam,
     },
     input::InputSystem,
-    log,
     prelude::{
         Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
         SystemSet, With, Without,
