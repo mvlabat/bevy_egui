@@ -14,16 +14,32 @@ all-features = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-default = ["manage_clipboard", "open_url", "default_fonts"]
+default = ["manage_clipboard", "open_url", "default_fonts", "render"]
 immutable_ctx = []
 manage_clipboard = ["arboard", "thread_local"]
 open_url = ["webbrowser"]
 default_fonts = ["egui/default_fonts"]
+render = ["bevy/bevy_render"]
 serde = ["egui/serde"]
+
+[[example]]
+name = "render_to_image_widget"
+required-features = ["render"]
+[[example]]
+name = "side_panel"
+required-features = ["render"]
+[[example]]
+name = "simple"
+required-features = ["render"]
+[[example]]
+name = "two_windows"
+required-features = ["render"]
+[[example]]
+name = "ui"
+required-features = ["render"]
 
 [dependencies]
 bevy = { version = "0.12", default-features = false, features = [
-    "bevy_render",
     "bevy_asset",
 ] }
 egui = { version = "0.24.0", default-features = false, features = ["bytemuck"] }
@@ -41,4 +57,5 @@ bevy = { version = "0.12", default-features = false, features = [
     "png",
     "bevy_pbr",
     "bevy_core_pipeline",
+    "tonemapping_luts",
 ] }
