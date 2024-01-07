@@ -41,4 +41,5 @@ bevy = { version = "0.12", default-features = false, features = [
     "png",
     "bevy_pbr",
     "bevy_core_pipeline",
+    "tonemapping_luts",
 ] }
