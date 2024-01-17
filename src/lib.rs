@@ -96,7 +96,7 @@ use bevy::{
 use bevy::{
     app::{App, Plugin, PostUpdate, PreStartup, PreUpdate},
     ecs::{
-        query::{QueryEntityError, WorldQuery},
+        query::{QueryData, QueryEntityError},
         schedule::apply_deferred,
         system::SystemParam,
     },
@@ -140,7 +140,7 @@ pub struct EguiSettings {
     ///     }
     /// }
     /// ```
-    pub scale_factor: f64,
+    pub scale_factor: f32,
     /// Will be used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]

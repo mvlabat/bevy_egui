@@ -144,7 +144,7 @@ pub fn prepare_egui_transforms_system(
             .buffer
             .push(&EguiTransform::from_window_size(
                 *size,
-                egui_settings.scale_factor as f32,
+                egui_settings.scale_factor,
             ));
         egui_transforms.offsets.insert(window, offset);
     }

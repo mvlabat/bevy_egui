@@ -199,7 +199,7 @@ impl Node for EguiNode {
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
-        let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
+        let scale_factor = window_size.scale_factor * egui_settings.scale_factor;
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
             return;
         }

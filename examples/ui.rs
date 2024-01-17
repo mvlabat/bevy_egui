@@ -69,7 +69,7 @@ fn update_ui_scale_factor_system(
             } else {
                 1.0 / window.scale_factor()
             };
-            egui_settings.scale_factor = scale_factor as f64;
+            egui_settings.scale_factor = scale_factor;
         }
     }
 }

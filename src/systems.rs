@@ -153,7 +153,7 @@ pub fn process_input_system(
         // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
         // that has been left.
         if cursor_left_window != Some(cursor_moved.window) {
-            let scale_factor = egui_settings.scale_factor as f32;
+            let scale_factor = egui_settings.scale_factor;
             let mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
             let mut context = context_params
                 .contexts
@@ -280,7 +280,7 @@ pub fn process_input_system(
         }
 
         for touch in input_events.ev_touch.read() {
-            let scale_factor = egui_settings.scale_factor as f32;
+            let scale_factor = egui_settings.scale_factor;
             let touch_position: (f32, f32) = (touch.position / scale_factor).into();
 
             // Emit touch event
@@ -380,10 +380,10 @@ pub fn update_window_contexts_system(
         );
         let width = new_window_size.physical_width
             / new_window_size.scale_factor
-            / egui_settings.scale_factor as f32;
+            / egui_settings.scale_factor;
         let height = new_window_size.physical_height
             / new_window_size.scale_factor
-            / egui_settings.scale_factor as f32;
+            / egui_settings.scale_factor;
 
         if width < 1.0 || height < 1.0 {
             continue;
@@ -397,7 +397,7 @@ pub fn update_window_contexts_system(
         context
             .ctx
             .0
-            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor as f32);
+            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor);
 
         *context.window_size = new_window_size;
     }
@@ -460,7 +460,7 @@ pub fn process_output_system(
         set_icon();
 
         if ctx.has_requested_repaint() {
-            event.send(RequestRedraw)
+            event.send(RequestRedraw);
         }
 
         #[cfg(feature = "open_url")]
