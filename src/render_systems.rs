@@ -140,10 +140,12 @@ pub fn prepare_egui_transforms_system(
     egui_transforms.offsets.clear();
 
     for (window, size) in window_sizes.iter() {
-        let offset = egui_transforms.buffer.push(EguiTransform::from_window_size(
-            *size,
-            egui_settings.scale_factor as f32,
-        ));
+        let offset = egui_transforms
+            .buffer
+            .push(&EguiTransform::from_window_size(
+                *size,
+                egui_settings.scale_factor as f32,
+            ));
         egui_transforms.offsets.insert(window, offset);
     }
 
