@@ -555,9 +555,12 @@ impl EguiUserTextures {
 #[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct WindowSize {
-    physical_width: f32,
-    physical_height: f32,
-    scale_factor: f32,
+    /// Physical width
+    pub physical_width: f32,
+    /// Physical height
+    pub physical_height: f32,
+    /// Scale factor
+    pub scale_factor: f32,
 }
 
 impl WindowSize {
