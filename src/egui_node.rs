@@ -2,13 +2,14 @@ use crate::{
     render_systems::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
     },
-    EguiRenderOutput, EguiSettings, WindowSize,
+    EguiRenderOutput, EguiRenderToTexture, EguiSettings, WindowSize,
 };
 use bevy::{
     core::cast_slice,
     ecs::world::{FromWorld, World},
     prelude::{Entity, Handle, Resource},
     render::{
+        render_asset::RenderAssets,
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
             BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
@@ -306,19 +307,29 @@ impl Node for EguiNode {
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
-        let extracted_window =
-            if let Some(extracted_window) = extracted_windows.get(&self.window_entity) {
-                extracted_window
-            } else {
-                return Ok(()); // No window
-            };
+        let extracted_window = extracted_windows.get(&self.window_entity);
+        let extracted_render_to_texture: Option<&EguiRenderToTexture> =
+            world.get(self.window_entity);
+        let gpu_image = extracted_render_to_texture.map(|r| {
+            let gpu_images = world.get_resource::<RenderAssets<Image>>().unwrap();
+            gpu_images.get(&r.0).unwrap()
+        });
 
-        let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
-            extracted_window.swap_chain_texture_view.as_ref()
-        {
-            swap_chain_texture_view
-        } else {
-            return Ok(()); // No swapchain texture
+        let swap_chain_texture_view = match (extracted_window, gpu_image) {
+            (Some(w), None) => {
+                if let Some(tv) = w.swap_chain_texture_view.as_ref() {
+                    tv
+                } else {
+                    // Nothing to do
+                    return Ok(());
+                }
+            }
+            (None, Some(g)) => {
+                &g.texture_view
+            }
+            // Nothing to do
+            (None, None) => return Ok(()),
+            (Some(_), Some(_)) => panic!("RenderWorld should not contain entities with both Window and EguiRenderToTexture components. This restriction might be relaxed in the future"),
         };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
@@ -351,9 +362,7 @@ impl Node for EguiNode {
                     depth_stencil_attachment: None,
                 });
 
-        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else {
-            return Ok(());
-        };
+        let pipeline_id = egui_pipelines.get(&self.window_entity).unwrap();
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
             return Ok(());
         };
@@ -369,10 +378,18 @@ impl Node for EguiNode {
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
         render_pass.set_bind_group(0, transform_buffer_bind_group, &[transform_buffer_offset]);
 
+        let (physical_width, physical_height) = match (extracted_window, gpu_image) {
+            (Some(w), None) => (w.physical_width, w.physical_height),
+            (None, Some(g)) => (g.size.x as u32, g.size.y as u32),
+            (None, None) | (Some(_), Some(_)) => {
+                unreachable!("At this point, we already checked that this should be impossible")
+            }
+        };
+
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {
-            if draw_command.clipping_zone.0 < extracted_window.physical_width
-                && draw_command.clipping_zone.1 < extracted_window.physical_height
+            if draw_command.clipping_zone.0 < physical_width
+                && draw_command.clipping_zone.1 < physical_height
             {
                 let texture_bind_group = match bind_groups.get(&draw_command.egui_texture) {
                     Some(texture_resource) => texture_resource,
@@ -387,16 +404,14 @@ impl Node for EguiNode {
                 render_pass.set_scissor_rect(
                     draw_command.clipping_zone.0,
                     draw_command.clipping_zone.1,
-                    draw_command.clipping_zone.2.min(
-                        extracted_window
-                            .physical_width
-                            .saturating_sub(draw_command.clipping_zone.0),
-                    ),
-                    draw_command.clipping_zone.3.min(
-                        extracted_window
-                            .physical_height
-                            .saturating_sub(draw_command.clipping_zone.1),
-                    ),
+                    draw_command
+                        .clipping_zone
+                        .2
+                        .min(physical_width.saturating_sub(draw_command.clipping_zone.0)),
+                    draw_command
+                        .clipping_zone
+                        .3
+                        .min(physical_height.saturating_sub(draw_command.clipping_zone.1)),
                 );
 
                 render_pass.draw_indexed(
