@@ -11,17 +11,12 @@ jobs:
     name: Formatter check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: nightly
-          override: true
           components: rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
 
   clippy:
     name: Clippy check
@@ -31,20 +26,20 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         features: [
-            '',
-            'manage_clipboard',
-            'open_url',
-            'manage_clipboard,open_url',
-        ]
+            "",
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "render",
+            "manage_clipboard,open_url,render",
+          ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: stable
-          override: true
           components: clippy
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -57,10 +52,7 @@ jobs:
       - name: Install dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
+      - run: cargo clippy --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
 
   clippy_wasm32:
     name: Clippy check (wasm32)
@@ -68,22 +60,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: [
-            'immutable_ctx',
-            'manage_clipboard',
-            'open_url',
-            'manage_clipboard,open_url',
-        ]
+        features:
+          [
+            "",
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "render",
+            "manage_clipboard,open_url,render",
+          ]
+    env:
+      RUSTFLAGS: --cfg=web_sys_unstable_apis
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: stable
-          override: true
           components: clippy
-          target: wasm32-unknown-unknown
-      - uses: actions/cache@v2
+          targets: wasm32-unknown-unknown
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -93,22 +88,88 @@ jobs:
           restore-keys: |
             cache-wasm32-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-wasm32-cargo
-      - uses: actions-rs/cargo@v1
+      - run: cargo clippy --no-default-features --target=wasm32-unknown-unknown --all-targets --features=${{ matrix.features }} -- -D warnings
+
+  clippy_android:
+    name: Clippy check (android)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          [
+            "",
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "render",
+            "manage_clipboard,open_url,render",
+          ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
         with:
-          command: clippy
-          args: --no-default-features --target=wasm32-unknown-unknown --all-targets --features=${{ matrix.features }} -- -D warnings
+          toolchain: stable
+          components: clippy
+          targets: aarch64-linux-android
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-android-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-android-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-android-cargo
+      - run: |
+          CC=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang \
+          AR=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar \
+          cargo clippy --target=aarch64-linux-android --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
+
+  clippy_ios:
+    name: Clippy check (ios)
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          [
+            "",
+            "immutable_ctx",
+            "manage_clipboard",
+            "open_url",
+            "render",
+            "manage_clipboard,open_url,render",
+          ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+          targets: aarch64-apple-ios
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cache-ios-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            cache-ios-cargo-${{ hashFiles('**/Cargo.toml') }}
+            cache-ios-cargo
+      - run: cargo clippy --target=aarch64-apple-ios --no-default-features --all-targets --features=${{ matrix.features }} -- -D warnings
 
   doc:
     name: Check documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: stable
-          override: true
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -118,10 +179,7 @@ jobs:
           restore-keys: |
             cache-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-doc-cargo
-      - uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all --features "bevy/x11"
+      - run: cargo doc --all --features "bevy/x11"
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -129,13 +187,11 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: stable
-          override: true
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -147,7 +203,4 @@ jobs:
             cache-test-cargo
       - name: Install dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all
+      - run: cargo test --all

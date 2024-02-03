@@ -5,84 +5,134 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 11-Dec-2023
+
+### Changed
+
+- Update Egui to 0.24 ([#234](https://github.com/mvlabat/bevy_egui/pull/234) by @naomijub, @frewsxcv).
+
+### Fixed
+
+Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/bevy_egui/pull/226) by @TheRawMeatball).
+
+## [0.23.0] - 5-Nov-2023
+
+### Changed
+
+- Update Bevy to 0.12 ([#221](https://github.com/mvlabat/bevy_egui/pull/221) by @raffaeleragni).
+
+### Fixed
+
+- Fix color attachments in WASM (WebGPU) ([#220](https://github.com/mvlabat/bevy_egui/pull/220) by @seabassjh, @frewsxcv).
+
+## [0.22.0] - 7-Oct-2023
+
+### Changed
+
+- Update Egui to 0.23 ([#217](https://github.com/mvlabat/bevy_egui/pull/217) by @zicklag).
+- Refactor components and resources extraction ([#210](https://github.com/mvlabat/bevy_egui/pull/210), [#211](https://github.com/mvlabat/bevy_egui/pull/211) by @TheButlah).
+
+### Added
+
+- Add `#[derive(Reflect)]` ([#195](https://github.com/mvlabat/bevy_egui/pull/195) by @SludgePhD).
+
+## [0.21.0] - 10-Jul-2023
+
+### Changed
+
+- Update Bevy to 0.11 ([#188](https://github.com/mvlabat/bevy_egui/pull/188) by @Vrixyz).
+- Update Egui to 0.22 ([#184](https://github.com/mvlabat/bevy_egui/pull/184)).
+- Move sampler descriptor into `EguiSettings` ([#179](https://github.com/mvlabat/bevy_egui/pull/179) by @GlummixX).
+- Update GitHub Actions CI ([#183](https://github.com/mvlabat/bevy_egui/pull/183) by @striezel).
+
+### Added
+
+- Add touch events support ([#180](https://github.com/mvlabat/bevy_egui/pull/180) by @oscrim).
+
+## [0.20.3] - 21-Apr-2023
+
+### Fixed
+
+- Accept NumpadEnter as Enter ([#171](https://github.com/mvlabat/bevy_egui/pull/171) by @dimvoly).
+
 ## [0.20.2] - 27-Mar-2023
 
 ### Fixed
 
-- Fix incorrect bounds check for set_scissor_rect ([#167](https://github.com/mvlabat/bevy_egui/pull/167) by @Gorialis)
-- Fix panic messages for uninitialised contexts
+- Fix incorrect bounds check for set_scissor_rect ([#167](https://github.com/mvlabat/bevy_egui/pull/167) by @Gorialis).
+- Fix panic messages for uninitialised contexts.
 
 ### Changed
 
-- Move `bevy_core_pipeline` to dev-dependencies ([#166](https://github.com/mvlabat/bevy_egui/pull/166) by @jakobhellermann)
+- Move `bevy_core_pipeline` to dev-dependencies ([#166](https://github.com/mvlabat/bevy_egui/pull/166) by @jakobhellermann).
 
 ## [0.20.1] - 12-Mar-2023
 
 ### Fixed
 
-- Fix recreation of `EguiContext` on startup ([#162](https://github.com/mvlabat/bevy_egui/pull/162) by @encounter)
-- Set image sampler address modes to `ClampToEdge` ([#158](https://github.com/mvlabat/bevy_egui/pull/158) by @galop1n)
+- Fix recreation of `EguiContext` on startup ([#162](https://github.com/mvlabat/bevy_egui/pull/162) by @encounter).
+- Set image sampler address modes to `ClampToEdge` ([#158](https://github.com/mvlabat/bevy_egui/pull/158) by @galop1n).
 
 ## [0.20.0] - 8-Mar-2023
 
 ### Added
 
-- Add `altgr` support for Windows ([#149](https://github.com/mvlabat/bevy_egui/pull/149) by @Vrixyz)
-- Add `serde` feature ([#154](https://github.com/mvlabat/bevy_egui/pull/154) by @AlanRace)
+- Add `altgr` support for Windows ([#149](https://github.com/mvlabat/bevy_egui/pull/149) by @Vrixyz).
+- Add `serde` feature ([#154](https://github.com/mvlabat/bevy_egui/pull/154) by @AlanRace).
 
 ### Changed
 
-- Update Bevy to 0.10 ([#159](https://github.com/mvlabat/bevy_egui/pull/159), thanks to @DGriffin91)
-- Update Egui to 0.21 ([#152](https://github.com/mvlabat/bevy_egui/pull/152) by @paul-hansen)
-- Implement better multi-window support ([#147](https://github.com/mvlabat/bevy_egui/pull/147) by @TheRawMeatball)
+- Update Bevy to 0.10 ([#159](https://github.com/mvlabat/bevy_egui/pull/159), thanks to @DGriffin91).
+- Update Egui to 0.21 ([#152](https://github.com/mvlabat/bevy_egui/pull/152) by @paul-hansen).
+- Implement better multi-window support ([#147](https://github.com/mvlabat/bevy_egui/pull/147) by @TheRawMeatball).
 
 ### Fixed
 
-- Pass raw Bevy time to Egui to fix UI animations ([#155](https://github.com/mvlabat/bevy_egui/pull/155) by @jakobhellermann)
+- Pass raw Bevy time to Egui to fix UI animations ([#155](https://github.com/mvlabat/bevy_egui/pull/155) by @jakobhellermann).
 
 ## [0.19.0] - 15-Jan-2023
 
 ### Changed
 
-- Update the `arboard` dependency ([#142](https://github.com/mvlabat/bevy_egui/pull/142) by @jakobhellermann)
+- Update the `arboard` dependency ([#142](https://github.com/mvlabat/bevy_egui/pull/142) by @jakobhellermann).
 
 ### Fixed
 
-- Fix panics due to missing swapchain textures ([#141](https://github.com/mvlabat/bevy_egui/pull/141) by @connerebbinghaus)
+- Fix panics due to missing swapchain textures ([#141](https://github.com/mvlabat/bevy_egui/pull/141) by @connerebbinghaus).
 
 ## [0.18.0] - 11-Dec-2022
 
 ### Changed
 
-- Update Egui to 0.20 ([#139](https://github.com/mvlabat/bevy_egui/pull/139) by @no-materials)
+- Update Egui to 0.20 ([#139](https://github.com/mvlabat/bevy_egui/pull/139) by @no-materials).
 
 ## [0.17.1] - 14-Nov-2022
 
 ### Fixed
 
-- Fix clearing event readers (missed events warnings)
+- Fix clearing event readers (missed events warnings).
 
 ## [0.17.0] - 13-Nov-2022
 
 ### Changed
 
-- Update to Bevy 0.9 ([#127](https://github.com/mvlabat/bevy_egui/pull/127), [#133](https://github.com/mvlabat/bevy_egui/pull/133), thanks to @terhechte and @jakobhellermann)
+- Update to Bevy 0.9 ([#127](https://github.com/mvlabat/bevy_egui/pull/127), [#133](https://github.com/mvlabat/bevy_egui/pull/133), thanks to @terhechte and @jakobhellermann).
 
 ### Fixed
 
-- Fix window resizing on Windows ([#128](https://github.com/mvlabat/bevy_egui/pull/128) by @chronicl) 
+- Fix window resizing on Windows ([#128](https://github.com/mvlabat/bevy_egui/pull/128) by @chronicl). 
 
 ## [0.16.1] - 18-Sep-2022
 
 ### Fixed
 
-- Fix releasing buttons outside a window ([#123](https://github.com/mvlabat/bevy_egui/pull/123), thanks to @TheRawMeatball for flagging the issue in [#121](https://github.com/mvlabat/bevy_egui/pull/121))
+- Fix releasing buttons outside a window ([#123](https://github.com/mvlabat/bevy_egui/pull/123), thanks to @TheRawMeatball for flagging the issue in [#121](https://github.com/mvlabat/bevy_egui/pull/121)).
 
 ## [0.16.0] - 24-Aug-2022
 
 ### Changed
 
-- Update Egui to 0.19
+- Update Egui to 0.19.
 
 ## [0.15.1] - 13-Aug-2022
 
@@ -94,11 +144,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add a feature that can be disabled to replace default Egui fonts ([#110](https://github.com/mvlabat/bevy_egui/pull/110) by @iTitus)
+- Add a feature that can be disabled to replace default Egui fonts ([#110](https://github.com/mvlabat/bevy_egui/pull/110) by @iTitus).
 
 ### Changed
  
-- Update Bevy to 0.8 ([#111](https://github.com/mvlabat/bevy_egui/pull/111) by @DGriffin91)
+- Update Bevy to 0.8 ([#111](https://github.com/mvlabat/bevy_egui/pull/111) by @DGriffin91).
 
 ## [0.14.0] - 1-May-2022
 
@@ -263,14 +313,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Better error message for a missing Egui context ([#24](https://github.com/mvlabat/bevy_egui/pull/24) by @jakobhellermann)
-- Add `try_ctx_for_window` function ([#20](https://github.com/mvlabat/bevy_egui/pull/20) by @jakobhellermann)
+- Better error message for a missing Egui context ([#24](https://github.com/mvlabat/bevy_egui/pull/24) by @jakobhellermann).
+- Add `try_ctx_for_window` function ([#20](https://github.com/mvlabat/bevy_egui/pull/20) by @jakobhellermann).
 
 ## [0.4.1] - 24-Apr-2021
 
 ### Fixed
 
-- Fix crashes related to invalid scissor or window size ([#18](https://github.com/mvlabat/bevy_egui/pull/18))
+- Fix crashes related to invalid scissor or window size ([#18](https://github.com/mvlabat/bevy_egui/pull/18)).
 
 ## [0.4.0] - 10-Apr-2021
 

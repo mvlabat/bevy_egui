@@ -32,11 +32,11 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugin(EguiPlugin)
-        .add_startup_system(configure_visuals_system)
-        .add_startup_system(configure_ui_state_system)
-        .add_system(update_ui_scale_factor_system)
-        .add_system(ui_example_system)
+        .add_plugins(EguiPlugin)
+        .add_systems(Startup, configure_visuals_system)
+        .add_systems(Startup, configure_ui_state_system)
+        .add_systems(Update, update_ui_scale_factor_system)
+        .add_systems(Update, ui_example_system)
         .run();
 }
 #[derive(Default, Resource)]
@@ -124,10 +124,10 @@ fn ui_example_system(
                 ui.text_edit_singleline(&mut ui_state.label);
             });
 
-            ui.add(egui::widgets::Image::new(
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                 egui_texture_handle.id(),
                 egui_texture_handle.size_vec2(),
-            ));
+            )));
 
             ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
             if ui.button("Increment").clicked() {
@@ -141,10 +141,10 @@ fn ui_example_system(
                 remove = ui.button("Remove").clicked();
             });
 
-            ui.add(egui::widgets::Image::new(
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                 *rendered_texture_id,
                 [256.0, 256.0],
-            ));
+            )));
 
             ui.allocate_space(egui::Vec2::new(1.0, 10.0));
             ui.checkbox(&mut ui_state.is_window_open, "Window Is Open");
@@ -180,7 +180,7 @@ fn ui_example_system(
         ui.separator();
 
         ui.heading("Central Panel");
-        ui.label("The central panel the region left after adding TopPanel's and SidePanel's");
+        ui.label("The central panel is the region left after adding TopPanels and SidePanels.");
         ui.label("It is often a great place for big things, like drawings:");
 
         ui.heading("Draw with your mouse to paint:");

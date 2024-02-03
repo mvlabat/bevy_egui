@@ -1,6 +1,6 @@
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
-//! This crate provides a [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
+//! This crate provides an [Egui](https://github.com/emilk/egui) integration for the [Bevy](https://github.com/bevyengine/bevy) game engine.
 //!
 //! **Trying out:**
 //!
@@ -26,10 +26,10 @@
 //! fn main() {
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
-//!         .add_plugin(EguiPlugin)
+//!         .add_plugins(EguiPlugin)
 //!         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
 //!         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
-//!         .add_system(ui_example_system)
+//!         .add_systems(Update, ui_example_system)
 //!         .run();
 //! }
 //!
@@ -51,11 +51,13 @@
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
 /// Plugin systems for the render app.
+#[cfg(feature = "render")]
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
 
 /// Egui render node.
+#[cfg(feature = "render")]
 pub mod egui_node;
 
 /// Clipboard management for web
@@ -66,47 +68,70 @@ pub use egui;
 #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
 use web_clipboard::{WebEventCopy, WebEventCut, WebEventPaste};
 
+use crate::systems::*;
+#[cfg(feature = "render")]
 use crate::{
     egui_node::{EguiPipeline, EGUI_SHADER_HANDLE},
-    render_systems::EguiTransforms,
-    systems::*,
+    render_systems::{EguiTransforms, ExtractedEguiManagedTextures},
 };
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+#[cfg(all(
+    feature = "manage_clipboard",
+    not(any(target_arch = "wasm32", target_os = "android"))
+))]
 use arboard::Clipboard;
+#[allow(unused_imports)]
+use bevy::log;
+#[cfg(feature = "render")]
 use bevy::{
-    app::{App, Plugin},
-    asset::{AssetEvent, Assets, Handle},
+    app::Last,
+    asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{
         event::EventReader,
-        query::{QueryEntityError, WorldQuery},
-        schedule::apply_system_buffers,
-        system::{ResMut, SystemParam},
+        system::{Res, ResMut},
     },
-    input::InputSystem,
-    log,
-    prelude::{
-        Added, Commands, Component, CoreSet, Deref, DerefMut, Entity, IntoSystemAppConfigs,
-        IntoSystemConfig, IntoSystemConfigs, Query, Resource, Shader, StartupSet, SystemSet, With,
-        Without,
-    },
+    prelude::Shader,
     render::{
-        render_resource::SpecializedRenderPipelines, texture::Image, ExtractSchedule, RenderApp,
-        RenderSet,
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
+        render_resource::SpecializedRenderPipelines,
+        texture::{Image, ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
+        ExtractSchedule, Render, RenderApp, RenderSet,
     },
     utils::HashMap,
+};
+use bevy::{
+    app::{App, Plugin, PostUpdate, PreStartup, PreUpdate},
+    ecs::{
+        query::{QueryEntityError, WorldQuery},
+        schedule::apply_deferred,
+        system::SystemParam,
+    },
+    input::InputSystem,
+    prelude::{
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
+        SystemSet, With, Without,
+    },
+    reflect::Reflect,
     window::{PrimaryWindow, Window},
 };
 use std::borrow::Cow;
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+#[cfg(all(
+    feature = "manage_clipboard",
+    not(any(target_arch = "wasm32", target_os = "android"))
+))]
 use std::cell::{RefCell, RefMut};
-#[cfg(all(feature = "manage_clipboard", not(target_arch = "wasm32")))]
+#[cfg(all(
+    feature = "manage_clipboard",
+    not(any(target_arch = "wasm32", target_os = "android"))
+))]
 use thread_local::ThreadLocal;
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
 
 /// A resource for storing global UI settings.
-#[derive(Clone, Debug, PartialEq, Resource)]
+#[derive(Clone, Debug, Resource, Reflect)]
+#[cfg_attr(feature = "render", derive(ExtractResource))]
 pub struct EguiSettings {
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
@@ -126,6 +151,36 @@ pub struct EguiSettings {
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
     pub default_open_url_target: Option<String>,
+    /// Used to change sampler properties
+    /// Defaults to linear and clamped to edge
+    #[cfg(feature = "render")]
+    #[reflect(ignore)]
+    pub sampler_descriptor: ImageSampler,
+}
+
+// Just to keep the PartialEq
+impl PartialEq for EguiSettings {
+    #[allow(clippy::let_and_return)]
+    fn eq(&self, other: &Self) -> bool {
+        let eq = self.scale_factor == other.scale_factor;
+        #[cfg(feature = "open_url")]
+        let eq = eq && self.default_open_url_target == other.default_open_url_target;
+        #[cfg(feature = "render")]
+        let eq = eq && compare_descriptors(&self.sampler_descriptor, &other.sampler_descriptor);
+        eq
+    }
+}
+
+// Since Eq is not implemented for ImageSampler
+#[cfg(feature = "render")]
+fn compare_descriptors(a: &ImageSampler, b: &ImageSampler) -> bool {
+    match (a, b) {
+        (ImageSampler::Default, ImageSampler::Default) => true,
+        (ImageSampler::Descriptor(descriptor_a), ImageSampler::Descriptor(descriptor_b)) => {
+            descriptor_a.as_wgpu() == descriptor_b.as_wgpu()
+        }
+        _ => false,
+    }
 }
 
 impl Default for EguiSettings {
@@ -134,7 +189,30 @@ impl Default for EguiSettings {
             scale_factor: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
+            #[cfg(feature = "render")]
+            sampler_descriptor: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                address_mode_u: ImageAddressMode::ClampToEdge,
+                address_mode_v: ImageAddressMode::ClampToEdge,
+                ..ImageSamplerDescriptor::linear()
+            }),
         }
+    }
+}
+
+impl EguiSettings {
+    /// Use nearest descriptor instead of linear.
+    #[cfg(feature = "render")]
+    pub fn use_nearest_descriptor(&mut self) {
+        self.sampler_descriptor = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::ClampToEdge,
+            address_mode_v: ImageAddressMode::ClampToEdge,
+            ..ImageSamplerDescriptor::nearest()
+        })
+    }
+    /// Use default image sampler, derived from the [`ImagePlugin`](bevy::render::texture::ImagePlugin) setup.
+    #[cfg(feature = "render")]
+    pub fn use_bevy_descriptor(&mut self) {
+        self.sampler_descriptor = ImageSampler::Default;
     }
 }
 
@@ -147,7 +225,7 @@ pub struct EguiInput(pub egui::RawInput);
 /// A resource for accessing clipboard.
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
-#[cfg(feature = "manage_clipboard")]
+#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
 #[derive(Default, Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
@@ -163,7 +241,7 @@ pub struct EguiClipboard {
     pub web_paste: web_clipboard::WebChannel<WebEventPaste>,
 }
 
-#[cfg(feature = "manage_clipboard")]
+#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
 impl EguiClipboard {
     /// Sets clipboard contents.
     pub fn set_contents(&mut self, contents: &str) {
@@ -232,11 +310,12 @@ impl EguiClipboard {
 }
 
 /// Is used for storing Egui shapes and textures delta.
-#[derive(Component, Clone, Default, Debug, Resource)]
+#[derive(Component, Clone, Default, Debug)]
+#[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
-    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]) and reset during `EguiNode::update`.
+    /// The field gets populated during the [`EguiSet::ProcessOutput`] system (belonging to bevy's [`PostUpdate`]) and reset during `EguiNode::update`.
     pub paint_jobs: Vec<egui::ClippedPrimitive>,
 
     /// The change in egui textures since last frame.
@@ -246,12 +325,13 @@ pub struct EguiRenderOutput {
 /// Is used for storing Egui output.
 #[derive(Component, Clone, Default)]
 pub struct EguiOutput {
-    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`CoreSet::PostUpdate`]).
+    /// The field gets updated during the [`EguiSet::ProcessOutput`] system (belonging to [`PostUpdate`]).
     pub platform_output: egui::PlatformOutput,
 }
 
 /// A component for storing `bevy_egui` context.
 #[derive(Clone, Component, Default)]
+#[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct EguiContext(egui::Context);
 
 impl EguiContext {
@@ -299,6 +379,7 @@ pub struct EguiContexts<'w, 's> {
         ),
         With<Window>,
     >,
+    #[cfg(feature = "render")]
     user_textures: ResMut<'w, EguiUserTextures>,
 }
 
@@ -423,17 +504,20 @@ impl<'w, 's> EguiContexts<'w, 's> {
     ///
     /// You'll want to pass a strong handle if a texture is used only in Egui and there are no
     /// handle copies stored anywhere else.
+    #[cfg(feature = "render")]
     pub fn add_image(&mut self, image: Handle<Image>) -> egui::TextureId {
         self.user_textures.add_image(image)
     }
 
     /// Removes the image handle and an Egui texture id associated with it.
+    #[cfg(feature = "render")]
     #[track_caller]
     pub fn remove_image(&mut self, image: &Handle<Image>) -> Option<egui::TextureId> {
         self.user_textures.remove_image(image)
     }
 
     /// Returns an associated Egui texture id.
+    #[cfg(feature = "render")]
     #[must_use]
     #[track_caller]
     pub fn image_id(&self, image: &Handle<Image>) -> Option<egui::TextureId> {
@@ -446,12 +530,14 @@ impl<'w, 's> EguiContexts<'w, 's> {
 pub struct EguiMousePosition(pub Option<(Entity, egui::Vec2)>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource, Default)]
+#[derive(Clone, Resource, Default, ExtractResource)]
+#[cfg(feature = "render")]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
 }
 
+#[cfg(feature = "render")]
 impl EguiUserTextures {
     /// Can accept either a strong or a weak handle.
     ///
@@ -488,10 +574,14 @@ impl EguiUserTextures {
 
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
 #[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct WindowSize {
-    physical_width: f32,
-    physical_height: f32,
-    scale_factor: f32,
+    /// Physical width
+    pub physical_width: f32,
+    /// Physical height
+    pub physical_height: f32,
+    /// Scale factor
+    pub scale_factor: f32,
 }
 
 impl WindowSize {
@@ -503,13 +593,15 @@ impl WindowSize {
         }
     }
 
+    /// Returns the width of the window.
     #[inline]
-    fn width(&self) -> f32 {
+    pub fn width(&self) -> f32 {
         self.physical_width / self.scale_factor
     }
 
+    /// Returns the height of the window.
     #[inline]
-    fn height(&self) -> f32 {
+    pub fn height(&self) -> f32 {
         self.physical_height / self.scale_factor
     }
 }
@@ -546,86 +638,117 @@ pub enum EguiSet {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<EguiSettings>();
+
         let world = &mut app.world;
         world.init_resource::<EguiSettings>();
+        #[cfg(feature = "render")]
         world.init_resource::<EguiManagedTextures>();
-        #[cfg(feature = "manage_clipboard")]
+        #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         world.init_resource::<EguiClipboard>();
+        #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
+        world.insert_resource(TouchId::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractComponentPlugin::<WindowSize>::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
 
         #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-        app.add_startup_system(web_clipboard::startup_setup_web_events);
-        app.add_startup_systems(
+        app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
+        app.add_systems(
+            PreStartup,
             (
                 setup_new_windows_system,
-                apply_system_buffers,
+                apply_deferred,
                 update_window_contexts_system,
             )
                 .chain()
-                .in_set(EguiStartupSet::InitContexts)
-                .in_base_set(StartupSet::PreStartup),
+                .in_set(EguiStartupSet::InitContexts),
         );
         app.add_systems(
+            PreUpdate,
             (
                 setup_new_windows_system,
-                apply_system_buffers,
+                apply_deferred,
                 update_window_contexts_system,
             )
                 .chain()
-                .in_set(EguiSet::InitContexts)
-                .in_base_set(CoreSet::PreUpdate),
+                .in_set(EguiSet::InitContexts),
         );
-        app.add_system(
+        app.add_systems(
+            PreUpdate,
             process_input_system
                 .in_set(EguiSet::ProcessInput)
                 .after(InputSystem)
-                .after(EguiSet::InitContexts)
-                .in_base_set(CoreSet::PreUpdate),
+                .after(EguiSet::InitContexts),
         );
-        app.add_system(
+        app.add_systems(
+            PreUpdate,
             begin_frame_system
                 .in_set(EguiSet::BeginFrame)
-                .after(EguiSet::ProcessInput)
-                .in_base_set(CoreSet::PreUpdate),
+                .after(EguiSet::ProcessInput),
         );
-        app.add_system(
-            process_output_system
-                .in_set(EguiSet::ProcessOutput)
-                .in_base_set(CoreSet::PostUpdate),
+        app.add_systems(
+            PostUpdate,
+            process_output_system.in_set(EguiSet::ProcessOutput),
         );
-        app.add_system(
-            update_egui_textures_system
-                .after(EguiSet::ProcessOutput)
-                .in_base_set(CoreSet::PostUpdate),
+        #[cfg(feature = "render")]
+        app.add_systems(
+            PostUpdate,
+            update_egui_textures_system.after(EguiSet::ProcessOutput),
         );
-        app.add_system(free_egui_textures_system.in_base_set(CoreSet::Last));
+        #[cfg(feature = "render")]
+        app.add_systems(Last, free_egui_textures_system)
+            .add_systems(
+                Render,
+                render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
+            )
+            .add_systems(
+                Render,
+                render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+            )
+            .add_systems(
+                Render,
+                render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+            );
 
-        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
-        shaders.set_untracked(
-            EGUI_SHADER_HANDLE,
-            Shader::from_wgsl(include_str!("egui.wgsl")),
-        );
+        #[cfg(feature = "render")]
+        load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
+    }
 
+    #[cfg(feature = "render")]
+    fn finish(&self, app: &mut App) {
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<egui_node::EguiPipeline>()
                 .init_resource::<SpecializedRenderPipelines<EguiPipeline>>()
                 .init_resource::<EguiTransforms>()
                 .add_systems(
-                    (
-                        render_systems::extract_egui_render_data_system,
-                        render_systems::extract_egui_textures_system,
-                        render_systems::setup_new_windows_render_system,
-                    )
-                        .into_configs()
-                        .in_schedule(ExtractSchedule),
+                    ExtractSchedule,
+                    render_systems::setup_new_windows_render_system,
                 )
-                .add_system(
+                .add_systems(
+                    Render,
                     render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
                 )
-                .add_system(render_systems::queue_bind_groups_system.in_set(RenderSet::Queue))
-                .add_system(render_systems::queue_pipelines_system.in_set(RenderSet::Queue));
+                .add_systems(
+                    Render,
+                    render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+                )
+                .add_systems(
+                    Render,
+                    render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+                );
         }
     }
 }
@@ -651,10 +774,12 @@ pub struct EguiContextQuery {
 }
 
 /// Contains textures allocated and painted by Egui.
+#[cfg(feature = "render")]
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct EguiManagedTextures(pub HashMap<(Entity, u64), EguiManagedTexture>);
 
 /// Represents a texture allocated and painted by Egui.
+#[cfg(feature = "render")]
 pub struct EguiManagedTexture {
     /// Assets store handle.
     pub handle: Handle<Image>,
@@ -680,10 +805,12 @@ pub fn setup_new_windows_system(
 }
 
 /// Updates textures painted by Egui.
+#[cfg(feature = "render")]
 pub fn update_egui_textures_system(
     mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
+    egui_settings: Res<EguiSettings>,
 ) {
     for (window_id, mut egui_render_output) in egui_render_output.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
@@ -703,14 +830,20 @@ pub fn update_egui_textures_system(
                 {
                     // TODO: when bevy supports it, only update the part of the texture that changes.
                     update_image_rect(&mut managed_texture.color_image, pos, &color_image);
-                    let image = egui_node::color_image_as_bevy_image(&managed_texture.color_image);
+                    let image = egui_node::color_image_as_bevy_image(
+                        &managed_texture.color_image,
+                        egui_settings.sampler_descriptor.clone(),
+                    );
                     managed_texture.handle = image_assets.add(image);
                 } else {
                     log::warn!("Partial update of a missing texture (id: {:?})", texture_id);
                 }
             } else {
                 // Full update.
-                let image = egui_node::color_image_as_bevy_image(&color_image);
+                let image = egui_node::color_image_as_bevy_image(
+                    &color_image,
+                    egui_settings.sampler_descriptor.clone(),
+                );
                 let handle = image_assets.add(image);
                 egui_managed_textures.insert(
                     (window_id, texture_id),
@@ -732,6 +865,7 @@ pub fn update_egui_textures_system(
     }
 }
 
+#[cfg(feature = "render")]
 fn free_egui_textures_system(
     mut egui_user_textures: ResMut<EguiUserTextures>,
     mut egui_render_output: Query<(Entity, &mut EguiRenderOutput), With<Window>>,
@@ -751,9 +885,9 @@ fn free_egui_textures_system(
         }
     }
 
-    for image_event in image_events.iter() {
-        if let AssetEvent::Removed { handle } = image_event {
-            egui_user_textures.remove_image(handle);
+    for image_event in image_events.read() {
+        if let AssetEvent::Removed { id } = image_event {
+            egui_user_textures.remove_image(&Handle::<Image>::Weak(*id));
         }
     }
 }
@@ -787,15 +921,17 @@ mod tests {
             .add_plugins(
                 DefaultPlugins
                     .set(RenderPlugin {
-                        wgpu_settings: WgpuSettings {
-                            backends: None,
-                            ..Default::default()
-                        },
+                        render_creation: bevy::render::settings::RenderCreation::Automatic(
+                            WgpuSettings {
+                                backends: None,
+                                ..Default::default()
+                            },
+                        ),
                     })
                     .build()
                     .disable::<WinitPlugin>(),
             )
-            .add_plugin(EguiPlugin)
+            .add_plugins(EguiPlugin)
             .update();
     }
 }

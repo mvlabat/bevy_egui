@@ -13,12 +13,12 @@ struct Images {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
+        .add_plugins(EguiPlugin)
         .init_resource::<SharedUiState>()
-        .add_startup_system(load_assets_system)
-        .add_startup_system(create_new_window_system)
-        .add_system(ui_first_window_system)
-        .add_system(ui_second_window_system);
+        .add_systems(Startup, load_assets_system)
+        .add_systems(Startup, create_new_window_system)
+        .add_systems(Update, ui_first_window_system)
+        .add_systems(Update, ui_second_window_system);
 
     app.run();
 }
@@ -69,7 +69,9 @@ fn ui_first_window_system(
     mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
 ) {
     let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
-    let Ok(mut ctx) = egui_ctx.get_single_mut() else { return; };
+    let Ok(mut ctx) = egui_ctx.get_single_mut() else {
+        return;
+    };
     egui::Window::new("First Window")
         .vscroll(true)
         .show(ctx.get_mut(), |ui| {
@@ -82,7 +84,10 @@ fn ui_first_window_system(
                 ui.text_edit_singleline(&mut shared_ui_state.shared_input);
             });
 
-            ui.add(egui::widgets::Image::new(bevy_texture_id, [256.0, 256.0]));
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                bevy_texture_id,
+                [256.0, 256.0],
+            )));
         });
 }
 
@@ -94,7 +99,9 @@ fn ui_second_window_system(
     mut egui_ctx: Query<&mut EguiContext, Without<PrimaryWindow>>,
 ) {
     let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
-    let Ok(mut ctx) = egui_ctx.get_single_mut() else { return; };
+    let Ok(mut ctx) = egui_ctx.get_single_mut() else {
+        return;
+    };
     egui::Window::new("Second Window")
         .vscroll(true)
         .show(ctx.get_mut(), |ui| {
@@ -107,6 +114,9 @@ fn ui_second_window_system(
                 ui.text_edit_singleline(&mut shared_ui_state.shared_input);
             });
 
-            ui.add(egui::widgets::Image::new(bevy_texture_id, [256.0, 256.0]));
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                bevy_texture_id,
+                [256.0, 256.0],
+            )));
         });
 }

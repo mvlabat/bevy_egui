@@ -11,9 +11,11 @@ use bevy::{
     input::{
         keyboard::{KeyCode, KeyboardInput},
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
+        touch::TouchInput,
         ButtonState, Input,
     },
-    prelude::{Entity, EventReader, Query, Time},
+    prelude::{Entity, EventReader, Query, Resource, Time},
+    time::Real,
     window::{
         CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
         WindowFocused,
@@ -33,27 +35,33 @@ pub struct InputEvents<'w, 's> {
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     pub ev_window_focused: EventReader<'w, 's, WindowFocused>,
     pub ev_window_created: EventReader<'w, 's, WindowCreated>,
+    pub ev_touch: EventReader<'w, 's, TouchInput>,
 }
 
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
-        self.ev_cursor_entered.iter().last();
-        self.ev_cursor_left.iter().last();
-        self.ev_cursor.iter().last();
-        self.ev_mouse_button_input.iter().last();
-        self.ev_mouse_wheel.iter().last();
-        self.ev_received_character.iter().last();
-        self.ev_keyboard_input.iter().last();
-        self.ev_window_focused.iter().last();
-        self.ev_window_created.iter().last();
+        self.ev_touch.read().last();
+        self.ev_cursor_entered.read().last();
+        self.ev_cursor_left.read().last();
+        self.ev_cursor.read().last();
+        self.ev_mouse_button_input.read().last();
+        self.ev_mouse_wheel.read().last();
+        self.ev_received_character.read().last();
+        self.ev_keyboard_input.read().last();
+        self.ev_window_focused.read().last();
+        self.ev_window_created.read().last();
     }
 }
 
 #[allow(missing_docs)]
+#[derive(Resource, Default)]
+pub struct TouchId(pub Option<u64>);
+
+#[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
-    #[cfg(feature = "manage_clipboard")]
+    #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
     pub egui_clipboard: ResMut<'w, crate::EguiClipboard>,
     pub keyboard_input: Res<'w, Input<KeyCode>>,
     #[system_param(ignore)]
@@ -64,6 +72,7 @@ pub struct InputResources<'w, 's> {
 #[derive(SystemParam)]
 pub struct ContextSystemParams<'w, 's> {
     pub focused_window: Local<'s, Option<Entity>>,
+    pub pointer_touch_id: Local<'s, TouchId>,
     pub contexts: Query<'w, 's, EguiContextQuery>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
@@ -76,7 +85,7 @@ pub fn process_input_system(
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     mut egui_mouse_position: ResMut<EguiMousePosition>,
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     mut is_mac: Local<bool>,
 ) {
     use std::sync::Once;
@@ -100,11 +109,11 @@ pub fn process_input_system(
 
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
-    if let Some(event) = input_events.ev_window_created.iter().last() {
+    if let Some(event) = input_events.ev_window_created.read().last() {
         *context_params.focused_window = Some(event.window);
     }
 
-    for event in input_events.ev_window_focused.iter() {
+    for event in input_events.ev_window_focused.read() {
         *context_params.focused_window = if event.focused {
             Some(event.window)
         } else {
@@ -112,14 +121,16 @@ pub fn process_input_system(
         };
     }
 
-    let shift = input_resources.keyboard_input.pressed(KeyCode::LShift)
-        || input_resources.keyboard_input.pressed(KeyCode::RShift);
-    let ctrl = input_resources.keyboard_input.pressed(KeyCode::LControl)
-        || input_resources.keyboard_input.pressed(KeyCode::RControl);
-    let alt = input_resources.keyboard_input.pressed(KeyCode::LAlt)
-        || input_resources.keyboard_input.pressed(KeyCode::RAlt);
-    let win = input_resources.keyboard_input.pressed(KeyCode::LWin)
-        || input_resources.keyboard_input.pressed(KeyCode::RWin);
+    let shift = input_resources.keyboard_input.pressed(KeyCode::ShiftLeft)
+        || input_resources.keyboard_input.pressed(KeyCode::ShiftRight);
+    let ctrl = input_resources.keyboard_input.pressed(KeyCode::ControlLeft)
+        || input_resources
+            .keyboard_input
+            .pressed(KeyCode::ControlRight);
+    let alt = input_resources.keyboard_input.pressed(KeyCode::AltLeft)
+        || input_resources.keyboard_input.pressed(KeyCode::AltRight);
+    let win = input_resources.keyboard_input.pressed(KeyCode::SuperLeft)
+        || input_resources.keyboard_input.pressed(KeyCode::SuperRight);
 
     let mac_cmd = if *is_mac { win } else { false };
     let command = if *is_mac { win } else { ctrl };
@@ -133,12 +144,12 @@ pub fn process_input_system(
     };
 
     let mut cursor_left_window = None;
-    if let Some(cursor_left) = input_events.ev_cursor_left.iter().last() {
+    if let Some(cursor_left) = input_events.ev_cursor_left.read().last() {
         cursor_left_window = Some(cursor_left.window);
     }
     let cursor_entered_window = input_events
         .ev_cursor_entered
-        .iter()
+        .read()
         .last()
         .map(|event| event.window);
 
@@ -153,18 +164,17 @@ pub fn process_input_system(
             None
         };
 
-    if let Some(cursor_moved) = input_events.ev_cursor.iter().last() {
+    if let Some(cursor_moved) = input_events.ev_cursor.read().last() {
         // If we've left the window, it's unlikely that we've moved the cursor back to the same
         // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
         // that has been left.
         if cursor_left_window != Some(cursor_moved.window) {
             let scale_factor = egui_settings.scale_factor as f32;
-            let mut mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
+            let mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
             let mut context = context_params
                 .contexts
                 .get_mut(cursor_moved.window)
                 .unwrap();
-            mouse_position.1 = context.window_size.height() / scale_factor - mouse_position.1;
             egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
             context
                 .egui_input
@@ -183,7 +193,7 @@ pub fn process_input_system(
         if let Ok(mut context) = context_params.contexts.get_mut(window_id) {
             let events = &mut context.egui_input.events;
 
-            for mouse_button_event in input_events.ev_mouse_button_input.iter() {
+            for mouse_button_event in input_events.ev_mouse_button_input.read() {
                 let button = match mouse_button_event.button {
                     MouseButton::Left => Some(egui::PointerButton::Primary),
                     MouseButton::Right => Some(egui::PointerButton::Secondary),
@@ -204,7 +214,7 @@ pub fn process_input_system(
                 }
             }
 
-            for event in input_events.ev_mouse_wheel.iter() {
+            for event in input_events.ev_mouse_wheel.read() {
                 let mut delta = egui::vec2(event.x, event.y);
                 if let MouseScrollUnit::Line = event.unit {
                     // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
@@ -227,7 +237,7 @@ pub fn process_input_system(
     }
 
     if !command || cfg!(target_os = "windows") && ctrl && alt {
-        for event in input_events.ev_received_character.iter() {
+        for event in input_events.ev_received_character.read() {
             if !event.char.is_control() {
                 let mut context = context_params.contexts.get_mut(event.window).unwrap();
                 context
@@ -249,7 +259,7 @@ pub fn process_input_system(
             }
         })
     {
-        for ev in input_events.ev_keyboard_input.iter() {
+        for ev in input_events.ev_keyboard_input.read() {
             if let Some(key) = ev.key_code.and_then(bevy_to_egui_key) {
                 let pressed = match ev.state {
                     ButtonState::Pressed => true,
@@ -265,7 +275,7 @@ pub fn process_input_system(
 
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
-                #[cfg(feature = "manage_clipboard")]
+                #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
                 {
                     #[cfg(not(target_arch = "wasm32"))]
                     if command && pressed {
@@ -312,11 +322,87 @@ pub fn process_input_system(
             }
         }
 
+        for touch in input_events.ev_touch.read() {
+            let scale_factor = egui_settings.scale_factor as f32;
+            let touch_position: (f32, f32) = (touch.position / scale_factor).into();
+
+            // Emit touch event
+            focused_input.events.push(egui::Event::Touch {
+                device_id: egui::TouchDeviceId(egui::epaint::util::hash(touch.id)),
+                id: egui::TouchId::from(touch.id),
+                phase: match touch.phase {
+                    bevy::input::touch::TouchPhase::Started => egui::TouchPhase::Start,
+                    bevy::input::touch::TouchPhase::Moved => egui::TouchPhase::Move,
+                    bevy::input::touch::TouchPhase::Ended => egui::TouchPhase::End,
+                    bevy::input::touch::TouchPhase::Canceled => egui::TouchPhase::Cancel,
+                },
+                pos: egui::pos2(touch_position.0, touch_position.1),
+                force: match touch.force {
+                    Some(bevy::input::touch::ForceTouch::Normalized(force)) => Some(force as f32),
+                    Some(bevy::input::touch::ForceTouch::Calibrated {
+                        force,
+                        max_possible_force,
+                        ..
+                    }) => Some((force / max_possible_force) as f32),
+                    None => None,
+                },
+            });
+
+            // If we're not yet tanslating a touch or we're translating this very
+            // touch …
+            if context_params.pointer_touch_id.0.is_none()
+                || context_params.pointer_touch_id.0.unwrap() == touch.id
+            {
+                // … emit PointerButton resp. PointerMoved events to emulate mouse
+                match touch.phase {
+                    bevy::input::touch::TouchPhase::Started => {
+                        context_params.pointer_touch_id.0 = Some(touch.id);
+                        // First move the pointer to the right location
+                        focused_input
+                            .events
+                            .push(egui::Event::PointerMoved(egui::pos2(
+                                touch_position.0,
+                                touch_position.1,
+                            )));
+                        // Then do mouse button input
+                        focused_input.events.push(egui::Event::PointerButton {
+                            pos: egui::pos2(touch_position.0, touch_position.1),
+                            button: egui::PointerButton::Primary,
+                            pressed: true,
+                            modifiers,
+                        });
+                    }
+                    bevy::input::touch::TouchPhase::Moved => {
+                        focused_input
+                            .events
+                            .push(egui::Event::PointerMoved(egui::pos2(
+                                touch_position.0,
+                                touch_position.1,
+                            )));
+                    }
+                    bevy::input::touch::TouchPhase::Ended => {
+                        context_params.pointer_touch_id.0 = None;
+                        focused_input.events.push(egui::Event::PointerButton {
+                            pos: egui::pos2(touch_position.0, touch_position.1),
+                            button: egui::PointerButton::Primary,
+                            pressed: false,
+                            modifiers,
+                        });
+                        focused_input.events.push(egui::Event::PointerGone);
+                    }
+                    bevy::input::touch::TouchPhase::Canceled => {
+                        context_params.pointer_touch_id.0 = None;
+                        focused_input.events.push(egui::Event::PointerGone);
+                    }
+                }
+            }
+        }
+
         focused_input.modifiers = modifiers;
     }
 
     for mut context in context_params.contexts.iter_mut() {
-        context.egui_input.predicted_dt = time.raw_delta_seconds();
+        context.egui_input.time = Some(time.elapsed_seconds_f64());
     }
 
     // In some cases, we may skip certain events. For example, we ignore `ReceivedCharacter` events
@@ -351,8 +437,10 @@ pub fn update_window_contexts_system(
             egui::pos2(width, height),
         ));
 
-        context.egui_input.pixels_per_point =
-            Some(new_window_size.scale_factor * egui_settings.scale_factor as f32);
+        context
+            .ctx
+            .0
+            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor as f32);
 
         *context.window_size = new_window_size;
     }
@@ -371,7 +459,8 @@ pub fn process_output_system(
         EguiSettings,
     >,
     mut contexts: Query<EguiContextQuery>,
-    #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
+    #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+    mut egui_clipboard: ResMut<crate::EguiClipboard>,
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<bevy::utils::HashMap<Entity, egui::CursorIcon>>,
 ) {
@@ -382,16 +471,17 @@ pub fn process_output_system(
             platform_output,
             shapes,
             textures_delta,
-            repaint_after,
+            pixels_per_point,
+            viewport_output: _,
         } = full_output;
-        let paint_jobs = ctx.tessellate(shapes);
+        let paint_jobs = ctx.tessellate(shapes, pixels_per_point);
 
         context.render_output.paint_jobs = paint_jobs;
         context.render_output.textures_delta.append(textures_delta);
 
         context.egui_output.platform_output = platform_output.clone();
 
-        #[cfg(feature = "manage_clipboard")]
+        #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         if !platform_output.copied_text.is_empty() {
             egui_clipboard.set_contents(&platform_output.copied_text);
         }
@@ -412,7 +502,7 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if repaint_after.is_zero() {
+        if ctx.has_requested_repaint() {
             event.send(RequestRedraw)
         }
 
@@ -487,6 +577,7 @@ fn bevy_to_egui_key(key_code: KeyCode) -> Option<egui::Key> {
         KeyCode::Tab => egui::Key::Tab,
         KeyCode::Back => egui::Key::Backspace,
         KeyCode::Return => egui::Key::Enter,
+        KeyCode::NumpadEnter => egui::Key::Enter,
         KeyCode::Space => egui::Key::Space,
         KeyCode::Insert => egui::Key::Insert,
         KeyCode::Delete => egui::Key::Delete,

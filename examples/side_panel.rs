@@ -17,11 +17,11 @@ struct OriginalCameraTransform(Transform);
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
+        .add_plugins(EguiPlugin)
         .init_resource::<OccupiedScreenSpace>()
-        .add_startup_system(setup_system)
-        .add_system(ui_example_system)
-        .add_system(update_camera_transform_system)
+        .add_systems(Startup, setup_system)
+        .add_systems(Update, ui_example_system)
+        .add_systems(Update, update_camera_transform_system)
         .run();
 }
 
@@ -34,6 +34,7 @@ fn ui_example_system(
     occupied_screen_space.left = egui::SidePanel::left("left_panel")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.label("Left resizeable panel");
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -42,6 +43,7 @@ fn ui_example_system(
     occupied_screen_space.right = egui::SidePanel::right("right_panel")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.label("Right resizeable panel");
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -50,6 +52,7 @@ fn ui_example_system(
     occupied_screen_space.top = egui::TopBottomPanel::top("top_panel")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.label("Top resizeable panel");
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response
@@ -58,6 +61,7 @@ fn ui_example_system(
     occupied_screen_space.bottom = egui::TopBottomPanel::bottom("bottom_panel")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.label("Bottom resizeable panel");
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response

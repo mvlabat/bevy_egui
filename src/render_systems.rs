@@ -1,17 +1,17 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiContextQueryReadOnly, EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
-    asset::HandleId,
+    ecs::system::SystemParam,
     prelude::*,
     render::{
+        extract_resource::ExtractResource,
         render_asset::RenderAssets,
         render_graph::RenderGraph,
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferId,
-            CachedRenderPipelineId, DynamicUniformBuffer, PipelineCache, ShaderType,
-            SpecializedRenderPipelines,
+            BindGroup, BindGroupEntry, BindingResource, BufferId, CachedRenderPipelineId,
+            DynamicUniformBuffer, PipelineCache, ShaderType, SpecializedRenderPipelines,
         },
         renderer::{RenderDevice, RenderQueue},
         texture::Image,
@@ -25,6 +25,17 @@ use bevy::{
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct ExtractedEguiSettings(pub EguiSettings);
 
+/// The extracted version of [`EguiManagedTextures`].
+#[derive(Debug, Resource)]
+pub struct ExtractedEguiManagedTextures(pub HashMap<(Entity, u64), Handle<Image>>);
+impl ExtractResource for ExtractedEguiManagedTextures {
+    type Source = EguiManagedTextures;
+
+    fn extract_resource(source: &Self::Source) -> Self {
+        Self(source.iter().map(|(k, v)| (*k, v.handle.clone())).collect())
+    }
+}
+
 /// Corresponds to Egui's [`egui::TextureId`].
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum EguiTextureId {
@@ -35,24 +46,26 @@ pub enum EguiTextureId {
 }
 
 /// Extracted Egui textures.
-#[derive(Resource, Default)]
-pub struct ExtractedEguiTextures {
+#[derive(SystemParam)]
+pub struct ExtractedEguiTextures<'w> {
     /// Maps Egui managed texture ids to Bevy image handles.
-    pub egui_textures: HashMap<(Entity, u64), Handle<Image>>,
+    pub egui_textures: Res<'w, ExtractedEguiManagedTextures>,
     /// Maps Bevy managed texture handles to Egui user texture ids.
-    pub user_textures: HashMap<Handle<Image>, u64>,
+    pub user_textures: Res<'w, EguiUserTextures>,
 }
 
-impl ExtractedEguiTextures {
+impl ExtractedEguiTextures<'_> {
     /// Returns an iterator over all textures (both Egui and Bevy managed).
-    pub fn handles(&self) -> impl Iterator<Item = (EguiTextureId, HandleId)> + '_ {
+    pub fn handles(&self) -> impl Iterator<Item = (EguiTextureId, AssetId<Image>)> + '_ {
         self.egui_textures
+            .0
             .iter()
-            .map(|(&(window, texture_id), handle)| {
-                (EguiTextureId::Managed(window, texture_id), handle.id())
+            .map(|(&(window, texture_id), managed_tex)| {
+                (EguiTextureId::Managed(window, texture_id), managed_tex.id())
             })
             .chain(
                 self.user_textures
+                    .textures
                     .iter()
                     .map(|(handle, id)| (EguiTextureId::User(*id), handle.id())),
             )
@@ -76,37 +89,6 @@ pub fn setup_new_windows_render_system(
             egui_pass.to_string(),
         );
     }
-}
-
-/// Extracts Egui context, render output, settings and application window sizes.
-pub fn extract_egui_render_data_system(
-    mut commands: Commands,
-    egui_settings: Extract<Res<EguiSettings>>,
-    contexts: Extract<Query<EguiContextQueryReadOnly>>,
-) {
-    commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
-    for context in contexts.iter() {
-        commands
-            .get_or_spawn(context.window_entity)
-            .insert((*context.window_size, context.render_output.clone()));
-    }
-}
-
-/// Extracts Egui textures.
-pub fn extract_egui_textures_system(
-    mut commands: Commands,
-    egui_user_textures: Extract<Res<EguiUserTextures>>,
-    egui_managed_textures: Extract<Res<EguiManagedTextures>>,
-) {
-    commands.insert_resource(ExtractedEguiTextures {
-        egui_textures: egui_managed_textures
-            .iter()
-            .map(|(&(window_id, texture_id), managed_texture)| {
-                ((window_id, texture_id), managed_texture.handle.clone())
-            })
-            .collect(),
-        user_textures: egui_user_textures.textures.clone(),
-    });
 }
 
 /// Describes the transform buffer.
@@ -147,7 +129,7 @@ impl EguiTransform {
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
     window_sizes: Query<(Entity, &WindowSize)>,
-    egui_settings: Res<ExtractedEguiSettings>,
+    egui_settings: Res<EguiSettings>,
 
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
@@ -173,14 +155,14 @@ pub fn prepare_egui_transforms_system(
         match egui_transforms.bind_group {
             Some((id, _)) if buffer.id() == id => {}
             _ => {
-                let transform_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-                    label: Some("egui transform bind group"),
-                    layout: &egui_pipeline.transform_bind_group_layout,
-                    entries: &[BindGroupEntry {
+                let transform_bind_group = render_device.create_bind_group(
+                    Some("egui transform bind group"),
+                    &egui_pipeline.transform_bind_group_layout,
+                    &[BindGroupEntry {
                         binding: 0,
                         resource: egui_transforms.buffer.binding().unwrap(),
                     }],
-                });
+                );
                 egui_transforms.bind_group = Some((buffer.id(), transform_bind_group));
             }
         };
@@ -194,7 +176,7 @@ pub struct EguiTextureBindGroups(pub HashMap<EguiTextureId, BindGroup>);
 /// Queues bind groups.
 pub fn queue_bind_groups_system(
     mut commands: Commands,
-    egui_textures: Res<ExtractedEguiTextures>,
+    egui_textures: ExtractedEguiTextures,
     render_device: Res<RenderDevice>,
     gpu_images: Res<RenderAssets<Image>>,
     egui_pipeline: Res<EguiPipeline>,
@@ -202,11 +184,11 @@ pub fn queue_bind_groups_system(
     let bind_groups = egui_textures
         .handles()
         .filter_map(|(texture, handle_id)| {
-            let gpu_image = gpu_images.get(&Handle::weak(handle_id))?;
-            let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-                label: None,
-                layout: &egui_pipeline.texture_bind_group_layout,
-                entries: &[
+            let gpu_image = gpu_images.get(&Handle::Weak(handle_id))?;
+            let bind_group = render_device.create_bind_group(
+                None,
+                &egui_pipeline.texture_bind_group_layout,
+                &[
                     BindGroupEntry {
                         binding: 0,
                         resource: BindingResource::TextureView(&gpu_image.texture_view),
@@ -216,7 +198,7 @@ pub fn queue_bind_groups_system(
                         resource: BindingResource::Sampler(&gpu_image.sampler),
                     },
                 ],
-            });
+            );
             Some((texture, bind_group))
         })
         .collect();
@@ -240,7 +222,7 @@ pub fn queue_pipelines_system(
         .iter()
         .filter_map(|(window_id, window)| {
             let key = EguiPipelineKey {
-                texture_format: window.swap_chain_texture_format?,
+                texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
             };
             let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 

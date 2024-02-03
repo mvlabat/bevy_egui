@@ -15,10 +15,10 @@ use egui::Widget;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
-        .add_startup_system(setup)
-        .add_system(rotator_system)
-        .add_system(render_to_image_example_system)
+        .add_plugins(EguiPlugin)
+        .add_systems(Startup, setup)
+        .add_systems(Update, rotator_system)
+        .add_systems(Update, render_to_image_example_system)
         .run();
 }
 
@@ -159,7 +159,10 @@ fn render_to_image_example_system(
     let ctx = contexts.ctx_mut();
     let mut apply = false;
     egui::Window::new("Cube material preview").show(ctx, |ui| {
-        ui.image(cube_preview_texture_id, [300.0, 300.0]);
+        ui.image(egui::load::SizedTexture::new(
+            cube_preview_texture_id,
+            egui::vec2(300., 300.),
+        ));
         egui::Grid::new("preview").show(ui, |ui| {
             ui.label("Base color:");
             color_picker_widget(ui, &mut preview_material.base_color);
@@ -189,7 +192,7 @@ fn render_to_image_example_system(
         let material_clone = preview_material.clone();
 
         let main_material_handle = main_cube_query.single();
-        let _ = materials.set(main_material_handle, material_clone);
+        materials.insert(main_material_handle, material_clone);
     }
 }
 
