@@ -61,7 +61,6 @@ pub struct EguiPass {
     window_generation: u32,
 }
 
-
 impl ExtractedEguiTextures<'_> {
     /// Returns an iterator over all textures (both Egui and Bevy managed).
     pub fn handles(&self) -> impl Iterator<Item = (EguiTextureId, AssetId<Image>)> + '_ {
@@ -86,19 +85,16 @@ pub fn setup_new_windows_render_system(
     mut render_graph: ResMut<RenderGraph>,
 ) {
     for window in windows.iter() {
-        let egui_pass = EguiPass{
+        let egui_pass = EguiPass {
             window_index: window.index(),
-            window_generation: window.generation()
+            window_generation: window.generation(),
         };
 
         let new_node = EguiNode::new(window);
 
         render_graph.add_node(egui_pass.clone(), new_node);
 
-        render_graph.add_node_edge(
-            bevy::render::graph::CameraDriverLabel,
-            egui_pass,
-        );
+        render_graph.add_node_edge(bevy::render::graph::CameraDriverLabel, egui_pass);
     }
 }
 
