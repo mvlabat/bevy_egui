@@ -69,7 +69,7 @@ fn setup(
     egui_user_textures.add_image(image_handle.clone());
     commands.insert_resource(CubePreviewImage(image_handle.clone()));
 
-    let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 4.0 }));
+    let cube_handle = meshes.add(Mesh::from(Cuboid::new(4.0, 4.0, 4.0)));
     let default_material = StandardMaterial {
         base_color: Color::rgb(0.8, 0.7, 0.6),
         reflectance: 0.02,
@@ -115,7 +115,7 @@ fn setup(
         .insert(preview_pass_layer);
 
     let cube_size = 4.0;
-    let cube_handle = meshes.add(Mesh::from(shape::Box::new(cube_size, cube_size, cube_size)));
+    let cube_handle = meshes.add(Mesh::from(Cuboid::new(cube_size, cube_size, cube_size)));
 
     let main_material_handle = materials.add(default_material);
 
