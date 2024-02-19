@@ -85,6 +85,7 @@ pub struct ContextSystemParams<'w, 's> {
     pub focused_window: Local<'s, Option<Entity>>,
     pub pointer_touch_id: Local<'s, TouchId>,
     pub contexts: Query<'w, 's, EguiContextQuery>,
+    pub is_macos: Local<'s, bool>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
 }
@@ -98,6 +99,24 @@ pub fn process_input_system(
     mut egui_mouse_position: ResMut<EguiMousePosition>,
     time: Res<Time<Real>>,
 ) {
+    // Test whether it's macOS or OS X.
+    use std::sync::Once;
+    static START: Once = Once::new();
+    START.call_once(|| {
+        // The default for WASM is `false` since the `target_os` is `unknown`.
+        *context_params.is_macos = cfg!(target_os = "macos");
+
+        #[cfg(target_arch = "wasm32")]
+        if let Some(window) = web_sys::window() {
+            let nav = window.navigator();
+            if let Ok(user_agent) = nav.user_agent() {
+                if user_agent.to_ascii_lowercase().contains("Mac") {
+                    *context_params.is_macos = true;
+                }
+            }
+        }
+    });
+
     // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
     // when a window is created.
     if let Some(event) = input_events.ev_window_created.read().last() {
@@ -143,12 +162,8 @@ pub fn process_input_system(
         alt,
         win,
     } = *input_resources.modifier_keys_state;
-    let mac_cmd = if cfg!(target_os = "macos") {
-        win
-    } else {
-        false
-    };
-    let command = if cfg!(target_os = "macos") { win } else { ctrl };
+    let mac_cmd = if *context_params.is_macos { win } else { false };
+    let command = if !*context_params.is_macos { win } else { ctrl };
 
     let modifiers = egui::Modifiers {
         alt,
@@ -251,7 +266,7 @@ pub fn process_input_system(
         }
     }
 
-    if !command || cfg!(target_os = "windows") && ctrl && alt {
+    if !command || !*context_params.is_macos && ctrl && alt {
         for event in input_events.ev_received_character.read() {
             if event.char.matches(char::is_control).count() == 0 {
                 let mut context = context_params.contexts.get_mut(event.window).unwrap();
