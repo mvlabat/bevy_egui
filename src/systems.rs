@@ -75,7 +75,7 @@ pub struct InputResources<'w, 's> {
     pub egui_clipboard: Res<'w, crate::EguiClipboard>,
     pub modifier_keys_state: Local<'s, ModifierKeysState>,
     #[system_param(ignore)]
-    _marker: PhantomData<&'s ()>,
+    _marker: PhantomData<&'w ()>,
 }
 
 #[allow(missing_docs)]
