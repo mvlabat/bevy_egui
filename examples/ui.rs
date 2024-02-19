@@ -55,7 +55,7 @@ fn configure_ui_state_system(mut ui_state: ResMut<UiState>) {
 }
 
 fn update_ui_scale_factor_system(
-    keyboard_input: Res<Input<KeyCode>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut egui_settings: ResMut<EguiSettings>,
     windows: Query<&Window, With<PrimaryWindow>>,
