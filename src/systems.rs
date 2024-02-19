@@ -25,6 +25,7 @@ use std::marker::PhantomData;
 
 #[allow(missing_docs)]
 #[derive(SystemParam)]
+// IMPORTANT: remember to add the logic to clear event readers to the `clear` method.
 pub struct InputEvents<'w, 's> {
     pub ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
     pub ev_cursor_left: EventReader<'w, 's, CursorLeft>,
@@ -41,7 +42,6 @@ pub struct InputEvents<'w, 's> {
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
-        self.ev_touch.read().last();
         self.ev_cursor_entered.read().last();
         self.ev_cursor_left.read().last();
         self.ev_cursor.read().last();
@@ -51,6 +51,7 @@ impl<'w, 's> InputEvents<'w, 's> {
         self.ev_keyboard_input.read().last();
         self.ev_window_focused.read().last();
         self.ev_window_created.read().last();
+        self.ev_touch.read().last();
     }
 }
 

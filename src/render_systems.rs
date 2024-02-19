@@ -54,11 +54,13 @@ pub struct ExtractedEguiTextures<'w> {
     pub user_textures: Res<'w, EguiUserTextures>,
 }
 
-/// RenderLabel type for the egui pass
+/// [`RenderLabel`] type for the Egui pass.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct EguiPass {
-    window_index: u32,
-    window_generation: u32,
+    /// Index of the window entity.
+    pub window_index: u32,
+    /// Generation of the window entity.
+    pub window_generation: u32,
 }
 
 impl ExtractedEguiTextures<'_> {
