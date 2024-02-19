@@ -9,10 +9,10 @@ use bevy::{
         system::{Local, Res, ResMut, SystemParam},
     },
     input::{
-        keyboard::{Key, KeyCode, KeyboardInput},
+        keyboard::{Key, KeyboardInput},
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         touch::TouchInput,
-        ButtonInput, ButtonState,
+        ButtonState,
     },
     prelude::{Entity, EventReader, Query, Resource, Time},
     time::Real,
@@ -58,12 +58,22 @@ impl<'w, 's> InputEvents<'w, 's> {
 #[derive(Resource, Default)]
 pub struct TouchId(pub Option<u64>);
 
+/// Stores "pressed" state of modifier keys.
+/// Will be removed if Bevy adds support for `ButtonInput<Key>` (logical keys).
+#[derive(Resource, Default, Clone, Copy, Debug)]
+pub struct ModifierKeysState {
+    shift: bool,
+    ctrl: bool,
+    alt: bool,
+    win: bool,
+}
+
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
     #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
     pub egui_clipboard: Res<'w, crate::EguiClipboard>,
-    pub keyboard_input: Res<'w, ButtonInput<KeyCode>>,
+    pub modifier_keys_state: Local<'s, ModifierKeysState>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
 }
@@ -81,7 +91,7 @@ pub struct ContextSystemParams<'w, 's> {
 /// Processes Bevy input and feeds it to Egui.
 pub fn process_input_system(
     mut input_events: InputEvents,
-    input_resources: InputResources,
+    mut input_resources: InputResources,
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     mut egui_mouse_position: ResMut<EguiMousePosition>,
@@ -101,17 +111,37 @@ pub fn process_input_system(
         };
     }
 
-    let shift = input_resources.keyboard_input.pressed(KeyCode::ShiftLeft)
-        || input_resources.keyboard_input.pressed(KeyCode::ShiftRight);
-    let ctrl = input_resources.keyboard_input.pressed(KeyCode::ControlLeft)
-        || input_resources
-            .keyboard_input
-            .pressed(KeyCode::ControlRight);
-    let alt = input_resources.keyboard_input.pressed(KeyCode::AltLeft)
-        || input_resources.keyboard_input.pressed(KeyCode::AltRight);
-    let win = input_resources.keyboard_input.pressed(KeyCode::SuperLeft)
-        || input_resources.keyboard_input.pressed(KeyCode::SuperRight);
+    let mut keyboard_input_events = Vec::new();
+    for event in input_events.ev_keyboard_input.read() {
+        // Copy the events as we might want to pass them to an Egui context later.
+        keyboard_input_events.push(event.clone());
 
+        let KeyboardInput {
+            logical_key, state, ..
+        } = event;
+        match logical_key {
+            Key::Shift => {
+                input_resources.modifier_keys_state.shift = state.is_pressed();
+            }
+            Key::Control => {
+                input_resources.modifier_keys_state.ctrl = state.is_pressed();
+            }
+            Key::Alt => {
+                input_resources.modifier_keys_state.alt = state.is_pressed();
+            }
+            Key::Super => {
+                input_resources.modifier_keys_state.win = state.is_pressed();
+            }
+            _ => {}
+        };
+    }
+
+    let ModifierKeysState {
+        shift,
+        ctrl,
+        alt,
+        win,
+    } = *input_resources.modifier_keys_state;
     let mac_cmd = if cfg!(target_os = "macos") {
         win
     } else {
@@ -243,15 +273,11 @@ pub fn process_input_system(
             }
         })
     {
-        for ev in input_events.ev_keyboard_input.read() {
+        for ev in keyboard_input_events {
             if let Some(key) = bevy_to_egui_key(&ev.logical_key) {
-                let pressed = match ev.state {
-                    ButtonState::Pressed => true,
-                    ButtonState::Released => false,
-                };
                 let egui_event = egui::Event::Key {
                     key,
-                    pressed,
+                    pressed: ev.state.is_pressed(),
                     repeat: false,
                     modifiers,
                 };
@@ -260,7 +286,7 @@ pub fn process_input_system(
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
                 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-                if command && pressed {
+                if command && ev.state.is_pressed() {
                     match key {
                         egui::Key::C => {
                             focused_input.events.push(egui::Event::Copy);
