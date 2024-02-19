@@ -570,7 +570,7 @@ fn egui_to_winit_cursor_icon(cursor_icon: egui::CursorIcon) -> Option<bevy::wind
     }
 }
 
-/// Matches the implementation of https://github.com/emilk/egui/blob/68b3ef7f6badfe893d3bbb1f791b481069d807d9/crates/egui-winit/src/lib.rs#L1005.
+/// Matches the implementation of <https://github.com/emilk/egui/blob/68b3ef7f6badfe893d3bbb1f791b481069d807d9/crates/egui-winit/src/lib.rs#L1005>.
 pub fn bevy_to_egui_key(key: &Key) -> Option<egui::Key> {
     let key = match key {
         Key::Character(str) => return egui::Key::from_name(str.as_str()),
@@ -617,8 +617,8 @@ pub fn bevy_to_egui_key(key: &Key) -> Option<egui::Key> {
     Some(key)
 }
 
-/// Matches the implementation of https://github.com/emilk/egui/blob/68b3ef7f6badfe893d3bbb1f791b481069d807d9/crates/egui-winit/src/lib.rs#L1080.
-fn bevy_to_egui_physical_key(key: &KeyCode) -> Option<egui::Key> {
+/// Matches the implementation of <https://github.com/emilk/egui/blob/68b3ef7f6badfe893d3bbb1f791b481069d807d9/crates/egui-winit/src/lib.rs#L1080>.
+pub fn bevy_to_egui_physical_key(key: &KeyCode) -> Option<egui::Key> {
     let key = match key {
         KeyCode::ArrowDown => egui::Key::ArrowDown,
         KeyCode::ArrowLeft => egui::Key::ArrowLeft,
