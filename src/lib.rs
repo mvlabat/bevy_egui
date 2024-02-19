@@ -904,6 +904,7 @@ mod tests {
                                 ..Default::default()
                             },
                         ),
+                        ..Default::default()
                     })
                     .build()
                     .disable::<WinitPlugin>(),
