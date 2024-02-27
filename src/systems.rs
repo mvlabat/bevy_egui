@@ -163,7 +163,7 @@ pub fn process_input_system(
         win,
     } = *input_resources.modifier_keys_state;
     let mac_cmd = if *context_params.is_macos { win } else { false };
-    let command = if !*context_params.is_macos { win } else { ctrl };
+    let command = if *context_params.is_macos { win } else { ctrl };
 
     let modifiers = egui::Modifiers {
         alt,
@@ -266,7 +266,7 @@ pub fn process_input_system(
         }
     }
 
-    if !command || !*context_params.is_macos && ctrl && alt {
+    if !command && !win || !*context_params.is_macos && ctrl && alt {
         for event in input_events.ev_received_character.read() {
             if event.char.matches(char::is_control).count() == 0 {
                 let mut context = context_params.contexts.get_mut(event.window).unwrap();
