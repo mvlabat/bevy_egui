@@ -1,8 +1,7 @@
 use bevy::{
-    core_pipeline::clear_color::ClearColorConfig,
     prelude::*,
     render::{
-        camera::RenderTarget,
+        camera::{ClearColorConfig, RenderTarget},
         render_resource::{
             Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
         },
@@ -70,7 +69,7 @@ fn setup(
     egui_user_textures.add_image(image_handle.clone());
     commands.insert_resource(CubePreviewImage(image_handle.clone()));
 
-    let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 4.0 }));
+    let cube_handle = meshes.add(Cuboid::new(4.0, 4.0, 4.0));
     let default_material = StandardMaterial {
         base_color: Color::rgb(0.8, 0.7, 0.6),
         reflectance: 0.02,
@@ -102,14 +101,11 @@ fn setup(
 
     commands
         .spawn(Camera3dBundle {
-            camera_3d: Camera3d {
-                clear_color: ClearColorConfig::Custom(Color::rgba(1.0, 1.0, 1.0, 0.0)),
-                ..default()
-            },
             camera: Camera {
                 // render before the "main pass" camera
                 order: -1,
                 target: RenderTarget::Image(image_handle),
+                clear_color: ClearColorConfig::Custom(Color::rgba(1.0, 1.0, 1.0, 0.0)),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 15.0))
@@ -119,7 +115,7 @@ fn setup(
         .insert(preview_pass_layer);
 
     let cube_size = 4.0;
-    let cube_handle = meshes.add(Mesh::from(shape::Box::new(cube_size, cube_size, cube_size)));
+    let cube_handle = meshes.add(Cuboid::new(cube_size, cube_size, cube_size));
 
     let main_material_handle = materials.add(default_material);
 
@@ -210,13 +206,12 @@ fn color_picker_widget(ui: &mut egui::Ui, color: &mut Color) -> egui::Response {
         egui::color_picker::Alpha::Opaque,
     );
     let [r, g, b, a] = egui_color.to_srgba_unmultiplied();
-    *color = [
+    *color = Color::rgba(
         r as f32 / 255.0,
         g as f32 / 255.0,
         b as f32 / 255.0,
         a as f32 / 255.0,
-    ]
-    .into();
+    );
     res
 }
 

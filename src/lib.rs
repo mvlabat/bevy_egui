@@ -102,7 +102,7 @@ use bevy::{
 use bevy::{
     app::{App, Plugin, PostUpdate, PreStartup, PreUpdate},
     ecs::{
-        query::{QueryEntityError, WorldQuery},
+        query::{QueryData, QueryEntityError},
         schedule::apply_deferred,
         system::SystemParam,
     },
@@ -146,7 +146,7 @@ pub struct EguiSettings {
     ///     }
     /// }
     /// ```
-    pub scale_factor: f64,
+    pub scale_factor: f32,
     /// Will be used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
@@ -754,8 +754,8 @@ impl Plugin for EguiPlugin {
 }
 
 /// Queries all the Egui related components.
-#[derive(WorldQuery)]
-#[world_query(mutable)]
+#[derive(QueryData)]
+#[query_data(mutable)]
 pub struct EguiContextQuery {
     /// Window entity.
     pub window_entity: Entity,
@@ -927,6 +927,7 @@ mod tests {
                                 ..Default::default()
                             },
                         ),
+                        ..Default::default()
                     })
                     .build()
                     .disable::<WinitPlugin>(),

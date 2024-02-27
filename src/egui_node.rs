@@ -9,16 +9,17 @@ use bevy::{
     ecs::world::{FromWorld, World},
     prelude::{Entity, Handle, Resource},
     render::{
+        render_asset::RenderAssetUsages,
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
-            BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-            BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
-            BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-            Extent3d, FragmentState, FrontFace, IndexFormat, LoadOp, MultisampleState, Operations,
-            PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-            RenderPipelineDescriptor, SamplerBindingType, Shader, ShaderStages, ShaderType,
-            SpecializedRenderPipeline, TextureDimension, TextureFormat, TextureSampleType,
-            TextureViewDimension, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+            BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
+            BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor,
+            BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState, FrontFace,
+            IndexFormat, LoadOp, MultisampleState, Operations, PipelineCache, PrimitiveState,
+            RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
+            SamplerBindingType, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline,
+            StoreOp, TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
+            VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::{Image, ImageSampler},
@@ -42,43 +43,41 @@ impl FromWorld for EguiPipeline {
     fn from_world(render_world: &mut World) -> Self {
         let render_device = render_world.get_resource::<RenderDevice>().unwrap();
 
-        let transform_bind_group_layout =
-            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("egui transform bind group layout"),
-                entries: &[BindGroupLayoutEntry {
+        let transform_bind_group_layout = render_device.create_bind_group_layout(
+            "egui transform bind group layout",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: true,
+                    min_binding_size: Some(EguiTransform::min_size()),
+                },
+                count: None,
+            }],
+        );
+
+        let texture_bind_group_layout = render_device.create_bind_group_layout(
+            "egui texture bind group layout",
+            &[
+                BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: ShaderStages::VERTEX,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: true,
-                        min_binding_size: Some(EguiTransform::min_size()),
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
                     },
                     count: None,
-                }],
-            });
-
-        let texture_bind_group_layout =
-            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("egui texture bind group layout"),
-                entries: &[
-                    BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Texture {
-                            sample_type: TextureSampleType::Float { filterable: true },
-                            view_dimension: TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        );
 
         EguiPipeline {
             transform_bind_group_layout,
@@ -200,7 +199,7 @@ impl Node for EguiNode {
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
-        let scale_factor = window_size.scale_factor * egui_settings.scale_factor as f32;
+        let scale_factor = window_size.scale_factor * egui_settings.scale_factor;
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
             return;
         }
@@ -345,10 +344,12 @@ impl Node for EguiNode {
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,
-                            store: true,
+                            store: StoreOp::Store,
                         },
                     })],
                     depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
                 });
 
         let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else {
@@ -450,6 +451,7 @@ pub(crate) fn color_image_as_bevy_image(
             TextureDimension::D2,
             pixels,
             TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
         )
     }
 }

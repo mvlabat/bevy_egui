@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 19-Feb-2024
+
+### Added
+
+- Add `render` feature which can be disabled for applications with a custom renderer ([#240](https://github.com/mvlabat/bevy_egui/pull/240) by @BeastLe9enD).
+
+### Changed
+
+- Update Bevy to 0.13 ([#236](https://github.com/mvlabat/bevy_egui/pull/236) by @eri).
+- Update Egui to 0.26
+
+### Fixed
+
+- Retrieve user agent for better platform detection on WASM ([#256](https://github.com/mvlabat/bevy_egui/pull/256) by @Vrixyz).
+- Remove unused `once_cell` dev-dependency ([#258](https://github.com/mvlabat/bevy_egui/pull/258) by @frewsxcv).
+- Make fields inside `WindowSize` pub ([#251](https://github.com/mvlabat/bevy_egui/pull/251) by @BeastLe9enD).
+- Fix requested repaints not causing Bevy to redraw ([#240](https://github.com/mvlabat/bevy_egui/pull/240) by @andriyDev).
+- Fix build on Android with default features ([#241](https://github.com/mvlabat/bevy_egui/pull/241) by @Hellzbellz123).
+
 ## [0.24.0] - 11-Dec-2023
 
 ### Changed
@@ -13,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/bevy_egui/pull/226) by @TheRawMeatball).
+- Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/bevy_egui/pull/226) by @TheRawMeatball).
 
 ## [0.23.0] - 5-Nov-2023
 
@@ -27,16 +46,20 @@ Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/be
 
 ## [0.22.0] - 7-Oct-2023
 
+### Added
+
+- Add `#[derive(Reflect)]` ([#195](https://github.com/mvlabat/bevy_egui/pull/195) by @SludgePhD).
+
 ### Changed
 
 - Update Egui to 0.23 ([#217](https://github.com/mvlabat/bevy_egui/pull/217) by @zicklag).
 - Refactor components and resources extraction ([#210](https://github.com/mvlabat/bevy_egui/pull/210), [#211](https://github.com/mvlabat/bevy_egui/pull/211) by @TheButlah).
 
+## [0.21.0] - 10-Jul-2023
+
 ### Added
 
-- Add `#[derive(Reflect)]` ([#195](https://github.com/mvlabat/bevy_egui/pull/195) by @SludgePhD).
-
-## [0.21.0] - 10-Jul-2023
+- Add touch events support ([#180](https://github.com/mvlabat/bevy_egui/pull/180) by @oscrim).
 
 ### Changed
 
@@ -44,10 +67,6 @@ Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/be
 - Update Egui to 0.22 ([#184](https://github.com/mvlabat/bevy_egui/pull/184)).
 - Move sampler descriptor into `EguiSettings` ([#179](https://github.com/mvlabat/bevy_egui/pull/179) by @GlummixX).
 - Update GitHub Actions CI ([#183](https://github.com/mvlabat/bevy_egui/pull/183) by @striezel).
-
-### Added
-
-- Add touch events support ([#180](https://github.com/mvlabat/bevy_egui/pull/180) by @oscrim).
 
 ## [0.20.3] - 21-Apr-2023
 
@@ -57,14 +76,14 @@ Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/be
 
 ## [0.20.2] - 27-Mar-2023
 
+### Changed
+
+- Move `bevy_core_pipeline` to dev-dependencies ([#166](https://github.com/mvlabat/bevy_egui/pull/166) by @jakobhellermann).
+
 ### Fixed
 
 - Fix incorrect bounds check for set_scissor_rect ([#167](https://github.com/mvlabat/bevy_egui/pull/167) by @Gorialis).
 - Fix panic messages for uninitialised contexts.
-
-### Changed
-
-- Move `bevy_core_pipeline` to dev-dependencies ([#166](https://github.com/mvlabat/bevy_egui/pull/166) by @jakobhellermann).
 
 ## [0.20.1] - 12-Mar-2023
 
@@ -198,7 +217,7 @@ Handle giving time input to egui correctly ([#226](https://github.com/mvlabat/be
 
 - Update Egui to 0.17 ([#78](https://github.com/mvlabat/bevy_egui/pull/78) by @emilk).
 
-### Changed
+### Fixed
 
 - User texture ids are now tracked internally ([#71](https://github.com/mvlabat/bevy_egui/pull/71)).
   - Instead of using `set_egui_texture`, you can now use `add_image` which returns a texture id itself
