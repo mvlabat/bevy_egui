@@ -110,7 +110,7 @@ pub fn process_input_system(
         if let Some(window) = web_sys::window() {
             let nav = window.navigator();
             if let Ok(user_agent) = nav.user_agent() {
-                if user_agent.to_ascii_lowercase().contains("Mac") {
+                if user_agent.to_ascii_lowercase().contains("mac") {
                     *context_params.is_macos = true;
                 }
             }
@@ -148,7 +148,7 @@ pub fn process_input_system(
             Key::Alt => {
                 input_resources.modifier_keys_state.alt = state.is_pressed();
             }
-            Key::Super => {
+            Key::Super | Key::Meta => {
                 input_resources.modifier_keys_state.win = state.is_pressed();
             }
             _ => {}

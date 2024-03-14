@@ -48,8 +48,8 @@ pub struct WebEventCopy;
 fn setup_clipboard_copy(clipboard_channel: &mut WebChannel<WebEventCopy>) {
     let (tx, rx): (Sender<WebEventCopy>, Receiver<WebEventCopy>) = crossbeam_channel::bounded(1);
 
-    let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
-        tx.try_send(WebEventCopy);
+    let closure = Closure::<dyn FnMut(_)>::new(move |_event: web_sys::ClipboardEvent| {
+        let _ = tx.try_send(WebEventCopy);
     });
 
     let listener = closure.as_ref().unchecked_ref();
@@ -66,8 +66,8 @@ fn setup_clipboard_copy(clipboard_channel: &mut WebChannel<WebEventCopy>) {
 fn setup_clipboard_cut(clipboard_channel: &mut WebChannel<WebEventCut>) {
     let (tx, rx): (Sender<WebEventCut>, Receiver<WebEventCut>) = crossbeam_channel::bounded(1);
 
-    let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::ClipboardEvent| {
-        tx.try_send(WebEventCut);
+    let closure = Closure::<dyn FnMut(_)>::new(move |_event: web_sys::ClipboardEvent| {
+        let _ = tx.try_send(WebEventCut);
     });
 
     let listener = closure.as_ref().unchecked_ref();
@@ -91,13 +91,12 @@ fn setup_clipboard_paste(clipboard_channel: &mut WebChannel<WebEventPaste>) {
             .get_data("text/plain")
         {
             Ok(data) => {
-                tx.try_send(WebEventPaste(data));
+                let _ = tx.try_send(WebEventPaste(data));
             }
             _ => {
-                info!("Not implemented.");
+                error!("Not implemented.");
             }
         }
-        info!("{:?}", event.clipboard_data())
     });
 
     let listener = closure.as_ref().unchecked_ref();
@@ -109,8 +108,6 @@ fn setup_clipboard_paste(clipboard_channel: &mut WebChannel<WebEventPaste>) {
         .expect("Could not add paste event listener.");
     closure.forget();
     *clipboard_channel = WebChannel::<WebEventPaste> { rx: Some(rx) };
-
-    info!("setup_clipboard_paste OK");
 }
 
 /// Puts argument string to the web clipboard
@@ -127,7 +124,6 @@ pub fn clipboard_copy(text: String) {
                 let _result = wasm_bindgen_futures::JsFuture::from(p)
                     .await
                     .expect("clipboard populated");
-                info!("copy to clipboard worked");
             }
             None => {
                 warn!("failed to write clipboard data");

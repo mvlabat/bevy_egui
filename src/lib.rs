@@ -236,7 +236,7 @@ impl EguiClipboard {
         if let Some(mut clipboard) = self.get() {
             match clipboard.get_text() {
                 Ok(contents) => return Some(contents),
-                Err(err) => log::info!("Failed to get clipboard contents: {:?}", err),
+                Err(err) => log::error!("Failed to get clipboard contents: {:?}", err),
             }
         };
         None
@@ -255,7 +255,7 @@ impl EguiClipboard {
                 Clipboard::new()
                     .map(RefCell::new)
                     .map_err(|err| {
-                        log::info!("Failed to initialize clipboard: {:?}", err);
+                        log::error!("Failed to initialize clipboard: {:?}", err);
                     })
                     .ok()
             })
