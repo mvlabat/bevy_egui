@@ -22,10 +22,11 @@ use bevy::{
             VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{Image, ImageSampler},
+        texture::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
         view::ExtractedWindows,
     },
 };
+use egui::{TextureFilter, TextureOptions};
 
 /// Egui shader.
 pub const EGUI_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(9898276442290979394);
@@ -453,5 +454,28 @@ pub(crate) fn color_image_as_bevy_image(
             TextureFormat::Rgba8UnormSrgb,
             RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
         )
+    }
+}
+
+pub(crate) fn texture_options_as_sampler_descriptor(
+    options: &TextureOptions,
+) -> ImageSamplerDescriptor {
+    fn convert_filter(filter: &TextureFilter) -> ImageFilterMode {
+        match filter {
+            egui::TextureFilter::Nearest => ImageFilterMode::Nearest,
+            egui::TextureFilter::Linear => ImageFilterMode::Linear,
+        }
+    }
+    let address_mode = match options.wrap_mode {
+        egui::TextureWrapMode::ClampToEdge => ImageAddressMode::ClampToEdge,
+        egui::TextureWrapMode::Repeat => ImageAddressMode::Repeat,
+        egui::TextureWrapMode::MirroredRepeat => ImageAddressMode::MirrorRepeat,
+    };
+    ImageSamplerDescriptor {
+        mag_filter: convert_filter(&options.magnification),
+        min_filter: convert_filter(&options.minification),
+        address_mode_u: address_mode,
+        address_mode_v: address_mode,
+        ..Default::default()
     }
 }
