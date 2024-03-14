@@ -4,8 +4,7 @@ use bevy::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::EguiClipboard;
-use wasm_bindgen::closure::Closure;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{closure::Closure, prelude::*};
 
 /// startup system for bevy to initialize web events.
 pub fn startup_setup_web_events(mut clipboard_channel: ResMut<EguiClipboard>) {
