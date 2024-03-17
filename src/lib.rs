@@ -50,23 +50,19 @@
 //!
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
+/// Egui render node.
+#[cfg(feature = "render")]
+pub mod egui_node;
 /// Plugin systems for the render app.
 #[cfg(feature = "render")]
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
-
-/// Egui render node.
-#[cfg(feature = "render")]
-pub mod egui_node;
-
 /// Clipboard management for web
 #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
 pub mod web_clipboard;
 
 pub use egui;
-#[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-use web_clipboard::{WebEventCopy, WebEventCut, WebEventPaste};
 
 use crate::systems::*;
 #[cfg(feature = "render")]
@@ -117,11 +113,6 @@ use std::borrow::Cow;
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use std::cell::{RefCell, RefMut};
-#[cfg(all(
-    feature = "manage_clipboard",
-    not(any(target_arch = "wasm32", target_os = "android"))
-))]
-use thread_local::ThreadLocal;
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
@@ -184,16 +175,9 @@ pub struct EguiInput(pub egui::RawInput);
 #[derive(Default, Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
-    clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
-    /// for copy events.
+    clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
     #[cfg(target_arch = "wasm32")]
-    pub web_copy: web_clipboard::WebChannel<WebEventCopy>,
-    /// for copy events.
-    #[cfg(target_arch = "wasm32")]
-    pub web_cut: web_clipboard::WebChannel<WebEventCut>,
-    /// for paste events, only supporting strings.
-    #[cfg(target_arch = "wasm32")]
-    pub web_paste: web_clipboard::WebChannel<WebEventPaste>,
+    clipboard: web_clipboard::WebClipboard,
 }
 
 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
@@ -201,6 +185,13 @@ impl EguiClipboard {
     /// Sets clipboard contents.
     pub fn set_contents(&mut self, contents: &str) {
         self.set_contents_impl(contents);
+    }
+
+    /// Sets the internal buffer of clipboard contents.
+    /// This buffer is used to remember the contents of the last "Paste" event.
+    #[cfg(target_arch = "wasm32")]
+    pub fn set_contents_internal(&mut self, contents: &str) {
+        self.clipboard.set_contents_internal(contents);
     }
 
     /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
@@ -215,6 +206,12 @@ impl EguiClipboard {
     #[cfg(target_arch = "wasm32")]
     pub fn get_contents(&mut self) -> Option<String> {
         self.get_contents_impl()
+    }
+
+    /// Receives a clipboard event sent by the `copy`/`cut`/`paste` listeners.
+    #[cfg(target_arch = "wasm32")]
+    pub fn try_receive_clipboard_event(&self) -> Option<web_clipboard::WebClipboardEvent> {
+        self.clipboard.try_receive_clipboard_event()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -228,7 +225,7 @@ impl EguiClipboard {
 
     #[cfg(target_arch = "wasm32")]
     fn set_contents_impl(&mut self, contents: &str) {
-        web_clipboard::clipboard_copy(contents.to_owned());
+        self.clipboard.set_contents(contents);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -245,7 +242,7 @@ impl EguiClipboard {
     #[cfg(target_arch = "wasm32")]
     #[allow(clippy::unnecessary_wraps)]
     fn get_contents_impl(&mut self) -> Option<String> {
-        self.web_paste.try_read_clipboard_event().map(|e| e.0)
+        self.clipboard.get_contents()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -601,6 +598,8 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiManagedTextures>();
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         world.init_resource::<EguiClipboard>();
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();

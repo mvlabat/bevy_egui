@@ -1,5 +1,5 @@
 use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiSettings};
+use bevy_egui::{EguiContexts, EguiPlugin, EguiSettings};
 
 struct Images {
     bevy_icon: Handle<Image>,

@@ -304,49 +304,44 @@ pub fn process_input_system(
 
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
-                #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-                {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if command && ev.state.is_pressed() {
-                        match key {
-                            egui::Key::C => {
-                                focused_input.events.push(egui::Event::Copy);
-                            }
-                            egui::Key::X => {
-                                focused_input.events.push(egui::Event::Cut);
-                            }
-                            egui::Key::V => {
-                                if let Some(contents) =
-                                    input_resources.egui_clipboard.get_contents()
-                                {
-                                    focused_input.events.push(egui::Event::Text(contents))
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        if input_resources
-                            .egui_clipboard
-                            .web_copy
-                            .try_read_clipboard_event()
-                            .is_some()
-                        {
+                #[cfg(all(
+                    feature = "manage_clipboard",
+                    not(target_os = "android"),
+                    not(target_arch = "wasm32")
+                ))]
+                if command && ev.state.is_pressed() {
+                    match key {
+                        egui::Key::C => {
                             focused_input.events.push(egui::Event::Copy);
                         }
-                        if input_resources
-                            .egui_clipboard
-                            .web_cut
-                            .try_read_clipboard_event()
-                            .is_some()
-                        {
+                        egui::Key::X => {
                             focused_input.events.push(egui::Event::Cut);
                         }
-                        if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                            focused_input.events.push(egui::Event::Text(contents));
+                        egui::Key::V => {
+                            if let Some(contents) = input_resources.egui_clipboard.get_contents() {
+                                focused_input.events.push(egui::Event::Text(contents))
+                            }
                         }
+                        _ => {}
                     }
+                }
+            }
+        }
+
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        while let Some(event) = input_resources.egui_clipboard.try_receive_clipboard_event() {
+            match event {
+                crate::web_clipboard::WebClipboardEvent::Copy => {
+                    focused_input.events.push(egui::Event::Copy);
+                }
+                crate::web_clipboard::WebClipboardEvent::Cut => {
+                    focused_input.events.push(egui::Event::Cut);
+                }
+                crate::web_clipboard::WebClipboardEvent::Paste(contents) => {
+                    input_resources
+                        .egui_clipboard
+                        .set_contents_internal(&contents);
+                    focused_input.events.push(egui::Event::Text(contents))
                 }
             }
         }
