@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - 18-Mar-2024
+
+### Added
+
+- Add web clipboard support ([#267](https://github.com/mvlabat/bevy_egui/pull/267), [#178](https://github.com/mvlabat/bevy_egui/pull/178) by @Vrixyz).
+
+### Fixed
+
+- Respect `egui::TextureOptions` for managed textures ([#264](https://github.com/mvlabat/bevy_egui/pull/264) by @TheRawMeatball).
+- Fix keybind modifiers ([#265](https://github.com/mvlabat/bevy_egui/pull/265) by @eero-lehtinen).
+
 ## [0.25.0] - 19-Feb-2024
 
 ### Added
