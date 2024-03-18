@@ -1,5 +1,5 @@
-use bevy::{prelude::*, render::camera::Projection, window::PrimaryWindow};
-use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy::{prelude::*, window::PrimaryWindow};
+use bevy_egui::{EguiContexts, EguiPlugin};
 
 #[derive(Default, Resource)]
 struct OccupiedScreenSpace {

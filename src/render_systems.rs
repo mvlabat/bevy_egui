@@ -14,7 +14,6 @@ use bevy::{
             DynamicUniformBuffer, PipelineCache, ShaderType, SpecializedRenderPipelines,
         },
         renderer::{RenderDevice, RenderQueue},
-        texture::Image,
         view::ExtractedWindows,
         Extract,
     },

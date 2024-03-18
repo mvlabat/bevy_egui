@@ -50,15 +50,17 @@
 //!
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
+/// Egui render node.
+#[cfg(feature = "render")]
+pub mod egui_node;
 /// Plugin systems for the render app.
 #[cfg(feature = "render")]
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
-
-/// Egui render node.
-#[cfg(feature = "render")]
-pub mod egui_node;
+/// Clipboard management for web
+#[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+pub mod web_clipboard;
 
 pub use egui;
 
@@ -111,11 +113,6 @@ use std::borrow::Cow;
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use std::cell::{RefCell, RefMut};
-#[cfg(all(
-    feature = "manage_clipboard",
-    not(any(target_arch = "wasm32", target_os = "android"))
-))]
-use thread_local::ThreadLocal;
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
@@ -178,9 +175,9 @@ pub struct EguiInput(pub egui::RawInput);
 #[derive(Default, Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
-    clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
+    clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
     #[cfg(target_arch = "wasm32")]
-    clipboard: String,
+    clipboard: web_clipboard::WebClipboard,
 }
 
 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
@@ -190,14 +187,35 @@ impl EguiClipboard {
         self.set_contents_impl(contents);
     }
 
+    /// Sets the internal buffer of clipboard contents.
+    /// This buffer is used to remember the contents of the last "Paste" event.
+    #[cfg(target_arch = "wasm32")]
+    pub fn set_contents_internal(&mut self, contents: &str) {
+        self.clipboard.set_contents_internal(contents);
+    }
+
     /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
     #[must_use]
-    pub fn get_contents(&self) -> Option<String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn get_contents(&mut self) -> Option<String> {
         self.get_contents_impl()
     }
 
+    /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
+    #[must_use]
+    #[cfg(target_arch = "wasm32")]
+    pub fn get_contents(&mut self) -> Option<String> {
+        self.get_contents_impl()
+    }
+
+    /// Receives a clipboard event sent by the `copy`/`cut`/`paste` listeners.
+    #[cfg(target_arch = "wasm32")]
+    pub fn try_receive_clipboard_event(&self) -> Option<web_clipboard::WebClipboardEvent> {
+        self.clipboard.try_receive_clipboard_event()
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
-    fn set_contents_impl(&self, contents: &str) {
+    fn set_contents_impl(&mut self, contents: &str) {
         if let Some(mut clipboard) = self.get() {
             if let Err(err) = clipboard.set_text(contents.to_owned()) {
                 log::error!("Failed to set clipboard contents: {:?}", err);
@@ -207,15 +225,15 @@ impl EguiClipboard {
 
     #[cfg(target_arch = "wasm32")]
     fn set_contents_impl(&mut self, contents: &str) {
-        self.clipboard = contents.to_owned();
+        self.clipboard.set_contents(contents);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn get_contents_impl(&self) -> Option<String> {
+    fn get_contents_impl(&mut self) -> Option<String> {
         if let Some(mut clipboard) = self.get() {
             match clipboard.get_text() {
                 Ok(contents) => return Some(contents),
-                Err(err) => log::info!("Failed to get clipboard contents: {:?}", err),
+                Err(err) => log::error!("Failed to get clipboard contents: {:?}", err),
             }
         };
         None
@@ -223,8 +241,8 @@ impl EguiClipboard {
 
     #[cfg(target_arch = "wasm32")]
     #[allow(clippy::unnecessary_wraps)]
-    fn get_contents_impl(&self) -> Option<String> {
-        Some(self.clipboard.clone())
+    fn get_contents_impl(&mut self) -> Option<String> {
+        self.clipboard.get_contents()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -234,7 +252,7 @@ impl EguiClipboard {
                 Clipboard::new()
                     .map(RefCell::new)
                     .map_err(|err| {
-                        log::info!("Failed to initialize clipboard: {:?}", err);
+                        log::error!("Failed to initialize clipboard: {:?}", err);
                     })
                     .ok()
             })
@@ -580,6 +598,8 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiManagedTextures>();
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         world.init_resource::<EguiClipboard>();
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
         world.init_resource::<EguiMousePosition>();
@@ -597,6 +617,8 @@ impl Plugin for EguiPlugin {
         #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
 
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
         app.add_systems(
             PreStartup,
             (

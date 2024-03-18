@@ -1,15 +1,14 @@
 use bevy::{
     prelude::*,
     render::{
-        camera::{ClearColorConfig, RenderTarget},
+        camera::RenderTarget,
         render_resource::{
             Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
         },
         view::RenderLayers,
     },
 };
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiUserTextures};
-use egui::Widget;
+use bevy_egui::{egui::Widget, EguiContexts, EguiPlugin, EguiUserTextures};
 
 fn main() {
     App::new()

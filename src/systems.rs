@@ -73,7 +73,7 @@ pub struct ModifierKeysState {
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
     #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-    pub egui_clipboard: Res<'w, crate::EguiClipboard>,
+    pub egui_clipboard: ResMut<'w, crate::EguiClipboard>,
     pub modifier_keys_state: Local<'s, ModifierKeysState>,
     #[system_param(ignore)]
     _marker: PhantomData<&'w ()>,
@@ -110,7 +110,7 @@ pub fn process_input_system(
         if let Some(window) = web_sys::window() {
             let nav = window.navigator();
             if let Ok(user_agent) = nav.user_agent() {
-                if user_agent.to_ascii_lowercase().contains("Mac") {
+                if user_agent.to_ascii_lowercase().contains("mac") {
                     *context_params.is_macos = true;
                 }
             }
@@ -130,7 +130,6 @@ pub fn process_input_system(
             None
         };
     }
-
     let mut keyboard_input_events = Vec::new();
     for event in input_events.ev_keyboard_input.read() {
         // Copy the events as we might want to pass them to an Egui context later.
@@ -149,7 +148,7 @@ pub fn process_input_system(
             Key::Alt => {
                 input_resources.modifier_keys_state.alt = state.is_pressed();
             }
-            Key::Super => {
+            Key::Super | Key::Meta => {
                 input_resources.modifier_keys_state.win = state.is_pressed();
             }
             _ => {}
@@ -305,7 +304,11 @@ pub fn process_input_system(
 
                 // We also check that it's an `ButtonState::Pressed` event, as we don't want to
                 // copy, cut or paste on the key release.
-                #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+                #[cfg(all(
+                    feature = "manage_clipboard",
+                    not(target_os = "android"),
+                    not(target_arch = "wasm32")
+                ))]
                 if command && ev.state.is_pressed() {
                     match key {
                         egui::Key::C => {
@@ -321,6 +324,24 @@ pub fn process_input_system(
                         }
                         _ => {}
                     }
+                }
+            }
+        }
+
+        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        while let Some(event) = input_resources.egui_clipboard.try_receive_clipboard_event() {
+            match event {
+                crate::web_clipboard::WebClipboardEvent::Copy => {
+                    focused_input.events.push(egui::Event::Copy);
+                }
+                crate::web_clipboard::WebClipboardEvent::Cut => {
+                    focused_input.events.push(egui::Event::Cut);
+                }
+                crate::web_clipboard::WebClipboardEvent::Paste(contents) => {
+                    input_resources
+                        .egui_clipboard
+                        .set_contents_internal(&contents);
+                    focused_input.events.push(egui::Event::Text(contents))
                 }
             }
         }
