@@ -55,7 +55,7 @@
     target_arch = "wasm32",
     not(web_sys_unstable_apis)
 ))]
-compile_error!("bevy_egui uses unstable APIs to support clipboard on web, please add `--cfg=web_sys_unstable_apis` in your rustflags or disable the `bevy_egui::manage_clipboard` feature.");
+compile_error!(include_str!("../static/error_web_sys_unstable_apis.txt"));
 
 /// Egui render node.
 #[cfg(feature = "render")]
