@@ -50,6 +50,13 @@
 //!
 //! - [`bevy-inspector-egui`](https://github.com/jakobhellermann/bevy-inspector-egui)
 
+#[cfg(all(
+    feature = "manage_clipboard",
+    target_arch = "wasm32",
+    not(web_sys_unstable_apis)
+))]
+compile_error!("bevy_egui uses unstable APIs to support clipboard on web, please add `--cfg=web_sys_unstable_apis` in your rustflags or disable the `bevy_egui::manage_clipboard` feature.");
+
 /// Egui render node.
 #[cfg(feature = "render")]
 pub mod egui_node;
@@ -59,7 +66,11 @@ pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
 /// Clipboard management for web
-#[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "manage_clipboard",
+    target_arch = "wasm32",
+    web_sys_unstable_apis
+))]
 pub mod web_clipboard;
 
 pub use egui;
@@ -176,11 +187,15 @@ pub struct EguiInput(pub egui::RawInput);
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", web_sys_unstable_apis))]
     clipboard: web_clipboard::WebClipboard,
 }
 
-#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+#[cfg(all(
+    feature = "manage_clipboard",
+    not(target_os = "android"),
+    not(all(target_arch = "wasm32", not(web_sys_unstable_apis)))
+))]
 impl EguiClipboard {
     /// Sets clipboard contents.
     pub fn set_contents(&mut self, contents: &str) {
@@ -189,7 +204,7 @@ impl EguiClipboard {
 
     /// Sets the internal buffer of clipboard contents.
     /// This buffer is used to remember the contents of the last "Paste" event.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", web_sys_unstable_apis))]
     pub fn set_contents_internal(&mut self, contents: &str) {
         self.clipboard.set_contents_internal(contents);
     }
@@ -203,13 +218,13 @@ impl EguiClipboard {
 
     /// Gets clipboard contents. Returns [`None`] if clipboard provider is unavailable or returns an error.
     #[must_use]
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", web_sys_unstable_apis))]
     pub fn get_contents(&mut self) -> Option<String> {
         self.get_contents_impl()
     }
 
     /// Receives a clipboard event sent by the `copy`/`cut`/`paste` listeners.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", web_sys_unstable_apis))]
     pub fn try_receive_clipboard_event(&self) -> Option<web_clipboard::WebClipboardEvent> {
         self.clipboard.try_receive_clipboard_event()
     }
@@ -223,7 +238,7 @@ impl EguiClipboard {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", web_sys_unstable_apis))]
     fn set_contents_impl(&mut self, contents: &str) {
         self.clipboard.set_contents(contents);
     }
@@ -239,7 +254,7 @@ impl EguiClipboard {
         None
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", web_sys_unstable_apis))]
     #[allow(clippy::unnecessary_wraps)]
     fn get_contents_impl(&mut self) -> Option<String> {
         self.clipboard.get_contents()
@@ -598,7 +613,11 @@ impl Plugin for EguiPlugin {
         world.init_resource::<EguiManagedTextures>();
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         world.init_resource::<EguiClipboard>();
-        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        #[cfg(all(
+            feature = "manage_clipboard",
+            target_arch = "wasm32",
+            web_sys_unstable_apis
+        ))]
         world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
@@ -617,7 +636,11 @@ impl Plugin for EguiPlugin {
         #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
 
-        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        #[cfg(all(
+            feature = "manage_clipboard",
+            target_arch = "wasm32",
+            web_sys_unstable_apis
+        ))]
         app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
         app.add_systems(
             PreStartup,
