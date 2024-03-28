@@ -72,7 +72,11 @@ pub struct ModifierKeysState {
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct InputResources<'w, 's> {
-    #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+    #[cfg(all(
+        feature = "manage_clipboard",
+        not(target_os = "android"),
+        not(all(target_arch = "wasm32", not(web_sys_unstable_apis)))
+    ))]
     pub egui_clipboard: ResMut<'w, crate::EguiClipboard>,
     pub modifier_keys_state: Local<'s, ModifierKeysState>,
     #[system_param(ignore)]
@@ -328,7 +332,11 @@ pub fn process_input_system(
             }
         }
 
-        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
+        #[cfg(all(
+            feature = "manage_clipboard",
+            target_arch = "wasm32",
+            web_sys_unstable_apis
+        ))]
         while let Some(event) = input_resources.egui_clipboard.try_receive_clipboard_event() {
             match event {
                 crate::web_clipboard::WebClipboardEvent::Copy => {
@@ -505,7 +513,11 @@ pub fn process_output_system(
 
         context.egui_output.platform_output = platform_output.clone();
 
-        #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+        #[cfg(all(
+            feature = "manage_clipboard",
+            not(target_os = "android"),
+            not(all(target_arch = "wasm32", not(web_sys_unstable_apis)))
+        ))]
         if !platform_output.copied_text.is_empty() {
             egui_clipboard.set_contents(&platform_output.copied_text);
         }

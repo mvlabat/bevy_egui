@@ -1,0 +1,6 @@
+bevy_egui uses unstable APIs to support clipboard on web.
+
+Please add `--cfg=web_sys_unstable_apis` to your rustflags or disable the `bevy_egui::manage_clipboard` feature.
+
+More Info: https://rustwasm.github.io/wasm-bindgen/web-sys/unstable-apis.html
+  
