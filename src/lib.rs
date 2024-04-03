@@ -299,7 +299,11 @@ pub struct EguiOutput {
 /// A component for storing `bevy_egui` context.
 #[derive(Clone, Component, Default)]
 #[cfg_attr(feature = "render", derive(ExtractComponent))]
-pub struct EguiContext(egui::Context);
+pub struct EguiContext {
+    ctx: egui::Context,
+    mouse_position: egui::Pos2,
+    pointer_touch_id: Option<u64>,
+}
 
 impl EguiContext {
     /// Borrows the underlying Egui context immutably.
@@ -314,7 +318,7 @@ impl EguiContext {
     #[cfg(feature = "immutable_ctx")]
     #[must_use]
     pub fn get(&self) -> &egui::Context {
-        &self.0
+        &self.ctx
     }
 
     /// Borrows the underlying Egui context mutably.
@@ -328,7 +332,7 @@ impl EguiContext {
     /// instead of busy-waiting.
     #[must_use]
     pub fn get_mut(&mut self) -> &mut egui::Context {
-        &mut self.0
+        &mut self.ctx
     }
 }
 
@@ -492,10 +496,6 @@ impl<'w, 's> EguiContexts<'w, 's> {
     }
 }
 
-/// A resource for storing `bevy_egui` mouse position.
-#[derive(Resource, Component, Default, Deref, DerefMut)]
-pub struct EguiMousePosition(pub Option<(Entity, egui::Vec2)>);
-
 /// A resource for storing `bevy_egui` user textures.
 #[derive(Clone, Resource, Default, ExtractResource)]
 #[cfg(feature = "render")]
@@ -621,8 +621,6 @@ impl Plugin for EguiPlugin {
         world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
-        world.init_resource::<EguiMousePosition>();
-        world.insert_resource(TouchId::default());
         #[cfg(feature = "render")]
         app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
         #[cfg(feature = "render")]
@@ -772,7 +770,6 @@ pub fn setup_new_windows_system(
     for window in new_windows.iter() {
         commands.entity(window).insert((
             EguiContext::default(),
-            EguiMousePosition::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),

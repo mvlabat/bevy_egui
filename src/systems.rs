@@ -1,12 +1,11 @@
 use crate::{
-    EguiContext, EguiContextQuery, EguiInput, EguiMousePosition, EguiSettings, WindowSize,
+    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiInput, EguiSettings, WindowSize,
 };
-#[cfg(feature = "open_url")]
-use bevy::log;
 use bevy::{
     ecs::{
         event::EventWriter,
-        system::{Local, Res, ResMut, SystemParam},
+        query::QueryEntityError,
+        system::{Local, Res, SystemParam},
     },
     input::{
         keyboard::{Key, KeyCode, KeyboardInput},
@@ -14,12 +13,10 @@ use bevy::{
         touch::TouchInput,
         ButtonState,
     },
+    log,
     prelude::{Entity, EventReader, Query, Resource, Time},
     time::Real,
-    window::{
-        CursorEntered, CursorLeft, CursorMoved, ReceivedCharacter, RequestRedraw, WindowCreated,
-        WindowFocused,
-    },
+    window::{CursorMoved, ReceivedCharacter, RequestRedraw},
 };
 use std::marker::PhantomData;
 
@@ -27,37 +24,25 @@ use std::marker::PhantomData;
 #[derive(SystemParam)]
 // IMPORTANT: remember to add the logic to clear event readers to the `clear` method.
 pub struct InputEvents<'w, 's> {
-    pub ev_cursor_entered: EventReader<'w, 's, CursorEntered>,
-    pub ev_cursor_left: EventReader<'w, 's, CursorLeft>,
     pub ev_cursor: EventReader<'w, 's, CursorMoved>,
     pub ev_mouse_button_input: EventReader<'w, 's, MouseButtonInput>,
     pub ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
     pub ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
-    pub ev_window_focused: EventReader<'w, 's, WindowFocused>,
-    pub ev_window_created: EventReader<'w, 's, WindowCreated>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
 }
 
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
-        self.ev_cursor_entered.read().last();
-        self.ev_cursor_left.read().last();
         self.ev_cursor.read().last();
         self.ev_mouse_button_input.read().last();
         self.ev_mouse_wheel.read().last();
         self.ev_received_character.read().last();
         self.ev_keyboard_input.read().last();
-        self.ev_window_focused.read().last();
-        self.ev_window_created.read().last();
         self.ev_touch.read().last();
     }
 }
-
-#[allow(missing_docs)]
-#[derive(Resource, Default)]
-pub struct TouchId(pub Option<u64>);
 
 /// Stores "pressed" state of modifier keys.
 /// Will be removed if Bevy adds support for `ButtonInput<Key>` (logical keys).
@@ -77,7 +62,7 @@ pub struct InputResources<'w, 's> {
         not(target_os = "android"),
         not(all(target_arch = "wasm32", not(web_sys_unstable_apis)))
     ))]
-    pub egui_clipboard: ResMut<'w, crate::EguiClipboard>,
+    pub egui_clipboard: bevy::ecs::system::ResMut<'w, crate::EguiClipboard>,
     pub modifier_keys_state: Local<'s, ModifierKeysState>,
     #[system_param(ignore)]
     _marker: PhantomData<&'w ()>,
@@ -86,12 +71,28 @@ pub struct InputResources<'w, 's> {
 #[allow(missing_docs)]
 #[derive(SystemParam)]
 pub struct ContextSystemParams<'w, 's> {
-    pub focused_window: Local<'s, Option<Entity>>,
-    pub pointer_touch_id: Local<'s, TouchId>,
     pub contexts: Query<'w, 's, EguiContextQuery>,
     pub is_macos: Local<'s, bool>,
     #[system_param(ignore)]
     _marker: PhantomData<&'s ()>,
+}
+
+impl<'w, 's> ContextSystemParams<'w, 's> {
+    fn window_context(&mut self, window: Entity) -> Option<EguiContextQueryItem> {
+        match self.contexts.get_mut(window) {
+            Ok(context) => Some(context),
+            Err(err @ QueryEntityError::AliasedMutability(_)) => {
+                panic!("Failed to get an Egui context for a window ({window:?}): {err:?}");
+            }
+            Err(
+                err @ QueryEntityError::NoSuchEntity(_)
+                | err @ QueryEntityError::QueryDoesNotMatch(_),
+            ) => {
+                log::error!("Failed to get an Egui context for a window ({window:?}): {err:?}",);
+                None
+            }
+        }
+    }
 }
 
 /// Processes Bevy input and feeds it to Egui.
@@ -100,7 +101,6 @@ pub fn process_input_system(
     mut input_resources: InputResources,
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
-    mut egui_mouse_position: ResMut<EguiMousePosition>,
     time: Res<Time<Real>>,
 ) {
     // Test whether it's macOS or OS X.
@@ -121,19 +121,6 @@ pub fn process_input_system(
         }
     });
 
-    // This is a workaround for Windows. For some reason, `WindowFocused` event isn't fired
-    // when a window is created.
-    if let Some(event) = input_events.ev_window_created.read().last() {
-        *context_params.focused_window = Some(event.window);
-    }
-
-    for event in input_events.ev_window_focused.read() {
-        *context_params.focused_window = if event.focused {
-            Some(event.window)
-        } else {
-            None
-        };
-    }
     let mut keyboard_input_events = Vec::new();
     for event in input_events.ev_keyboard_input.read() {
         // Copy the events as we might want to pass them to an Egui context later.
@@ -176,104 +163,90 @@ pub fn process_input_system(
         command,
     };
 
-    let mut cursor_left_window = None;
-    if let Some(cursor_left) = input_events.ev_cursor_left.read().last() {
-        cursor_left_window = Some(cursor_left.window);
-    }
-    let cursor_entered_window = input_events
-        .ev_cursor_entered
-        .read()
-        .last()
-        .map(|event| event.window);
-
-    // When a user releases a mouse button, Safari emits both `CursorLeft` and `CursorEntered`
-    // events during the same frame. We don't want to reset mouse position in such a case, otherwise
-    // we won't be able to process the mouse button event.
-    let prev_mouse_position =
-        if cursor_left_window.is_some() && cursor_left_window != cursor_entered_window {
-            // If it's not the Safari edge case, reset the mouse position.
-            egui_mouse_position.take()
-        } else {
-            None
+    for event in input_events.ev_cursor.read() {
+        let Some(mut window_context) = context_params.window_context(event.window) else {
+            continue;
         };
 
-    if let Some(cursor_moved) = input_events.ev_cursor.read().last() {
-        // If we've left the window, it's unlikely that we've moved the cursor back to the same
-        // window this exact frame, so we are safe to ignore all `CursorMoved` events for the window
-        // that has been left.
-        if cursor_left_window != Some(cursor_moved.window) {
-            let scale_factor = egui_settings.scale_factor;
-            let mouse_position: (f32, f32) = (cursor_moved.position / scale_factor).into();
-            let mut context = context_params
-                .contexts
-                .get_mut(cursor_moved.window)
-                .unwrap();
-            egui_mouse_position.0 = Some((cursor_moved.window, mouse_position.into()));
-            context
+        let scale_factor = egui_settings.scale_factor;
+        let (x, y): (f32, f32) = (event.position / scale_factor).into();
+        let mouse_position = egui::pos2(x, y);
+        window_context.ctx.mouse_position = mouse_position;
+        window_context
+            .egui_input
+            .events
+            .push(egui::Event::PointerMoved(mouse_position));
+    }
+
+    for event in input_events.ev_mouse_button_input.read() {
+        let Some(mut window_context) = context_params.window_context(event.window) else {
+            continue;
+        };
+
+        let button = match event.button {
+            MouseButton::Left => Some(egui::PointerButton::Primary),
+            MouseButton::Right => Some(egui::PointerButton::Secondary),
+            MouseButton::Middle => Some(egui::PointerButton::Middle),
+            _ => None,
+        };
+        let pressed = match event.state {
+            ButtonState::Pressed => true,
+            ButtonState::Released => false,
+        };
+        if let Some(button) = button {
+            window_context
                 .egui_input
                 .events
-                .push(egui::Event::PointerMoved(egui::pos2(
-                    mouse_position.0,
-                    mouse_position.1,
-                )));
+                .push(egui::Event::PointerButton {
+                    pos: window_context.ctx.mouse_position,
+                    button,
+                    pressed,
+                    modifiers,
+                });
         }
     }
 
-    // If we pressed a button, started dragging a cursor inside a window and released
-    // the button when being outside, some platforms will fire `CursorLeft` again together
-    // with `MouseButtonInput` - this is why we also take `prev_mouse_position` into account.
-    if let Some((window_id, position)) = egui_mouse_position.or(prev_mouse_position) {
-        if let Ok(mut context) = context_params.contexts.get_mut(window_id) {
-            let events = &mut context.egui_input.events;
+    for event in input_events.ev_mouse_wheel.read() {
+        let Some(mut window_context) = context_params.window_context(event.window) else {
+            continue;
+        };
 
-            for mouse_button_event in input_events.ev_mouse_button_input.read() {
-                let button = match mouse_button_event.button {
-                    MouseButton::Left => Some(egui::PointerButton::Primary),
-                    MouseButton::Right => Some(egui::PointerButton::Secondary),
-                    MouseButton::Middle => Some(egui::PointerButton::Middle),
-                    _ => None,
-                };
-                let pressed = match mouse_button_event.state {
-                    ButtonState::Pressed => true,
-                    ButtonState::Released => false,
-                };
-                if let Some(button) = button {
-                    events.push(egui::Event::PointerButton {
-                        pos: position.to_pos2(),
-                        button,
-                        pressed,
-                        modifiers,
-                    });
-                }
-            }
+        let mut delta = egui::vec2(event.x, event.y);
+        if let MouseScrollUnit::Line = event.unit {
+            // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
+            delta *= 50.0;
+        }
 
-            for event in input_events.ev_mouse_wheel.read() {
-                let mut delta = egui::vec2(event.x, event.y);
-                if let MouseScrollUnit::Line = event.unit {
-                    // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
-                    delta *= 50.0;
-                }
-
-                if ctrl || mac_cmd {
-                    // Treat as zoom instead.
-                    let factor = (delta.y / 200.0).exp();
-                    events.push(egui::Event::Zoom(factor));
-                } else if shift {
-                    // Treat as horizontal scrolling.
-                    // Note: Mac already fires horizontal scroll events when shift is down.
-                    events.push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
-                } else {
-                    events.push(egui::Event::Scroll(delta));
-                }
-            }
+        if ctrl || mac_cmd {
+            // Treat as zoom instead.
+            let factor = (delta.y / 200.0).exp();
+            window_context
+                .egui_input
+                .events
+                .push(egui::Event::Zoom(factor));
+        } else if shift {
+            // Treat as horizontal scrolling.
+            // Note: Mac already fires horizontal scroll events when shift is down.
+            window_context
+                .egui_input
+                .events
+                .push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
+        } else {
+            window_context
+                .egui_input
+                .events
+                .push(egui::Event::Scroll(delta));
         }
     }
 
     if !command && !win || !*context_params.is_macos && ctrl && alt {
         for event in input_events.ev_received_character.read() {
+            let Some(mut window_context) = context_params.window_context(event.window) else {
+                continue;
+            };
+
             if event.char.matches(char::is_control).count() == 0 {
-                let mut context = context_params.contexts.get_mut(event.window).unwrap();
-                context
+                window_context
                     .egui_input
                     .events
                     .push(egui::Event::Text(event.char.to_string()));
@@ -281,156 +254,176 @@ pub fn process_input_system(
         }
     }
 
-    if let Some(mut focused_input) = context_params
-        .focused_window
-        .as_ref()
-        .and_then(|window_id| {
-            if let Ok(context) = context_params.contexts.get_mut(*window_id) {
-                Some(context.egui_input)
-            } else {
-                None
-            }
-        })
-    {
-        for ev in keyboard_input_events {
-            if let (Some(key), physical_key) = (
-                bevy_to_egui_key(&ev.logical_key),
-                bevy_to_egui_physical_key(&ev.key_code),
-            ) {
-                let egui_event = egui::Event::Key {
-                    key,
-                    pressed: ev.state.is_pressed(),
-                    repeat: false,
-                    modifiers,
-                    physical_key,
-                };
-                focused_input.events.push(egui_event);
+    for event in keyboard_input_events {
+        let Some(mut window_context) = context_params.window_context(event.window) else {
+            continue;
+        };
 
-                // We also check that it's an `ButtonState::Pressed` event, as we don't want to
-                // copy, cut or paste on the key release.
-                #[cfg(all(
-                    feature = "manage_clipboard",
-                    not(target_os = "android"),
-                    not(target_arch = "wasm32")
-                ))]
-                if command && ev.state.is_pressed() {
-                    match key {
-                        egui::Key::C => {
-                            focused_input.events.push(egui::Event::Copy);
-                        }
-                        egui::Key::X => {
-                            focused_input.events.push(egui::Event::Cut);
-                        }
-                        egui::Key::V => {
-                            if let Some(contents) = input_resources.egui_clipboard.get_contents() {
-                                focused_input.events.push(egui::Event::Text(contents))
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
+        let (Some(key), physical_key) = (
+            bevy_to_egui_key(&event.logical_key),
+            bevy_to_egui_physical_key(&event.key_code),
+        ) else {
+            continue;
+        };
 
+        let egui_event = egui::Event::Key {
+            key,
+            pressed: event.state.is_pressed(),
+            repeat: false,
+            modifiers,
+            physical_key,
+        };
+        window_context.egui_input.events.push(egui_event);
+
+        // We also check that it's an `ButtonState::Pressed` event, as we don't want to
+        // copy, cut or paste on the key release.
         #[cfg(all(
             feature = "manage_clipboard",
-            target_arch = "wasm32",
-            web_sys_unstable_apis
+            not(target_os = "android"),
+            not(target_arch = "wasm32")
         ))]
-        while let Some(event) = input_resources.egui_clipboard.try_receive_clipboard_event() {
-            match event {
-                crate::web_clipboard::WebClipboardEvent::Copy => {
-                    focused_input.events.push(egui::Event::Copy);
+        if command && event.state.is_pressed() {
+            match key {
+                egui::Key::C => {
+                    window_context.egui_input.events.push(egui::Event::Copy);
                 }
-                crate::web_clipboard::WebClipboardEvent::Cut => {
-                    focused_input.events.push(egui::Event::Cut);
+                egui::Key::X => {
+                    window_context.egui_input.events.push(egui::Event::Cut);
                 }
-                crate::web_clipboard::WebClipboardEvent::Paste(contents) => {
-                    input_resources
-                        .egui_clipboard
-                        .set_contents_internal(&contents);
-                    focused_input.events.push(egui::Event::Text(contents))
+                egui::Key::V => {
+                    if let Some(contents) = input_resources.egui_clipboard.get_contents() {
+                        window_context
+                            .egui_input
+                            .events
+                            .push(egui::Event::Text(contents))
+                    }
                 }
+                _ => {}
             }
         }
+    }
 
-        for touch in input_events.ev_touch.read() {
-            let scale_factor = egui_settings.scale_factor;
-            let touch_position: (f32, f32) = (touch.position / scale_factor).into();
+    #[cfg(all(
+        feature = "manage_clipboard",
+        target_arch = "wasm32",
+        web_sys_unstable_apis
+    ))]
+    while let Some(event) = input_resources.egui_clipboard.try_receive_clipboard_event() {
+        // In web, we assume that we have only 1 window per app.
+        let mut window_context = context_params.contexts.single_mut();
 
-            // Emit touch event
-            focused_input.events.push(egui::Event::Touch {
-                device_id: egui::TouchDeviceId(egui::epaint::util::hash(touch.id)),
-                id: egui::TouchId::from(touch.id),
-                phase: match touch.phase {
-                    bevy::input::touch::TouchPhase::Started => egui::TouchPhase::Start,
-                    bevy::input::touch::TouchPhase::Moved => egui::TouchPhase::Move,
-                    bevy::input::touch::TouchPhase::Ended => egui::TouchPhase::End,
-                    bevy::input::touch::TouchPhase::Canceled => egui::TouchPhase::Cancel,
-                },
-                pos: egui::pos2(touch_position.0, touch_position.1),
-                force: match touch.force {
-                    Some(bevy::input::touch::ForceTouch::Normalized(force)) => Some(force as f32),
-                    Some(bevy::input::touch::ForceTouch::Calibrated {
-                        force,
-                        max_possible_force,
-                        ..
-                    }) => Some((force / max_possible_force) as f32),
-                    None => None,
-                },
-            });
+        match event {
+            crate::web_clipboard::WebClipboardEvent::Copy => {
+                window_context.egui_input.events.push(egui::Event::Copy);
+            }
+            crate::web_clipboard::WebClipboardEvent::Cut => {
+                window_context.egui_input.events.push(egui::Event::Cut);
+            }
+            crate::web_clipboard::WebClipboardEvent::Paste(contents) => {
+                input_resources
+                    .egui_clipboard
+                    .set_contents_internal(&contents);
+                window_context
+                    .egui_input
+                    .events
+                    .push(egui::Event::Text(contents))
+            }
+        }
+    }
 
-            // If we're not yet tanslating a touch or we're translating this very
-            // touch …
-            if context_params.pointer_touch_id.0.is_none()
-                || context_params.pointer_touch_id.0.unwrap() == touch.id
-            {
-                // … emit PointerButton resp. PointerMoved events to emulate mouse
-                match touch.phase {
-                    bevy::input::touch::TouchPhase::Started => {
-                        context_params.pointer_touch_id.0 = Some(touch.id);
-                        // First move the pointer to the right location
-                        focused_input
-                            .events
-                            .push(egui::Event::PointerMoved(egui::pos2(
-                                touch_position.0,
-                                touch_position.1,
-                            )));
-                        // Then do mouse button input
-                        focused_input.events.push(egui::Event::PointerButton {
+    for event in input_events.ev_touch.read() {
+        let Some(mut window_context) = context_params.window_context(event.window) else {
+            continue;
+        };
+
+        let touch_id = egui::TouchId::from(event.id);
+        let scale_factor = egui_settings.scale_factor;
+        let touch_position: (f32, f32) = (event.position / scale_factor).into();
+
+        // Emit touch event
+        window_context.egui_input.events.push(egui::Event::Touch {
+            device_id: egui::TouchDeviceId(event.window.to_bits()),
+            id: touch_id,
+            phase: match event.phase {
+                bevy::input::touch::TouchPhase::Started => egui::TouchPhase::Start,
+                bevy::input::touch::TouchPhase::Moved => egui::TouchPhase::Move,
+                bevy::input::touch::TouchPhase::Ended => egui::TouchPhase::End,
+                bevy::input::touch::TouchPhase::Canceled => egui::TouchPhase::Cancel,
+            },
+            pos: egui::pos2(touch_position.0, touch_position.1),
+            force: match event.force {
+                Some(bevy::input::touch::ForceTouch::Normalized(force)) => Some(force as f32),
+                Some(bevy::input::touch::ForceTouch::Calibrated {
+                    force,
+                    max_possible_force,
+                    ..
+                }) => Some((force / max_possible_force) as f32),
+                None => None,
+            },
+        });
+
+        // If we're not yet tanslating a touch, or we're translating this very
+        // touch, …
+        if window_context.ctx.pointer_touch_id.is_none()
+            || window_context.ctx.pointer_touch_id.unwrap() == event.id
+        {
+            // … emit PointerButton resp. PointerMoved events to emulate mouse.
+            match event.phase {
+                bevy::input::touch::TouchPhase::Started => {
+                    window_context.ctx.pointer_touch_id = Some(event.id);
+                    // First move the pointer to the right location.
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::PointerMoved(egui::pos2(
+                            touch_position.0,
+                            touch_position.1,
+                        )));
+                    // Then do mouse button input.
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::PointerButton {
                             pos: egui::pos2(touch_position.0, touch_position.1),
                             button: egui::PointerButton::Primary,
                             pressed: true,
                             modifiers,
                         });
-                    }
-                    bevy::input::touch::TouchPhase::Moved => {
-                        focused_input
-                            .events
-                            .push(egui::Event::PointerMoved(egui::pos2(
-                                touch_position.0,
-                                touch_position.1,
-                            )));
-                    }
-                    bevy::input::touch::TouchPhase::Ended => {
-                        context_params.pointer_touch_id.0 = None;
-                        focused_input.events.push(egui::Event::PointerButton {
+                }
+                bevy::input::touch::TouchPhase::Moved => {
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::PointerMoved(egui::pos2(
+                            touch_position.0,
+                            touch_position.1,
+                        )));
+                }
+                bevy::input::touch::TouchPhase::Ended => {
+                    window_context.ctx.pointer_touch_id = None;
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::PointerButton {
                             pos: egui::pos2(touch_position.0, touch_position.1),
                             button: egui::PointerButton::Primary,
                             pressed: false,
                             modifiers,
                         });
-                        focused_input.events.push(egui::Event::PointerGone);
-                    }
-                    bevy::input::touch::TouchPhase::Canceled => {
-                        context_params.pointer_touch_id.0 = None;
-                        focused_input.events.push(egui::Event::PointerGone);
-                    }
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::PointerGone);
+                }
+                bevy::input::touch::TouchPhase::Canceled => {
+                    window_context.ctx.pointer_touch_id = None;
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::PointerGone);
                 }
             }
         }
-
-        focused_input.modifiers = modifiers;
     }
 
     for mut context in context_params.contexts.iter_mut() {
@@ -471,7 +464,7 @@ pub fn update_window_contexts_system(
 
         context
             .ctx
-            .0
+            .get_mut()
             .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor);
 
         *context.window_size = new_window_size;
@@ -492,7 +485,7 @@ pub fn process_output_system(
     >,
     mut contexts: Query<EguiContextQuery>,
     #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-    mut egui_clipboard: ResMut<crate::EguiClipboard>,
+    mut egui_clipboard: bevy::ecs::system::ResMut<crate::EguiClipboard>,
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<bevy::utils::HashMap<Entity, egui::CursorIcon>>,
 ) {
