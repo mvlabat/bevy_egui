@@ -863,14 +863,6 @@ fn free_egui_textures_system(
     }
 }
 
-/// Egui's render graph config.
-pub struct RenderGraphConfig {
-    /// Target window.
-    pub window: Entity,
-    /// Render pass name.
-    pub egui_pass: Cow<'static, str>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
