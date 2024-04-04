@@ -118,7 +118,6 @@ use bevy::{
     reflect::Reflect,
     window::{PrimaryWindow, Window},
 };
-use std::borrow::Cow;
 #[cfg(all(
     feature = "manage_clipboard",
     not(any(target_arch = "wasm32", target_os = "android"))
@@ -358,23 +357,29 @@ impl<'w, 's> EguiContexts<'w, 's> {
     /// Egui context of the primary window.
     #[must_use]
     pub fn ctx_mut(&mut self) -> &mut egui::Context {
-        let (_window, ctx, _primary_window) = self
-            .q
-            .iter_mut()
-            .find(|(_window_entity, _ctx, primary_window)| primary_window.is_some())
-            .expect("`EguiContexts::ctx_mut` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
-        ctx.into_inner().get_mut()
+        self.try_ctx_mut()
+            .expect("`EguiContexts::ctx_mut` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)")
     }
 
-    /// Egui context for a specific window.
+    /// Fallible variant of [`EguiContexts::ctx_mut`].
+    #[must_use]
+    pub fn try_ctx_mut(&mut self) -> Option<&mut egui::Context> {
+        self.q
+            .iter_mut()
+            .find_map(|(_window_entity, ctx, primary_window)| {
+                if primary_window.is_some() {
+                    Some(ctx.into_inner().get_mut())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Egui context of a specific window.
     #[must_use]
     pub fn ctx_for_window_mut(&mut self, window: Entity) -> &mut egui::Context {
-        let (_window, ctx, _primary_window) = self
-            .q
-            .iter_mut()
-            .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
-            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
-        ctx.into_inner().get_mut()
+        self.try_ctx_for_window_mut(window)
+            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window_mut` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"))
     }
 
     /// Fallible variant of [`EguiContexts::ctx_for_window_mut`].
@@ -416,15 +421,34 @@ impl<'w, 's> EguiContexts<'w, 's> {
     #[cfg(feature = "immutable_ctx")]
     #[must_use]
     pub fn ctx(&self) -> &egui::Context {
-        let (_window, ctx, _primary_window) = self
-            .q
-            .iter()
-            .find(|(_window_entity, _ctx, primary_window)| primary_window.is_some())
-            .expect("`EguiContexts::ctx` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)");
-        ctx.get()
+        self.try_ctx()
+            .expect("`EguiContexts::ctx` was called for an uninitialized context (primary window), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)")
     }
 
-    /// Egui context for a specific window.
+    /// Fallible variant of [`EguiContexts::ctx`].
+    ///
+    /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
+    /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
+    /// borrow is discouraged as it may cause unpredictable blocking in UI systems.
+    ///
+    /// When the context is queried with `&mut EguiContext`, the Bevy scheduler is able to make
+    /// sure that the context isn't accessed concurrently and can perform other useful work
+    /// instead of busy-waiting.
+    #[cfg(feature = "immutable_ctx")]
+    #[must_use]
+    pub fn try_ctx(&self) -> Option<&egui::Context> {
+        self.q
+            .iter()
+            .find_map(|(_window_entity, ctx, primary_window)| {
+                if primary_window.is_some() {
+                    Some(ctx.get())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Egui context of a specific window.
     ///
     /// Even though the mutable borrow isn't necessary, as the context is wrapped into `RwLock`,
     /// using the immutable getter is gated with the `immutable_ctx` feature. Using the immutable
@@ -436,12 +460,8 @@ impl<'w, 's> EguiContexts<'w, 's> {
     #[must_use]
     #[cfg(feature = "immutable_ctx")]
     pub fn ctx_for_window(&self, window: Entity) -> &egui::Context {
-        let (_window, ctx, _primary_window) = self
-            .q
-            .iter()
-            .find(|(window_entity, _ctx, _primary_window)| *window_entity == window)
-            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"));
-        ctx.get()
+        self.try_ctx_for_window(window)
+            .unwrap_or_else(|| panic!("`EguiContexts::ctx_for_window` was called for an uninitialized context (window {window:?}), make sure your system is run after [`EguiSet::InitContexts`] (or [`EguiStartupSet::InitContexts`] for startup systems)"))
     }
 
     /// Fallible variant of [`EguiContexts::ctx_for_window_mut`].
