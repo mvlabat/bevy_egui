@@ -362,7 +362,7 @@ pub fn process_input_system(
             },
         });
 
-        // If we're not yet tanslating a touch, or we're translating this very
+        // If we're not yet translating a touch, or we're translating this very
         // touch, …
         if window_context.ctx.pointer_touch_id.is_none()
             || window_context.ctx.pointer_touch_id.unwrap() == event.id
@@ -427,6 +427,7 @@ pub fn process_input_system(
     }
 
     for mut context in context_params.contexts.iter_mut() {
+        context.egui_input.modifiers = modifiers;
         context.egui_input.time = Some(time.elapsed_seconds_f64());
     }
 
