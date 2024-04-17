@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 18-Apr-2024
+
+### Added
+
+- Fallible variants of primary window getters for `EguiContexts`.
+
+### Changed
+
+- Update Egui to 0.27 ([#271](https://github.com/mvlabat/bevy_egui/pull/271) by @jakobhellermann).
+- Improve compilation errors when missing `web_sys_unstable_apis` ([#270](https://github.com/mvlabat/bevy_egui/pull/270) by @Vrixyz).
+
+### Fixed
+
+- Rework reading window ids for events (fixes edge-cases with ignoring events, [#273](https://github.com/mvlabat/bevy_egui/pull/273)).
+
+### Removed
+
+- Unused `RenderGraphConfig`.
+
 ## [0.26.0] - 18-Mar-2024
 
 ### Added
