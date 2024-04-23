@@ -532,7 +532,10 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if ctx.has_requested_repaint() {
+        let needs_repaint = !context.render_output.paint_jobs.is_empty()
+            && !context.render_output.textures_delta.is_empty();
+
+        if ctx.has_requested_repaint() && needs_repaint {
             event.send(RequestRedraw);
         }
 
