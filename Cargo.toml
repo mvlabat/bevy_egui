@@ -76,10 +76,13 @@ web-sys = { version = "0.3.63", features = [
     "Clipboard",
     "ClipboardEvent",
     "DataTransfer",
-    'Document',
-    'EventTarget',
-    "Window",
+    "Document",
+    "EventTarget",
+    "HtmlInputElement",
+    "InputEvent",
     "Navigator",
+    "TouchEvent",
+    "Window",
 ] }
 js-sys = "0.3.63"
 wasm-bindgen = "0.2.84"
@@ -87,6 +90,8 @@ wasm-bindgen-futures = "0.4.36"
 console_log = "1.0.0"
 log = "0.4"
 crossbeam-channel = "0.5.8"
+# https://doc.rust-lang.org/std/sync/struct.LazyLock.html is an experimental alt
+once_cell = "1.19.0"
 
 [workspace]
 members = ["run-wasm"]

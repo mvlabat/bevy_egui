@@ -24,6 +24,7 @@ An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](ht
 - Opening URLs
 - Multiple windows support (see [./examples/two_windows.rs](https://github.com/mvlabat/bevy_egui/blob/v0.29.0/examples/two_windows.rs))
 - Paint callback support (see [./examples/paint_callback.rs](https://github.com/mvlabat/bevy_egui/blob/v0.29.0/examples/paint_callback.rs))
+- Mobile web virtual keyboard (still rough support and only works without prevent_default_event_handling set to false on the WindowPlugin primary_window)
 
 `bevy_egui` can be compiled with using only `bevy`, `egui` and `bytemuck` as dependencies: `manage_clipboard` and `open_url` features,
 that require additional crates, can be disabled.

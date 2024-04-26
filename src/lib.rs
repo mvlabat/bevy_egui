@@ -68,7 +68,10 @@ pub mod egui_render_to_texture_node;
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
-/// Clipboard management for web.
+/// Mobile web keyboard hacky input support
+#[cfg(target_arch = "wasm32")]
+mod text_agent;
+/// Clipboard management for web
 #[cfg(all(
     feature = "manage_clipboard",
     target_arch = "wasm32",
@@ -714,6 +717,33 @@ impl Plugin for EguiPlugin {
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
+        #[cfg(target_arch = "wasm32")]
+        {
+            use bevy::prelude::Res;
+            app.init_resource::<text_agent::TextAgentChannel>();
+
+            app.add_systems(PreStartup, |channel: Res<text_agent::TextAgentChannel>| {
+                text_agent::install_text_agent(channel.sender.clone()).unwrap();
+            });
+
+            app.add_systems(
+                PreStartup,
+                text_agent::virtual_keyboard_handler
+                    .in_set(EguiSet::ProcessInput)
+                    .after(process_input_system)
+                    .after(InputSystem)
+                    .after(EguiSet::InitContexts),
+            );
+
+            app.add_systems(
+                PreUpdate,
+                text_agent::propagate_text
+                    .in_set(EguiSet::ProcessInput)
+                    .after(process_input_system)
+                    .after(InputSystem)
+                    .after(EguiSet::InitContexts),
+            );
+        }
         app.add_systems(
             PreUpdate,
             begin_frame_system
