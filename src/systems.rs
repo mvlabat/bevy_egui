@@ -16,7 +16,7 @@ use bevy::{
     log,
     prelude::{Entity, EventReader, Query, Resource, Time},
     time::Real,
-    window::{CursorMoved, ReceivedCharacter, RequestRedraw},
+    window::{CursorMoved, RequestRedraw},
 };
 use std::marker::PhantomData;
 
@@ -27,7 +27,6 @@ pub struct InputEvents<'w, 's> {
     pub ev_cursor: EventReader<'w, 's, CursorMoved>,
     pub ev_mouse_button_input: EventReader<'w, 's, MouseButtonInput>,
     pub ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
-    pub ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
 }
@@ -38,7 +37,6 @@ impl<'w, 's> InputEvents<'w, 's> {
         self.ev_cursor.read().last();
         self.ev_mouse_button_input.read().last();
         self.ev_mouse_wheel.read().last();
-        self.ev_received_character.read().last();
         self.ev_keyboard_input.read().last();
         self.ev_touch.read().last();
     }
@@ -239,25 +237,22 @@ pub fn process_input_system(
         }
     }
 
-    if !command && !win || !*context_params.is_macos && ctrl && alt {
-        for event in input_events.ev_received_character.read() {
-            let Some(mut window_context) = context_params.window_context(event.window) else {
-                continue;
-            };
-
-            if event.char.matches(char::is_control).count() == 0 {
-                window_context
-                    .egui_input
-                    .events
-                    .push(egui::Event::Text(event.char.to_string()));
-            }
-        }
-    }
-
     for event in keyboard_input_events {
+        let send_text_event = !command && !win || !*context_params.is_macos && ctrl && alt;
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
+
+        if send_text_event {
+            if let Key::Character(c) = &event.logical_key {
+                if c.matches(char::is_control).count() == 0 {
+                    window_context
+                        .egui_input
+                        .events
+                        .push(egui::Event::Text(c.to_string()));
+                }
+            }
+        }
 
         let (Some(key), physical_key) = (
             bevy_to_egui_key(&event.logical_key),
