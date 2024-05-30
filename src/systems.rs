@@ -238,19 +238,20 @@ pub fn process_input_system(
     }
 
     for event in keyboard_input_events {
-        let send_text_event = !command && !win || !*context_params.is_macos && ctrl && alt;
+        let text_event_allowed = !command && !win || !*context_params.is_macos && ctrl && alt;
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
 
-        if send_text_event {
-            if let Key::Character(c) = &event.logical_key {
-                if c.matches(char::is_control).count() == 0 {
-                    window_context
-                        .egui_input
-                        .events
-                        .push(egui::Event::Text(c.to_string()));
+        if text_event_allowed && event.state.is_pressed() {
+            match &event.logical_key {
+                Key::Character(char) if char.matches(char::is_control).count() == 0 => {
+                    (window_context.egui_input.events).push(egui::Event::Text(char.to_string()));
                 }
+                Key::Space => {
+                    (window_context.egui_input.events).push(egui::Event::Text(" ".into()));
+                }
+                _ => (),
             }
         }
 
