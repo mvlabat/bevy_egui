@@ -12,9 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Request Redraw only if really needed ([#278](https://github.com/mvlabat/bevy_egui/pull/278) by @Maximetinu).
 - Fixed light in the `render_to_image_wideget` example ([#282](https://github.com/mvlabat/bevy_egui/pull/282) by @rlidwka).
 
-### Fixed
-
-
 ## [0.27.0] - 18-Apr-2024
 
 ### Added
