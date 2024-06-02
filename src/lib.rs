@@ -288,6 +288,13 @@ pub struct EguiRenderOutput {
     pub textures_delta: egui::TexturesDelta,
 }
 
+impl EguiRenderOutput {
+    /// Returns `true` if the output has no Egui shapes and no textures delta
+    pub fn is_empty(&self) -> bool {
+        self.paint_jobs.is_empty() && self.textures_delta.is_empty()
+    }
+}
+
 /// Is used for storing Egui output.
 #[derive(Component, Clone, Default)]
 pub struct EguiOutput {
