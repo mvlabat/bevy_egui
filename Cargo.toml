@@ -39,7 +39,7 @@ name = "ui"
 required-features = ["render"]
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "4065098", default-features = false, features = [
+bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "fd82ef8", default-features = false, features = [
     "bevy_asset",
 ] }
 egui = { version = "0.27", default-features = false, features = ["bytemuck"] }
@@ -52,7 +52,7 @@ thread_local = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
 version-sync = "0.9.4"
-bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "4065098", default-features = false, features = [
+bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "fd82ef8", default-features = false, features = [
     "x11",
     "png",
     "bevy_pbr",
@@ -62,7 +62,7 @@ bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "4065098", defaul
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-winit = "0.29"
+winit = "0.30"
 web-sys = { version = "0.3.63", features = [
     "Clipboard",
     "ClipboardEvent",
