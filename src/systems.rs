@@ -19,6 +19,7 @@ use bevy::{
     window::{CursorMoved, ReceivedCharacter, RequestRedraw},
 };
 use std::marker::PhantomData;
+use egui::{Modifiers, MouseWheelUnit};
 
 #[allow(missing_docs)]
 #[derive(SystemParam)]
@@ -230,12 +231,20 @@ pub fn process_input_system(
             window_context
                 .egui_input
                 .events
-                .push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
+                .push(egui::Event::MouseWheel {
+                    unit: MouseWheelUnit::Point,
+                    delta: egui::vec2(delta.x + delta.y, 0.0),
+                    modifiers: Modifiers::SHIFT,
+                });
         } else {
             window_context
                 .egui_input
                 .events
-                .push(egui::Event::Scroll(delta));
+                .push(egui::Event::MouseWheel {
+                    unit: MouseWheelUnit::Point,
+                    delta: egui::vec2(delta.x + delta.y, 0.0),
+                    modifiers: Modifiers::NONE,
+                });
         }
     }
 
