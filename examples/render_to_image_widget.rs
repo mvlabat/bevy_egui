@@ -70,7 +70,7 @@ fn setup(
 
     let cube_handle = meshes.add(Cuboid::new(4.0, 4.0, 4.0));
     let default_material = StandardMaterial {
-        base_color: Color::rgb(0.8, 0.7, 0.6),
+        base_color: Color::srgb(0.8, 0.7, 0.6),
         reflectance: 0.02,
         unlit: false,
         ..default()
@@ -89,7 +89,7 @@ fn setup(
             ..default()
         })
         .insert(PreviewPassCube)
-        .insert(preview_pass_layer);
+        .insert(preview_pass_layer.clone());
 
     // The same light is reused for both passes,
     // you can specify different lights for preview and main pass by setting appropriate RenderLayers.
@@ -106,7 +106,7 @@ fn setup(
                 // render before the "main pass" camera
                 order: -1,
                 target: RenderTarget::Image(image_handle),
-                clear_color: ClearColorConfig::Custom(Color::rgba(1.0, 1.0, 1.0, 0.0)),
+                clear_color: ClearColorConfig::Custom(Color::srgba(1.0, 1.0, 1.0, 0.0)),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 15.0))
@@ -166,7 +166,9 @@ fn render_to_image_example_system(
             ui.end_row();
 
             ui.label("Emissive:");
-            color_picker_widget(ui, &mut preview_material.emissive);
+            let mut emissive_color = Color::from(preview_material.emissive);
+            color_picker_widget(ui, &mut emissive_color);
+            preview_material.emissive = emissive_color.into();
             ui.end_row();
 
             ui.label("Perceptual roughness:");
@@ -194,7 +196,7 @@ fn render_to_image_example_system(
 }
 
 fn color_picker_widget(ui: &mut egui::Ui, color: &mut Color) -> egui::Response {
-    let [r, g, b, a] = color.as_rgba_f32();
+    let [r, g, b, a] = Srgba::from(*color).to_f32_array();
     let mut egui_color: egui::Rgba = egui::Rgba::from_srgba_unmultiplied(
         (r * 255.0) as u8,
         (g * 255.0) as u8,
@@ -207,7 +209,7 @@ fn color_picker_widget(ui: &mut egui::Ui, color: &mut Color) -> egui::Response {
         egui::color_picker::Alpha::Opaque,
     );
     let [r, g, b, a] = egui_color.to_srgba_unmultiplied();
-    *color = Color::rgba(
+    *color = Color::srgba(
         r as f32 / 255.0,
         g as f32 / 255.0,
         b as f32 / 255.0,

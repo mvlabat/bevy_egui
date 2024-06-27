@@ -5,7 +5,6 @@ use crate::{
     EguiRenderOutput, EguiSettings, WindowSize,
 };
 use bevy::{
-    core::cast_slice,
     ecs::world::{FromWorld, World},
     prelude::{Entity, Handle, Resource},
     render::{
@@ -26,6 +25,7 @@ use bevy::{
         view::ExtractedWindows,
     },
 };
+use bytemuck::cast_slice;
 use egui::{TextureFilter, TextureOptions};
 
 /// Egui shader.
