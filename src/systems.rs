@@ -211,32 +211,21 @@ pub fn process_input_system(
             continue;
         };
 
-        let mut delta = egui::vec2(event.x, event.y);
-        if let MouseScrollUnit::Line = event.unit {
-            // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
-            delta *= 50.0;
-        }
+        let delta = egui::vec2(event.x, event.y);
 
-        if ctrl || mac_cmd {
-            // Treat as zoom instead.
-            let factor = (delta.y / 200.0).exp();
-            window_context
-                .egui_input
-                .events
-                .push(egui::Event::Zoom(factor));
-        } else if shift {
-            // Treat as horizontal scrolling.
-            // Note: Mac already fires horizontal scroll events when shift is down.
-            window_context
-                .egui_input
-                .events
-                .push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
-        } else {
-            window_context
-                .egui_input
-                .events
-                .push(egui::Event::Scroll(delta));
-        }
+        let unit = match event.unit {
+            MouseScrollUnit::Line => egui::MouseWheelUnit::Line,
+            MouseScrollUnit::Pixel => egui::MouseWheelUnit::Point,
+        };
+
+        window_context
+            .egui_input
+            .events
+            .push(egui::Event::MouseWheel {
+                unit,
+                delta,
+                modifiers,
+            });
     }
 
     if !command && !win || !*context_params.is_macos && ctrl && alt {
