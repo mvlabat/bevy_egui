@@ -20,11 +20,11 @@ An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](ht
 
 **Features:**
 - Desktop and web platforms support
-- Clipboard (web support is limited to the same window, see [rust-windowing/winit#1829](https://github.com/rust-windowing/winit/issues/1829))
+- Clipboard
 - Opening URLs
 - Multiple windows support (see [./examples/two_windows.rs](https://github.com/mvlabat/bevy_egui/blob/v0.20.1/examples/two_windows.rs))
 
-`bevy_egui` can be compiled with using only `bevy` and `egui` as dependencies: `manage_clipboard` and `open_url` features,
+`bevy_egui` can be compiled with using only `bevy`, `egui` and `bytemuck` as dependencies: `manage_clipboard` and `open_url` features,
 that require additional crates, can be disabled.
 
 ![bevy_egui](bevy_egui.png)
@@ -43,8 +43,8 @@ Here's a minimal usage example:
 ```toml
 # Cargo.toml
 [dependencies]
-bevy = "0.13"
-bevy_egui = "0.27"
+bevy = "0.14"
+bevy_egui = "0.28"
 ```
 
 ```rust
@@ -85,6 +85,7 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
+| 0.14 | 0.28      |
 | 0.13 | 0.25-0.27 |
 | 0.12 | 0.23-0.24 |
 | 0.11 | 0.21-0.22 |
