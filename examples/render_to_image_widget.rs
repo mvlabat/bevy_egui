@@ -98,7 +98,7 @@ fn setup(
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
             ..default()
         })
-        .insert(RenderLayers::all());
+        .insert(RenderLayers::default().with(1));
 
     commands
         .spawn(Camera3dBundle {
