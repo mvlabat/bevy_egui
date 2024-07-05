@@ -16,7 +16,7 @@ use bevy::{
     log,
     prelude::{Entity, EventReader, Query, Resource, Time},
     time::Real,
-    window::{CursorMoved, ReceivedCharacter, RequestRedraw},
+    window::{CursorMoved, RequestRedraw},
 };
 use std::marker::PhantomData;
 
@@ -27,7 +27,6 @@ pub struct InputEvents<'w, 's> {
     pub ev_cursor: EventReader<'w, 's, CursorMoved>,
     pub ev_mouse_button_input: EventReader<'w, 's, MouseButtonInput>,
     pub ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
-    pub ev_received_character: EventReader<'w, 's, ReceivedCharacter>,
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
 }
@@ -38,7 +37,6 @@ impl<'w, 's> InputEvents<'w, 's> {
         self.ev_cursor.read().last();
         self.ev_mouse_button_input.read().last();
         self.ev_mouse_wheel.read().last();
-        self.ev_received_character.read().last();
         self.ev_keyboard_input.read().last();
         self.ev_touch.read().last();
     }
@@ -211,53 +209,40 @@ pub fn process_input_system(
             continue;
         };
 
-        let mut delta = egui::vec2(event.x, event.y);
-        if let MouseScrollUnit::Line = event.unit {
-            // https://github.com/emilk/egui/blob/a689b623a669d54ea85708a8c748eb07e23754b0/egui-winit/src/lib.rs#L449
-            delta *= 50.0;
-        }
+        let delta = egui::vec2(event.x, event.y);
 
-        if ctrl || mac_cmd {
-            // Treat as zoom instead.
-            let factor = (delta.y / 200.0).exp();
-            window_context
-                .egui_input
-                .events
-                .push(egui::Event::Zoom(factor));
-        } else if shift {
-            // Treat as horizontal scrolling.
-            // Note: Mac already fires horizontal scroll events when shift is down.
-            window_context
-                .egui_input
-                .events
-                .push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
-        } else {
-            window_context
-                .egui_input
-                .events
-                .push(egui::Event::Scroll(delta));
-        }
-    }
+        let unit = match event.unit {
+            MouseScrollUnit::Line => egui::MouseWheelUnit::Line,
+            MouseScrollUnit::Pixel => egui::MouseWheelUnit::Point,
+        };
 
-    if !command && !win || !*context_params.is_macos && ctrl && alt {
-        for event in input_events.ev_received_character.read() {
-            let Some(mut window_context) = context_params.window_context(event.window) else {
-                continue;
-            };
-
-            if event.char.matches(char::is_control).count() == 0 {
-                window_context
-                    .egui_input
-                    .events
-                    .push(egui::Event::Text(event.char.to_string()));
-            }
-        }
+        window_context
+            .egui_input
+            .events
+            .push(egui::Event::MouseWheel {
+                unit,
+                delta,
+                modifiers,
+            });
     }
 
     for event in keyboard_input_events {
+        let text_event_allowed = !command && !win || !*context_params.is_macos && ctrl && alt;
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
+
+        if text_event_allowed && event.state.is_pressed() {
+            match &event.logical_key {
+                Key::Character(char) if char.matches(char::is_control).count() == 0 => {
+                    (window_context.egui_input.events).push(egui::Event::Text(char.to_string()));
+                }
+                Key::Space => {
+                    (window_context.egui_input.events).push(egui::Event::Text(" ".into()));
+                }
+                _ => (),
+            }
+        }
 
         let (Some(key), physical_key) = (
             bevy_to_egui_key(&event.logical_key),
@@ -490,6 +475,8 @@ pub fn process_output_system(
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<bevy::utils::HashMap<Entity, egui::CursorIcon>>,
 ) {
+    let mut should_request_redraw = false;
+
     for mut context in contexts.iter_mut() {
         let ctx = context.ctx.get_mut();
         let full_output = ctx.end_frame();
@@ -532,9 +519,8 @@ pub fn process_output_system(
         #[cfg(not(windows))]
         set_icon();
 
-        if ctx.has_requested_repaint() {
-            event.send(RequestRedraw);
-        }
+        let needs_repaint = !context.render_output.is_empty();
+        should_request_redraw |= ctx.has_requested_repaint() && needs_repaint;
 
         #[cfg(feature = "open_url")]
         if let Some(egui::output::OpenUrl { url, new_tab }) = platform_output.open_url {
@@ -554,6 +540,10 @@ pub fn process_output_system(
                 log::error!("Failed to open '{}': {:?}", url, err);
             }
         }
+    }
+
+    if should_request_redraw {
+        event.send(RequestRedraw);
     }
 }
 

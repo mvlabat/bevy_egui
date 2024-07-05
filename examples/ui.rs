@@ -22,7 +22,7 @@ impl FromWorld for Images {
 /// - configuring egui contexts during the startup.
 fn main() {
     App::new()
-        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+        .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(Msaa::Sample4)
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -234,7 +234,7 @@ impl Default for Painting {
 impl Painting {
     pub fn ui_control(&mut self, ui: &mut egui::Ui) -> egui::Response {
         ui.horizontal(|ui| {
-            egui::stroke_ui(ui, &mut self.stroke, "Stroke");
+            ui.add(&mut self.stroke);
             ui.separator();
             if ui.button("Clear Painting").clicked() {
                 self.lines.clear();
