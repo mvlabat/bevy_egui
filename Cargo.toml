@@ -1,6 +1,6 @@
 [package]
 name = "bevy_egui"
-version = "0.27.0"
+version = "0.27.1"
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
@@ -42,7 +42,7 @@ required-features = ["render"]
 bevy = { version = "0.14.0", default-features = false, features = [
     "bevy_asset",
 ] }
-egui = { version = "0.27", default-features = false, features = ["bytemuck"] }
+egui = { version = "0.28", default-features = false, features = ["bytemuck"] }
 bytemuck = "1"
 webbrowser = { version = "0.8.2", optional = true }
 

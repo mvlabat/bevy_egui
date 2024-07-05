@@ -91,12 +91,14 @@ fn setup(
         .insert(PreviewPassCube)
         .insert(preview_pass_layer.clone());
 
-    // Light
-    // NOTE: Currently lights are shared between passes - see https://github.com/bevyengine/bevy/issues/3462
-    commands.spawn(PointLightBundle {
-        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
-        ..default()
-    });
+    // The same light is reused for both passes,
+    // you can specify different lights for preview and main pass by setting appropriate RenderLayers.
+    commands
+        .spawn(PointLightBundle {
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
+            ..default()
+        })
+        .insert(RenderLayers::all());
 
     commands
         .spawn(Camera3dBundle {
