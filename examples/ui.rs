@@ -22,7 +22,7 @@ impl FromWorld for Images {
 /// - configuring egui contexts during the startup.
 fn main() {
     App::new()
-        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+        .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(Msaa::Sample4)
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {

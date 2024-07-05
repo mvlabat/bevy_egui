@@ -14,6 +14,7 @@ use bevy::{
             DynamicUniformBuffer, PipelineCache, ShaderType, SpecializedRenderPipelines,
         },
         renderer::{RenderDevice, RenderQueue},
+        texture::GpuImage,
         view::ExtractedWindows,
         Extract,
     },
@@ -188,7 +189,7 @@ pub fn queue_bind_groups_system(
     mut commands: Commands,
     egui_textures: ExtractedEguiTextures,
     render_device: Res<RenderDevice>,
-    gpu_images: Res<RenderAssets<Image>>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
     egui_pipeline: Res<EguiPipeline>,
 ) {
     let bind_groups = egui_textures
