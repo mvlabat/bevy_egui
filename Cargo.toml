@@ -80,6 +80,7 @@ web-sys = { version = "0.3.63", features = [
     "EventTarget",
     "HtmlInputElement",
     "InputEvent",
+    "KeyboardEvent",
     "Navigator",
     "TouchEvent",
     "Window",

@@ -1,7 +1,7 @@
 //! The text agent is an `<input>` element used to trigger
 //! mobile keyboard and IME input.
 
-use std::{cell::Cell, rc::Rc, sync::Mutex};
+use std::sync::Mutex;
 
 use bevy::{
     prelude::{EventWriter, Res, Resource},
@@ -76,7 +76,6 @@ pub fn install_text_agent(sender: Sender<egui::Event>) -> Result<(), JsValue> {
         .dyn_into::<web_sys::HtmlInputElement>()?;
     let input = std::rc::Rc::new(input);
     input.set_id(AGENT_ID);
-    let is_composing = Rc::new(Cell::new(false));
     {
         let style = input.style();
         // Transparent
@@ -134,31 +133,12 @@ pub fn install_text_agent(sender: Sender<egui::Event>) -> Result<(), JsValue> {
     }
 
     {
-        // When IME is off
         let input_clone = input.clone();
         let sender_clone = sender.clone();
-        let is_composing = is_composing.clone();
         let on_input = Closure::wrap(Box::new(move |_event: web_sys::InputEvent| {
             let text = input_clone.value();
-            if !text.is_empty() && !is_composing.get() {
-                input_clone.set_value("");
-                if text.len() == 1 {
-                    let _ = sender_clone.send(egui::Event::Text(text.clone()));
-                }
-            }
-        }) as Box<dyn FnMut(_)>);
-        input.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
-        on_input.forget();
-    }
 
-    {
-        // When IME is off
-        let input_clone = input.clone();
-        let sender_clone = sender.clone();
-        let is_composing = is_composing.clone();
-        let on_input = Closure::wrap(Box::new(move |_event: web_sys::InputEvent| {
-            let text = input_clone.value();
-            if !text.is_empty() && !is_composing.get() {
+            if !text.is_empty() {
                 input_clone.set_value("");
                 if text.len() == 1 {
                     let _ = sender_clone.send(egui::Event::Text(text.clone()));

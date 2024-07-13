@@ -405,7 +405,6 @@ pub fn process_input_system(
                         });
                 }
                 bevy::input::touch::TouchPhase::Moved => {
-
                     window_context
                         .egui_input
                         .events
