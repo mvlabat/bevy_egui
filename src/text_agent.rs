@@ -12,7 +12,7 @@ use crossbeam_channel::Sender;
 use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
 
-use crate::systems::ContextSystemParams;
+use crate::{systems::ContextSystemParams, EventClosure, SubscribedEvents};
 
 static AGENT_ID: &str = "egui_text_agent";
 
@@ -67,7 +67,11 @@ fn is_mobile() -> Option<bool> {
 }
 
 /// Text event handler,
-pub fn install_text_agent(sender: Sender<egui::Event>) -> Result<(), JsValue> {
+pub fn install_text_agent(
+    subscribed_input_events: &mut SubscribedEvents<web_sys::InputEvent>,
+    subscribed_keyboard_events: &mut SubscribedEvents<web_sys::KeyboardEvent>,
+    sender: Sender<egui::Event>,
+) -> Result<(), JsValue> {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let body = document.body().expect("document should have a body");
@@ -92,6 +96,30 @@ pub fn install_text_agent(sender: Sender<egui::Event>) -> Result<(), JsValue> {
     input.set_autofocus(true);
     input.set_hidden(true);
 
+    {
+        let input_clone = input.clone();
+        let sender_clone = sender.clone();
+        let closure = Closure::wrap(Box::new(move |_event: web_sys::InputEvent| {
+            let text = input_clone.value();
+
+            if !text.is_empty() {
+                input_clone.set_value("");
+                if text.len() == 1 {
+                    let _ = sender_clone.send(egui::Event::Text(text.clone()));
+                }
+            }
+        }) as Box<dyn FnMut(_)>);
+        input.add_event_listener_with_callback("input", closure.as_ref().unchecked_ref())?;
+        subscribed_input_events.event_closures.push(EventClosure {
+            target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                &document,
+            )
+            .clone(),
+            event_name: "virtual_keyboard_input".to_owned(),
+            closure,
+        });
+    }
+
     if let Some(true) = is_mobile() {
         // keydown
         let sender_clone = sender.clone();
@@ -111,7 +139,16 @@ pub fn install_text_agent(sender: Sender<egui::Event>) -> Result<(), JsValue> {
             }
         }) as Box<dyn FnMut(_)>);
         document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
-        closure.forget();
+        subscribed_keyboard_events
+            .event_closures
+            .push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_keydown".to_owned(),
+                closure,
+            });
     }
 
     if let Some(true) = is_mobile() {
@@ -129,24 +166,16 @@ pub fn install_text_agent(sender: Sender<egui::Event>) -> Result<(), JsValue> {
             }
         }) as Box<dyn FnMut(_)>);
         document.add_event_listener_with_callback("keyup", closure.as_ref().unchecked_ref())?;
-        closure.forget();
-    }
-
-    {
-        let input_clone = input.clone();
-        let sender_clone = sender.clone();
-        let on_input = Closure::wrap(Box::new(move |_event: web_sys::InputEvent| {
-            let text = input_clone.value();
-
-            if !text.is_empty() {
-                input_clone.set_value("");
-                if text.len() == 1 {
-                    let _ = sender_clone.send(egui::Event::Text(text.clone()));
-                }
-            }
-        }) as Box<dyn FnMut(_)>);
-        input.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
-        on_input.forget();
+        subscribed_keyboard_events
+            .event_closures
+            .push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_keyup".to_owned(),
+                closure,
+            });
     }
 
     body.append_child(&input)?;

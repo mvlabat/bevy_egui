@@ -101,6 +101,7 @@ use bevy::{
     app::Last,
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{event::EventReader, system::ResMut},
+    prelude::NonSendMut,
     prelude::Shader,
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
@@ -131,6 +132,8 @@ use bevy::{
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use std::cell::{RefCell, RefMut};
+
+use wasm_bindgen::prelude::*;
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
@@ -664,7 +667,12 @@ impl Plugin for EguiPlugin {
             target_arch = "wasm32",
             web_sys_unstable_apis
         ))]
-        world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
+        world.init_non_send_resource::<SubscribedEvents<web_sys::ClipboardEvent>>();
+        // virtual keyboard events for text_agent
+        #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::InputEvent>>();
+        #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::KeyboardEvent>>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
         #[cfg(feature = "render")]
@@ -722,9 +730,21 @@ impl Plugin for EguiPlugin {
             use bevy::prelude::Res;
             app.init_resource::<text_agent::TextAgentChannel>();
 
-            app.add_systems(PreStartup, |channel: Res<text_agent::TextAgentChannel>| {
-                text_agent::install_text_agent(channel.sender.clone()).unwrap();
-            });
+            app.add_systems(
+                PreStartup,
+                |channel: Res<text_agent::TextAgentChannel>,
+                 mut subscribed_input_events: NonSendMut<SubscribedEvents<web_sys::InputEvent>>,
+                 mut subscribed_keyboard_events: NonSendMut<
+                    SubscribedEvents<web_sys::KeyboardEvent>,
+                >| {
+                    text_agent::install_text_agent(
+                        &mut subscribed_input_events,
+                        &mut subscribed_keyboard_events,
+                        channel.sender.clone(),
+                    )
+                    .unwrap();
+                },
+            );
 
             app.add_systems(
                 PreStartup,
@@ -974,6 +994,49 @@ fn free_egui_textures_system(
             egui_user_textures.remove_image(&Handle::<Image>::Weak(*id));
         }
     }
+}
+
+/// Stores the clipboard event listeners.
+
+pub struct SubscribedEvents<T> {
+    event_closures: Vec<EventClosure<T>>,
+}
+
+impl<T> Default for SubscribedEvents<T> {
+    fn default() -> SubscribedEvents<T> {
+        Self {
+            event_closures: vec![],
+        }
+    }
+}
+
+impl<T> SubscribedEvents<T> {
+    /// Use this method to unsubscribe from all the clipboard events, this can be useful
+    /// for gracefully destroying a Bevy instance in a page.
+    pub fn unsubscribe_from_events(&mut self) {
+        let events_to_unsubscribe = std::mem::take(&mut self.event_closures);
+
+        if !events_to_unsubscribe.is_empty() {
+            for event in events_to_unsubscribe {
+                if let Err(err) = event.target.remove_event_listener_with_callback(
+                    event.event_name.as_str(),
+                    event.closure.as_ref().unchecked_ref(),
+                ) {
+                    log::error!(
+                        "Failed to unsubscribe from event: {}",
+                        crate::web_clipboard::string_from_js_value(&err)
+                    );
+                }
+            }
+        }
+    }
+}
+
+struct EventClosure<T> {
+    target: web_sys::EventTarget,
+    event_name: String,
+    // closure: Closure<dyn FnMut(web_sys::ClipboardEvent)>,
+    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
 }
 
 #[cfg(test)]
