@@ -11,8 +11,9 @@ fn main() {
         .run();
 }
 
-fn ui_example_system(mut contexts: EguiContexts) {
+fn ui_example_system(mut contexts: EguiContexts, mut text: Local<String>) {
     egui::Window::new("Hello").show(contexts.ctx_mut(), |ui| {
         ui.label("world");
+        ui.text_edit_singleline(&mut *text);
     });
 }

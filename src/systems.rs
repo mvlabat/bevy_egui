@@ -62,6 +62,7 @@ pub struct InputResources<'w, 's> {
     ))]
     pub egui_clipboard: bevy::ecs::system::ResMut<'w, crate::EguiClipboard>,
     pub modifier_keys_state: Local<'s, ModifierKeysState>,
+    pub prev_any_window_focused: Local<'s, bool>,
     #[system_param(ignore)]
     _marker: PhantomData<&'w ()>,
 }
@@ -119,9 +120,13 @@ pub fn process_input_system(
         }
     });
 
-    if !context_params.contexts.iter().any(|c| c.window.focused) {
+    // clear mod keys if the all windows go out of focus. Otherwise this is a source of a "stuck"
+    // input state for these mod keys
+    let any_window_focused = context_params.contexts.iter().any(|c| c.window.focused);
+    if !any_window_focused && *input_resources.prev_any_window_focused {
         *input_resources.modifier_keys_state = Default::default();
     }
+    *input_resources.prev_any_window_focused = any_window_focused;
 
     let mut keyboard_input_events = Vec::new();
     for event in input_events.ev_keyboard_input.read() {
