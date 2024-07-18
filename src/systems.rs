@@ -119,6 +119,10 @@ pub fn process_input_system(
         }
     });
 
+    if !context_params.contexts.iter().any(|c| c.window.focused) {
+        *input_resources.modifier_keys_state = Default::default();
+    }
+
     let mut keyboard_input_events = Vec::new();
     for event in input_events.ev_keyboard_input.read() {
         // Copy the events as we might want to pass them to an Egui context later.
