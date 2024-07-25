@@ -2,13 +2,13 @@ use crate::{
     render_systems::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
     },
-    EguiRenderOutput, EguiRenderToTextureHandle, EguiSettings, WindowSize,
+    EguiRenderOutput, EguiSettings, WindowSize,
 };
 use bevy::{
     ecs::world::{FromWorld, World},
     prelude::{Entity, Handle, Resource},
     render::{
-        render_asset::{RenderAssetUsages, RenderAssets},
+        render_asset::RenderAssetUsages,
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_resource::{
             BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
@@ -21,10 +21,7 @@ use bevy::{
             VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{
-            GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler,
-            ImageSamplerDescriptor,
-        },
+        texture::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
         view::ExtractedWindows,
     },
 };
@@ -310,21 +307,11 @@ impl Node for EguiNode {
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
         let extracted_window = extracted_windows.get(&self.window_entity);
-        let extracted_render_to_texture: Option<&EguiRenderToTextureHandle> =
-            world.get(self.window_entity);
-        let render_to_texture_gpu_image = extracted_render_to_texture.map(|handle| {
-            let w = world.get_resource::<RenderAssets<GpuImage>>().unwrap();
-            w.get(&handle.0).unwrap()
-        });
-        let swap_chain_texture_view = match (
-            extracted_window.and_then(|v| v.swap_chain_texture_view.as_ref()),
-            render_to_texture_gpu_image,
-        ) {
-            (None, None) => return Ok(()),
-            (None, Some(rtt)) => &rtt.texture_view,
-            (Some(window), None) => window,
-            (Some(_), Some(_)) => todo!(),
-        };
+        let swap_chain_texture_view =
+            match extracted_window.and_then(|v| v.swap_chain_texture_view.as_ref()) {
+                None => return Ok(()),
+                Some(window) => window,
+            };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
@@ -374,12 +361,10 @@ impl Node for EguiNode {
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
         render_pass.set_bind_group(0, transform_buffer_bind_group, &[transform_buffer_offset]);
 
-        let (physical_width, physical_height) =
-            match (extracted_window, render_to_texture_gpu_image) {
-                (None, Some(rtt)) => (rtt.size.x, rtt.size.y),
-                (Some(window), None) => (window.physical_width, window.physical_height),
-                (Some(_), Some(_)) | (None, None) => unreachable!(),
-            };
+        let (physical_width, physical_height) = match extracted_window {
+            Some(window) => (window.physical_width, window.physical_height),
+            None => unreachable!(),
+        };
 
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {
