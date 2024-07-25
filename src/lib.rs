@@ -96,12 +96,13 @@ use arboard::Clipboard;
 use bevy::ecs::query::Or;
 #[allow(unused_imports)]
 use bevy::log;
+#[cfg(target_arch = "wasm32")]
+use bevy::prelude::NonSendMut;
 #[cfg(feature = "render")]
 use bevy::{
     app::Last,
     asset::{load_internal_asset, AssetEvent, Assets, Handle},
     ecs::{event::EventReader, system::ResMut},
-    prelude::NonSendMut,
     prelude::Shader,
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
@@ -133,6 +134,7 @@ use bevy::{
 ))]
 use std::cell::{RefCell, RefMut};
 
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 /// Adds all Egui resources and render graph nodes.
@@ -996,11 +998,19 @@ fn free_egui_textures_system(
     }
 }
 
+/// Helper function for outputting a String from a JsValue
+#[cfg(target_arch = "wasm32")]
+pub fn string_from_js_value(value: &JsValue) -> String {
+    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
+}
+
 /// Stores event listeners.
+#[cfg(target_arch = "wasm32")]
 pub struct SubscribedEvents<T> {
     event_closures: Vec<EventClosure<T>>,
 }
 
+#[cfg(target_arch = "wasm32")]
 impl<T> Default for SubscribedEvents<T> {
     fn default() -> SubscribedEvents<T> {
         Self {
@@ -1009,6 +1019,7 @@ impl<T> Default for SubscribedEvents<T> {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 impl<T> SubscribedEvents<T> {
     /// Use this method to unsubscribe from all stored events, this can be useful
     /// for gracefully destroying a Bevy instance in a page.
@@ -1023,7 +1034,7 @@ impl<T> SubscribedEvents<T> {
                 ) {
                     log::error!(
                         "Failed to unsubscribe from event: {}",
-                        crate::web_clipboard::string_from_js_value(&err)
+                        string_from_js_value(&err)
                     );
                 }
             }
@@ -1031,6 +1042,7 @@ impl<T> SubscribedEvents<T> {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 struct EventClosure<T> {
     target: web_sys::EventTarget,
     event_name: String,

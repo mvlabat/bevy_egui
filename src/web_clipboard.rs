@@ -4,7 +4,7 @@ use crossbeam_channel::{Receiver, Sender};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{EventClosure, SubscribedEvents};
+use crate::{string_from_js_value, EventClosure, SubscribedEvents};
 
 /// Startup system to initialize web clipboard events.
 pub fn startup_setup_web_events(
@@ -216,9 +216,4 @@ fn clipboard_copy(contents: String) {
             );
         }
     });
-}
-
-/// Helper function for outputting a String from a JsValue
-pub fn string_from_js_value(value: &JsValue) -> String {
-    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
 }
