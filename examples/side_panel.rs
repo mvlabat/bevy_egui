@@ -1,5 +1,4 @@
-use bevy::{prelude::*, window::PrimaryWindow};
-use bevy::winit::WinitSettings;
+use bevy::{prelude::*, window::PrimaryWindow, winit::WinitSettings};
 use bevy_egui::{EguiContexts, EguiPlugin};
 
 #[derive(Default, Resource)]
@@ -38,10 +37,16 @@ fn ui_example_system(
         .resizable(true)
         .show(ctx, |ui| {
             ui.label("Left resizeable panel");
-            if ui.add(egui::widgets::Button::new("A button").selected(!*is_last_selected)).clicked() {
+            if ui
+                .add(egui::widgets::Button::new("A button").selected(!*is_last_selected))
+                .clicked()
+            {
                 *is_last_selected = false;
             }
-            if ui.add(egui::widgets::Button::new("Another button").selected(*is_last_selected)).clicked() {
+            if ui
+                .add(egui::widgets::Button::new("Another button").selected(*is_last_selected))
+                .clicked()
+            {
                 *is_last_selected = true;
             }
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
