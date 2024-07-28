@@ -8,7 +8,7 @@ use bevy::{
         system::{Local, Res, SystemParam},
     },
     input::{
-        keyboard::{Key, KeyCode, KeyboardInput},
+        keyboard::{Key, KeyCode, KeyboardFocusLost, KeyboardInput},
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         touch::TouchInput,
         ButtonState,
@@ -29,16 +29,18 @@ pub struct InputEvents<'w, 's> {
     pub ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
+    pub ev_focus: EventReader<'w, 's, KeyboardFocusLost>,
 }
 
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
-        self.ev_cursor.read().last();
-        self.ev_mouse_button_input.read().last();
-        self.ev_mouse_wheel.read().last();
-        self.ev_keyboard_input.read().last();
-        self.ev_touch.read().last();
+        self.ev_cursor.clear();
+        self.ev_mouse_button_input.clear();
+        self.ev_mouse_wheel.clear();
+        self.ev_keyboard_input.clear();
+        self.ev_touch.clear();
+        self.ev_focus.clear();
     }
 }
 
@@ -142,6 +144,12 @@ pub fn process_input_system(
             }
             _ => {}
         };
+    }
+
+    // If window focus is lost, clear all modifiers to avoid stuck keys.
+    if !input_events.ev_focus.is_empty() {
+        input_events.ev_focus.clear();
+        *input_resources.modifier_keys_state = Default::default();
     }
 
     let ModifierKeysState {
