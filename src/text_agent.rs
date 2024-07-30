@@ -79,17 +79,22 @@ pub fn install_text_agent(
         .create_element("input")?
         .dyn_into::<web_sys::HtmlInputElement>()?;
     let input = std::rc::Rc::new(input);
+    input.set_type("text");
+    input.set_autofocus(true);
+    input.set_attribute("autocapitalize", "off")?;
     input.set_id(AGENT_ID);
     {
         let style = input.style();
         // Transparent
-        style.set_property("opacity", "0").unwrap();
-        // Hide under canvas
-        style.set_property("z-index", "-1").unwrap();
-
+        style.set_property("background-color", "transparent")?;
+        style.set_property("border", "none")?;
+        style.set_property("outline", "none")?;
+        style.set_property("width", "1px")?;
+        style.set_property("height", "1px")?;
+        style.set_property("caret-color", "transparent")?;
         style.set_property("position", "absolute")?;
-        style.set_property("top", "0px")?;
-        style.set_property("left", "0px")?;
+        style.set_property("top", "0")?;
+        style.set_property("left", "0")?;
     }
     // Set size as small as possible, in case user may click on it.
     input.set_size(1);
@@ -105,6 +110,8 @@ pub fn install_text_agent(
             if !text.is_empty() {
                 input_clone.set_value("");
                 if text.len() == 1 {
+                    input_clone.blur().ok();
+                    input_clone.focus().ok();
                     let _ = sender_clone.send(egui::Event::Text(text.clone()));
                 }
             }
@@ -153,8 +160,10 @@ pub fn install_text_agent(
 
     if let Some(true) = is_mobile() {
         // keyup
+        let input_clone = input.clone();
         let sender_clone = sender.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+            input_clone.focus().ok();
             if "Backspace" == event.key() {
                 let _ = sender_clone.send(egui::Event::Key {
                     key: egui::Key::Backspace,
