@@ -730,41 +730,55 @@ impl Plugin for EguiPlugin {
         #[cfg(target_arch = "wasm32")]
         {
             use bevy::prelude::Res;
-            app.init_resource::<text_agent::TextAgentChannel>();
 
-            app.add_systems(
-                PreStartup,
-                |channel: Res<text_agent::TextAgentChannel>,
-                 mut subscribed_input_events: NonSendMut<SubscribedEvents<web_sys::InputEvent>>,
-                 mut subscribed_keyboard_events: NonSendMut<
-                    SubscribedEvents<web_sys::KeyboardEvent>,
-                >| {
-                    text_agent::install_text_agent(
-                        &mut subscribed_input_events,
-                        &mut subscribed_keyboard_events,
-                        channel.sender.clone(),
-                    )
-                    .unwrap();
-                },
-            );
+            let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
 
-            app.add_systems(
-                PreStartup,
-                text_agent::virtual_keyboard_handler
-                    .in_set(EguiSet::ProcessInput)
-                    .after(process_input_system)
-                    .after(InputSystem)
-                    .after(EguiSet::InitContexts),
-            );
+            if !maybe_window_plugin.is_empty()
+                && maybe_window_plugin[0].primary_window.is_some()
+                && maybe_window_plugin[0]
+                    .primary_window
+                    .as_ref()
+                    .unwrap()
+                    .prevent_default_event_handling
+            {
+                app.init_resource::<text_agent::TextAgentChannel>();
 
-            app.add_systems(
-                PreUpdate,
-                text_agent::propagate_text
-                    .in_set(EguiSet::ProcessInput)
-                    .after(process_input_system)
-                    .after(InputSystem)
-                    .after(EguiSet::InitContexts),
-            );
+                app.add_systems(
+                    PreStartup,
+                    |channel: Res<text_agent::TextAgentChannel>,
+                     mut subscribed_input_events: NonSendMut<
+                        SubscribedEvents<web_sys::InputEvent>,
+                    >,
+                     mut subscribed_keyboard_events: NonSendMut<
+                        SubscribedEvents<web_sys::KeyboardEvent>,
+                    >| {
+                        text_agent::install_text_agent(
+                            &mut subscribed_input_events,
+                            &mut subscribed_keyboard_events,
+                            channel.sender.clone(),
+                        )
+                        .unwrap();
+                    },
+                );
+
+                app.add_systems(
+                    PreStartup,
+                    text_agent::virtual_keyboard_handler
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+
+                app.add_systems(
+                    PreUpdate,
+                    text_agent::propagate_text
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+            }
         }
         app.add_systems(
             PreUpdate,
