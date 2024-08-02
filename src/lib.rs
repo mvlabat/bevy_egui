@@ -60,6 +60,7 @@ compile_error!(include_str!("../static/error_web_sys_unstable_apis.txt"));
 /// Egui render node.
 #[cfg(feature = "render")]
 pub mod egui_node;
+/// Egui render node for rendering to a texture.
 #[cfg(feature = "render")]
 pub mod egui_render_to_texture_node;
 /// Plugin systems for the render app.
@@ -852,6 +853,7 @@ pub fn setup_render_to_texture_handles_system(
 
 /// Updates textures painted by Egui.
 #[cfg(feature = "render")]
+#[allow(clippy::type_complexity)]
 pub fn update_egui_textures_system(
     mut egui_render_output: Query<
         (Entity, &mut EguiRenderOutput),
@@ -911,6 +913,7 @@ pub fn update_egui_textures_system(
 }
 
 #[cfg(feature = "render")]
+#[allow(clippy::type_complexity)]
 fn free_egui_textures_system(
     mut egui_user_textures: ResMut<EguiUserTextures>,
     mut egui_render_output: Query<
