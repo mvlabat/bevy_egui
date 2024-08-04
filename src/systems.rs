@@ -248,7 +248,7 @@ pub fn process_input_system(
     #[cfg(target_arch = "wasm32")]
     for context in context_params.contexts.iter() {
         let platform_output = &context.egui_output.platform_output;
-        if platform_output.mutable_text_under_cursor || platform_output.ime.is_some() {
+        if platform_output.ime.is_some() || platform_output.mutable_text_under_cursor {
             editing_text = true;
             break;
         }
@@ -428,6 +428,15 @@ pub fn process_input_system(
                         .egui_input
                         .events
                         .push(egui::Event::PointerGone);
+                    #[cfg(target_arch = "wasm32")]
+                    match VIRTUAL_KEYBOARD_GLOBAL.lock() {
+                        Ok(mut touch_info) => {
+                            touch_info.editing_text = editing_text;
+                        }
+                        Err(poisoned) => {
+                            let _unused = poisoned.into_inner();
+                        }
+                    };
                 }
                 bevy::input::touch::TouchPhase::Canceled => {
                     window_context.ctx.pointer_touch_id = None;
@@ -437,15 +446,6 @@ pub fn process_input_system(
                         .push(egui::Event::PointerGone);
                 }
             }
-            #[cfg(target_arch = "wasm32")]
-            match VIRTUAL_KEYBOARD_GLOBAL.lock() {
-                Ok(mut touch_info) => {
-                    touch_info.editing_text = editing_text;
-                }
-                Err(poisoned) => {
-                    let _unused = poisoned.into_inner();
-                }
-            };
         }
     }
 
