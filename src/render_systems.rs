@@ -1,6 +1,7 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
-    EguiManagedTextures, EguiSettings, EguiUserTextures, WindowSize,
+    egui_render_to_texture_node::{EguiRenderToTextureNode, EguiRenderToTexturePass},
+    EguiManagedTextures, EguiRenderToTextureHandle, EguiSettings, EguiUserTextures, WindowSize,
 };
 use bevy::{
     ecs::system::SystemParam,
@@ -58,9 +59,9 @@ pub struct ExtractedEguiTextures<'w> {
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct EguiPass {
     /// Index of the window entity.
-    pub window_index: u32,
+    pub entity_index: u32,
     /// Generation of the window entity.
-    pub window_generation: u32,
+    pub entity_generation: u32,
 }
 
 impl ExtractedEguiTextures<'_> {
@@ -88,8 +89,8 @@ pub fn setup_new_windows_render_system(
 ) {
     for window in windows.iter() {
         let egui_pass = EguiPass {
-            window_index: window.index(),
-            window_generation: window.generation(),
+            entity_index: window.index(),
+            entity_generation: window.generation(),
         };
 
         let new_node = EguiNode::new(window);
@@ -97,6 +98,24 @@ pub fn setup_new_windows_render_system(
         render_graph.add_node(egui_pass.clone(), new_node);
 
         render_graph.add_node_edge(bevy::render::graph::CameraDriverLabel, egui_pass);
+    }
+}
+/// Sets up the pipeline for newly created Render to texture entities.
+pub fn setup_new_rtt_render_system(
+    windows: Extract<Query<Entity, Added<EguiRenderToTextureHandle>>>,
+    mut render_graph: ResMut<RenderGraph>,
+) {
+    for window in windows.iter() {
+        let egui_rtt_pass = EguiRenderToTexturePass {
+            entity_index: window.index(),
+            entity_generation: window.generation(),
+        };
+
+        let new_node = EguiRenderToTextureNode::new(window);
+
+        render_graph.add_node(egui_rtt_pass.clone(), new_node);
+
+        render_graph.add_node_edge(egui_rtt_pass, bevy::render::graph::CameraDriverLabel);
     }
 }
 
@@ -225,21 +244,34 @@ pub struct EguiPipelines(pub HashMap<Entity, CachedRenderPipelineId>);
 pub fn queue_pipelines_system(
     mut commands: Commands,
     pipeline_cache: Res<PipelineCache>,
-    mut pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
     egui_pipeline: Res<EguiPipeline>,
     windows: Res<ExtractedWindows>,
+    render_to_tex: Query<(Entity, &EguiRenderToTextureHandle)>,
+    images: Res<RenderAssets<GpuImage>>,
 ) {
-    let pipelines = windows
+    let mut pipelines: HashMap<Entity, CachedRenderPipelineId> = windows
         .iter()
         .filter_map(|(window_id, window)| {
             let key = EguiPipelineKey {
                 texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
             };
-            let pipeline_id = pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
+            let pipeline_id =
+                specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
             Some((*window_id, pipeline_id))
         })
         .collect();
+
+    pipelines.extend(render_to_tex.iter().filter_map(|(e, handle)| {
+        let img = images.get(&handle.0)?;
+        let key = EguiPipelineKey {
+            texture_format: img.texture_format.add_srgb_suffix(),
+        };
+        let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
+
+        Some((e, pipeline_id))
+    }));
 
     commands.insert_resource(EguiPipelines(pipelines));
 }

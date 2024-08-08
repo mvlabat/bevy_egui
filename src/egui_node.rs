@@ -151,10 +151,10 @@ impl SpecializedRenderPipeline for EguiPipeline {
 }
 
 #[derive(Debug)]
-struct DrawCommand {
-    vertices_count: usize,
-    egui_texture: EguiTextureId,
-    clipping_zone: (u32, u32, u32, u32), // x, y, w, h
+pub(crate) struct DrawCommand {
+    pub(crate) vertices_count: usize,
+    pub(crate) egui_texture: EguiTextureId,
+    pub(crate) clipping_zone: (u32, u32, u32, u32), // x, y, w, h
 }
 
 /// Egui render node.
@@ -306,20 +306,12 @@ impl Node for EguiNode {
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
-        let extracted_window =
-            if let Some(extracted_window) = extracted_windows.get(&self.window_entity) {
-                extracted_window
-            } else {
-                return Ok(()); // No window
+        let extracted_window = extracted_windows.get(&self.window_entity);
+        let swap_chain_texture_view =
+            match extracted_window.and_then(|v| v.swap_chain_texture_view.as_ref()) {
+                None => return Ok(()),
+                Some(window) => window,
             };
-
-        let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
-            extracted_window.swap_chain_texture_view.as_ref()
-        {
-            swap_chain_texture_view
-        } else {
-            return Ok(()); // No swapchain texture
-        };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
@@ -353,9 +345,7 @@ impl Node for EguiNode {
                     occlusion_query_set: None,
                 });
 
-        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else {
-            return Ok(());
-        };
+        let pipeline_id = egui_pipelines.get(&self.window_entity).unwrap();
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
             return Ok(());
         };
@@ -371,10 +361,15 @@ impl Node for EguiNode {
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
         render_pass.set_bind_group(0, transform_buffer_bind_group, &[transform_buffer_offset]);
 
+        let (physical_width, physical_height) = match extracted_window {
+            Some(window) => (window.physical_width, window.physical_height),
+            None => unreachable!(),
+        };
+
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {
-            if draw_command.clipping_zone.0 < extracted_window.physical_width
-                && draw_command.clipping_zone.1 < extracted_window.physical_height
+            if draw_command.clipping_zone.0 < physical_width
+                && draw_command.clipping_zone.1 < physical_height
             {
                 let texture_bind_group = match bind_groups.get(&draw_command.egui_texture) {
                     Some(texture_resource) => texture_resource,
@@ -389,16 +384,14 @@ impl Node for EguiNode {
                 render_pass.set_scissor_rect(
                     draw_command.clipping_zone.0,
                     draw_command.clipping_zone.1,
-                    draw_command.clipping_zone.2.min(
-                        extracted_window
-                            .physical_width
-                            .saturating_sub(draw_command.clipping_zone.0),
-                    ),
-                    draw_command.clipping_zone.3.min(
-                        extracted_window
-                            .physical_height
-                            .saturating_sub(draw_command.clipping_zone.1),
-                    ),
+                    draw_command
+                        .clipping_zone
+                        .2
+                        .min(physical_width.saturating_sub(draw_command.clipping_zone.0)),
+                    draw_command
+                        .clipping_zone
+                        .3
+                        .min(physical_height.saturating_sub(draw_command.clipping_zone.1)),
                 );
 
                 render_pass.draw_indexed(
