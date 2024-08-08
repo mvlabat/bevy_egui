@@ -1,4 +1,4 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*, window::PrimaryWindow, winit::WinitSettings};
 use bevy_egui::{EguiContexts, EguiPlugin};
 
 #[derive(Default, Resource)]
@@ -16,6 +16,7 @@ struct OriginalCameraTransform(Transform);
 
 fn main() {
     App::new()
+        .insert_resource(WinitSettings::desktop_app())
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin)
         .init_resource::<OccupiedScreenSpace>()
@@ -26,6 +27,7 @@ fn main() {
 }
 
 fn ui_example_system(
+    mut is_last_selected: Local<bool>,
     mut contexts: EguiContexts,
     mut occupied_screen_space: ResMut<OccupiedScreenSpace>,
 ) {
@@ -35,6 +37,18 @@ fn ui_example_system(
         .resizable(true)
         .show(ctx, |ui| {
             ui.label("Left resizeable panel");
+            if ui
+                .add(egui::widgets::Button::new("A button").selected(!*is_last_selected))
+                .clicked()
+            {
+                *is_last_selected = false;
+            }
+            if ui
+                .add(egui::widgets::Button::new("Another button").selected(*is_last_selected))
+                .clicked()
+            {
+                *is_last_selected = true;
+            }
             ui.allocate_rect(ui.available_rect_before_wrap(), egui::Sense::hover());
         })
         .response

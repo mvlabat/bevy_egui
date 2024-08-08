@@ -13,17 +13,18 @@ use bevy::{
         system::{Local, Res, SystemParam},
     },
     input::{
-        keyboard::{Key, KeyCode, KeyboardInput},
+        keyboard::{Key, KeyCode, KeyboardFocusLost, KeyboardInput},
         mouse::{MouseButton, MouseButtonInput, MouseScrollUnit, MouseWheel},
         touch::TouchInput,
         ButtonState,
     },
     log::{self, error},
-    prelude::{Entity, EventReader, Query, Resource, Time},
+    prelude::{Entity, EventReader, NonSend, Query, Resource, Time},
     time::Real,
     window::{CursorMoved, RequestRedraw},
+    winit::{EventLoopProxy, WakeUp},
 };
-use std::marker::PhantomData;
+use std::{marker::PhantomData, time::Duration};
 
 #[allow(missing_docs)]
 #[derive(SystemParam)]
@@ -34,16 +35,18 @@ pub struct InputEvents<'w, 's> {
     pub ev_mouse_wheel: EventReader<'w, 's, MouseWheel>,
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
+    pub ev_focus: EventReader<'w, 's, KeyboardFocusLost>,
 }
 
 impl<'w, 's> InputEvents<'w, 's> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
-        self.ev_cursor.read().last();
-        self.ev_mouse_button_input.read().last();
-        self.ev_mouse_wheel.read().last();
-        self.ev_keyboard_input.read().last();
-        self.ev_touch.read().last();
+        self.ev_cursor.clear();
+        self.ev_mouse_button_input.clear();
+        self.ev_mouse_wheel.clear();
+        self.ev_keyboard_input.clear();
+        self.ev_touch.clear();
+        self.ev_focus.clear();
     }
 }
 
@@ -147,6 +150,12 @@ pub fn process_input_system(
             }
             _ => {}
         };
+    }
+
+    // If window focus is lost, clear all modifiers to avoid stuck keys.
+    if !input_events.ev_focus.is_empty() {
+        input_events.ev_focus.clear();
+        *input_resources.modifier_keys_state = Default::default();
     }
 
     let ModifierKeysState {
@@ -498,6 +507,7 @@ pub fn process_output_system(
     mut egui_clipboard: bevy::ecs::system::ResMut<crate::EguiClipboard>,
     mut event: EventWriter<RequestRedraw>,
     #[cfg(windows)] mut last_cursor_icon: Local<bevy::utils::HashMap<Entity, egui::CursorIcon>>,
+    event_loop_proxy: Option<NonSend<EventLoopProxy<WakeUp>>>,
 ) {
     let mut should_request_redraw = false;
 
@@ -547,6 +557,21 @@ pub fn process_output_system(
 
         let needs_repaint = !context.render_output.is_empty();
         should_request_redraw |= ctx.has_requested_repaint() && needs_repaint;
+
+        // The resource doesn't exist in the headless mode.
+        if let Some(event_loop_proxy) = &event_loop_proxy {
+            // A zero duration indicates that it's an outstanding redraw request, which gives Egui an
+            // opportunity to settle the effects of interactions with widgets. Such repaint requests
+            // are processed not immediately but on a next frame. In this case, we need to indicate to
+            // winit, that it needs to wake up next frame as well even if there are no inputs.
+            //
+            // TLDR: this solves repaint corner cases of `WinitSettings::desktop_app()`.
+            if let Some(Duration::ZERO) =
+                ctx.viewport(|viewport| viewport.input.wants_repaint_after())
+            {
+                let _ = event_loop_proxy.send_event(WakeUp);
+            }
+        }
 
         #[cfg(feature = "open_url")]
         if let Some(egui::output::OpenUrl { url, new_tab }) = platform_output.open_url {
