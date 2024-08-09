@@ -58,6 +58,19 @@ pub fn propagate_text(
     }
 }
 
+// stolen from https://github.com/emilk/egui/pull/4855
+pub fn is_mobile_safari() -> bool {
+    (|| {
+        let user_agent = web_sys::window()?.navigator().user_agent().ok()?;
+        let is_ios = user_agent.contains("iPhone")
+            || user_agent.contains("iPad")
+            || user_agent.contains("iPod");
+        let is_safari = user_agent.contains("Safari");
+        Some(is_ios && is_safari)
+    })()
+    .unwrap_or(false)
+}
+
 fn is_mobile() -> Option<bool> {
     const MOBILE_DEVICE: [&str; 6] = ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];
 
@@ -68,8 +81,9 @@ fn is_mobile() -> Option<bool> {
 
 /// Text event handler,
 pub fn install_text_agent(
-    subscribed_input_events: &mut SubscribedEvents<web_sys::InputEvent>,
     subscribed_keyboard_events: &mut SubscribedEvents<web_sys::KeyboardEvent>,
+    subscribed_input_events: &mut SubscribedEvents<web_sys::InputEvent>,
+    subscribed_touch_events: &mut SubscribedEvents<web_sys::TouchEvent>,
     sender: Sender<egui::Event>,
 ) -> Result<(), JsValue> {
     let window = web_sys::window().unwrap();
@@ -101,7 +115,7 @@ pub fn install_text_agent(
     input.set_autofocus(true);
     input.set_hidden(true);
 
-    {
+    if let Some(true) = is_mobile() {
         let input_clone = input.clone();
         let sender_clone = sender.clone();
         let closure = Closure::wrap(Box::new(move |_event: web_sys::InputEvent| {
@@ -125,9 +139,32 @@ pub fn install_text_agent(
             event_name: "virtual_keyboard_input".to_owned(),
             closure,
         });
-    }
 
-    if let Some(true) = is_mobile() {
+        // mobile safari doesn't let you set input focus outside of an event handler
+        if is_mobile_safari() {
+            let closure = Closure::wrap(Box::new(move |_event: web_sys::TouchEvent| {
+                match VIRTUAL_KEYBOARD_GLOBAL.lock() {
+                    Ok(touch_info) => {
+                        update_text_agent(touch_info.editing_text);
+                    }
+                    Err(poisoned) => {
+                        let _unused = poisoned.into_inner();
+                    }
+                };
+            }) as Box<dyn FnMut(_)>);
+            document
+                .add_event_listener_with_callback("touchend", closure.as_ref().unchecked_ref())
+                .unwrap();
+            subscribed_touch_events.event_closures.push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_touchend".to_owned(),
+                closure,
+            });
+        }
+
         // keydown
         let sender_clone = sender.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
@@ -156,9 +193,7 @@ pub fn install_text_agent(
                 event_name: "virtual_keyboard_keydown".to_owned(),
                 closure,
             });
-    }
 
-    if let Some(true) = is_mobile() {
         // keyup
         let input_clone = input.clone();
         let sender_clone = sender.clone();
@@ -192,28 +227,8 @@ pub fn install_text_agent(
     Ok(())
 }
 
-pub fn virtual_keyboard_handler() {
-    let document = web_sys::window().unwrap().document().unwrap();
-    {
-        let closure = Closure::wrap(Box::new(move |_event: web_sys::TouchEvent| {
-            match VIRTUAL_KEYBOARD_GLOBAL.lock() {
-                Ok(touch_info) => {
-                    update_text_agent(touch_info.editing_text);
-                }
-                Err(poisoned) => {
-                    let _unused = poisoned.into_inner();
-                }
-            };
-        }) as Box<dyn FnMut(_)>);
-        document
-            .add_event_listener_with_callback("touchstart", closure.as_ref().unchecked_ref())
-            .unwrap();
-        closure.forget();
-    }
-}
-
 /// Focus or blur text agent to toggle mobile keyboard.
-fn update_text_agent(editing_text: bool) {
+pub fn update_text_agent(editing_text: bool) {
     use web_sys::HtmlInputElement;
 
     let window = match web_sys::window() {

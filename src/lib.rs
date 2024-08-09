@@ -672,9 +672,11 @@ impl Plugin for EguiPlugin {
         world.init_non_send_resource::<SubscribedEvents<web_sys::ClipboardEvent>>();
         // virtual keyboard events for text_agent
         #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::KeyboardEvent>>();
+        #[cfg(target_arch = "wasm32")]
         world.init_non_send_resource::<SubscribedEvents<web_sys::InputEvent>>();
         #[cfg(target_arch = "wasm32")]
-        world.init_non_send_resource::<SubscribedEvents<web_sys::KeyboardEvent>>();
+        world.init_non_send_resource::<SubscribedEvents<web_sys::TouchEvent>>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
         #[cfg(feature = "render")]
@@ -745,29 +747,28 @@ impl Plugin for EguiPlugin {
 
                 app.add_systems(
                     PreStartup,
-                    |channel: Res<text_agent::TextAgentChannel>,
-                     mut subscribed_input_events: NonSendMut<
+                    (|channel: Res<text_agent::TextAgentChannel>,
+                      mut subscribed_keyboard_events: NonSendMut<
+                        SubscribedEvents<web_sys::KeyboardEvent>,
+                    >,
+                      mut subscribed_input_events: NonSendMut<
                         SubscribedEvents<web_sys::InputEvent>,
                     >,
-                     mut subscribed_keyboard_events: NonSendMut<
-                        SubscribedEvents<web_sys::KeyboardEvent>,
+                      mut subscribed_touch_events: NonSendMut<
+                        SubscribedEvents<web_sys::TouchEvent>,
                     >| {
                         text_agent::install_text_agent(
-                            &mut subscribed_input_events,
                             &mut subscribed_keyboard_events,
+                            &mut subscribed_input_events,
+                            &mut subscribed_touch_events,
                             channel.sender.clone(),
                         )
                         .unwrap();
-                    },
-                );
-
-                app.add_systems(
-                    PreStartup,
-                    text_agent::virtual_keyboard_handler
-                        .in_set(EguiSet::ProcessInput)
-                        .after(process_input_system)
-                        .after(InputSystem)
-                        .after(EguiSet::InitContexts),
+                    })
+                    .in_set(EguiSet::ProcessInput)
+                    .after(process_input_system)
+                    .after(InputSystem)
+                    .after(EguiSet::InitContexts),
                 );
 
                 app.add_systems(
@@ -1018,6 +1019,13 @@ pub fn string_from_js_value(value: &JsValue) -> String {
     value.as_string().unwrap_or_else(|| format!("{value:#?}"))
 }
 
+#[cfg(target_arch = "wasm32")]
+struct EventClosure<T> {
+    target: web_sys::EventTarget,
+    event_name: String,
+    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
+}
+
 /// Stores event listeners.
 #[cfg(target_arch = "wasm32")]
 pub struct SubscribedEvents<T> {
@@ -1054,13 +1062,6 @@ impl<T> SubscribedEvents<T> {
             }
         }
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-struct EventClosure<T> {
-    target: web_sys::EventTarget,
-    event_name: String,
-    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
 }
 
 #[cfg(test)]

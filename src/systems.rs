@@ -27,7 +27,7 @@ use bevy::{
 use std::{marker::PhantomData, time::Duration};
 
 #[cfg(target_arch = "wasm32")]
-use crate::text_agent::VIRTUAL_KEYBOARD_GLOBAL;
+use crate::text_agent::{is_mobile_safari, update_text_agent, VIRTUAL_KEYBOARD_GLOBAL};
 
 #[allow(missing_docs)]
 #[derive(SystemParam)]
@@ -428,15 +428,6 @@ pub fn process_input_system(
                         .egui_input
                         .events
                         .push(egui::Event::PointerGone);
-                    #[cfg(target_arch = "wasm32")]
-                    match VIRTUAL_KEYBOARD_GLOBAL.lock() {
-                        Ok(mut touch_info) => {
-                            touch_info.editing_text = editing_text;
-                        }
-                        Err(poisoned) => {
-                            let _unused = poisoned.into_inner();
-                        }
-                    };
                 }
                 bevy::input::touch::TouchPhase::Canceled => {
                     window_context.ctx.pointer_touch_id = None;
@@ -445,6 +436,19 @@ pub fn process_input_system(
                         .events
                         .push(egui::Event::PointerGone);
                 }
+            }
+            #[cfg(target_arch = "wasm32")]
+            if is_mobile_safari() {
+                match VIRTUAL_KEYBOARD_GLOBAL.lock() {
+                    Ok(mut touch_info) => {
+                        touch_info.editing_text = editing_text;
+                    }
+                    Err(poisoned) => {
+                        let _unused = poisoned.into_inner();
+                    }
+                };
+            } else {
+                update_text_agent(editing_text);
             }
         }
     }
