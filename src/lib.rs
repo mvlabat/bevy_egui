@@ -65,6 +65,9 @@ pub mod egui_node;
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
+/// Mobile web keyboard hacky input support
+#[cfg(target_arch = "wasm32")]
+mod text_agent;
 /// Clipboard management for web
 #[cfg(all(
     feature = "manage_clipboard",
@@ -88,6 +91,8 @@ use crate::{
 use arboard::Clipboard;
 #[allow(unused_imports)]
 use bevy::log;
+#[cfg(target_arch = "wasm32")]
+use bevy::prelude::NonSendMut;
 #[cfg(feature = "render")]
 use bevy::{
     app::Last,
@@ -123,6 +128,9 @@ use bevy::{
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use std::cell::{RefCell, RefMut};
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
@@ -645,7 +653,14 @@ impl Plugin for EguiPlugin {
             target_arch = "wasm32",
             web_sys_unstable_apis
         ))]
-        world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
+        world.init_non_send_resource::<SubscribedEvents<web_sys::ClipboardEvent>>();
+        // virtual keyboard events for text_agent
+        #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::KeyboardEvent>>();
+        #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::InputEvent>>();
+        #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::TouchEvent>>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiUserTextures>();
         #[cfg(feature = "render")]
@@ -694,6 +709,58 @@ impl Plugin for EguiPlugin {
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
+        #[cfg(target_arch = "wasm32")]
+        {
+            use bevy::prelude::Res;
+
+            let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
+
+            if !maybe_window_plugin.is_empty()
+                && maybe_window_plugin[0].primary_window.is_some()
+                && maybe_window_plugin[0]
+                    .primary_window
+                    .as_ref()
+                    .unwrap()
+                    .prevent_default_event_handling
+            {
+                app.init_resource::<text_agent::TextAgentChannel>();
+
+                app.add_systems(
+                    PreStartup,
+                    (|channel: Res<text_agent::TextAgentChannel>,
+                      mut subscribed_keyboard_events: NonSendMut<
+                        SubscribedEvents<web_sys::KeyboardEvent>,
+                    >,
+                      mut subscribed_input_events: NonSendMut<
+                        SubscribedEvents<web_sys::InputEvent>,
+                    >,
+                      mut subscribed_touch_events: NonSendMut<
+                        SubscribedEvents<web_sys::TouchEvent>,
+                    >| {
+                        text_agent::install_text_agent(
+                            &mut subscribed_keyboard_events,
+                            &mut subscribed_input_events,
+                            &mut subscribed_touch_events,
+                            channel.sender.clone(),
+                        )
+                        .unwrap();
+                    })
+                    .in_set(EguiSet::ProcessInput)
+                    .after(process_input_system)
+                    .after(InputSystem)
+                    .after(EguiSet::InitContexts),
+                );
+
+                app.add_systems(
+                    PreUpdate,
+                    text_agent::propagate_text
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+            }
+        }
         app.add_systems(
             PreUpdate,
             begin_frame_system
@@ -886,6 +953,57 @@ fn free_egui_textures_system(
     for image_event in image_events.read() {
         if let AssetEvent::Removed { id } = image_event {
             egui_user_textures.remove_image(&Handle::<Image>::Weak(*id));
+        }
+    }
+}
+
+/// Helper function for outputting a String from a JsValue
+#[cfg(target_arch = "wasm32")]
+pub fn string_from_js_value(value: &JsValue) -> String {
+    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
+}
+
+#[cfg(target_arch = "wasm32")]
+struct EventClosure<T> {
+    target: web_sys::EventTarget,
+    event_name: String,
+    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
+}
+
+/// Stores event listeners.
+#[cfg(target_arch = "wasm32")]
+pub struct SubscribedEvents<T> {
+    event_closures: Vec<EventClosure<T>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> Default for SubscribedEvents<T> {
+    fn default() -> SubscribedEvents<T> {
+        Self {
+            event_closures: vec![],
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> SubscribedEvents<T> {
+    /// Use this method to unsubscribe from all stored events, this can be useful
+    /// for gracefully destroying a Bevy instance in a page.
+    pub fn unsubscribe_from_events(&mut self) {
+        let events_to_unsubscribe = std::mem::take(&mut self.event_closures);
+
+        if !events_to_unsubscribe.is_empty() {
+            for event in events_to_unsubscribe {
+                if let Err(err) = event.target.remove_event_listener_with_callback(
+                    event.event_name.as_str(),
+                    event.closure.as_ref().unchecked_ref(),
+                ) {
+                    log::error!(
+                        "Failed to unsubscribe from event: {}",
+                        string_from_js_value(&err)
+                    );
+                }
+            }
         }
     }
 }
