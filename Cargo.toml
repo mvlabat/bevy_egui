@@ -37,6 +37,9 @@ required-features = ["render"]
 [[example]]
 name = "ui"
 required-features = ["render"]
+[[example]]
+name = "render_egui_to_texture"
+required-features = ["render"]
 
 [dependencies]
 bevy = { version = "0.14.0", default-features = false, features = [
