@@ -176,6 +176,10 @@ fn ui_example_system(mut ctx: EguiContexts) {
     }
 }
 
+// The following systems are used to render UI in world space to demonstrate that paint callbacks
+// work for them as well (they aren't needed to set up pain callbacks for regular screen-space UI,
+// so feel free to skip them):
+
 fn setup_worldspace(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,

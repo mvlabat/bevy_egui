@@ -838,7 +838,10 @@ pub fn setup_render_to_texture_handles_system(
         Entity,
         (Added<EguiRenderToTextureHandle>, Without<EguiContext>),
     >,
-    #[cfg(not(feature = "render"))] new_windows: Query<Entity, Without<EguiContext>>,
+    #[cfg(not(feature = "render"))] new_render_to_texture_targets: Query<
+        Entity,
+        Without<EguiContext>,
+    >,
 ) {
     for render_to_texture_target in new_render_to_texture_targets.iter() {
         commands.entity(render_to_texture_target).insert((
