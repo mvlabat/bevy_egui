@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 18-Aug-2024
+
+### Added
+
+- Initial worldspace UI support ([#304](https://github.com/mvlabat/bevy_egui/pull/304) by @TheButlah, @Schmarni-Dev)
+- Paint callback support ([#303](https://github.com/mvlabat/bevy_egui/pull/303) by @no-materials)
+
+### Changed
+
+- Adapt to `web-sys` clipboard api change ([#301](https://github.com/mvlabat/bevy_egui/pull/301) by @no-materials).
+
+### Fixed
+
+- Clear modifier state when focus is lost ([#298](https://github.com/mvlabat/bevy_egui/pull/298) by @SludgePhD).
+- Fix redraws ([#293](https://github.com/mvlabat/bevy_egui/pull/293)).
+
 ## [0.28.0] - 6-Jul-2024
 
 ### Changed
