@@ -13,14 +13,19 @@ use bevy::{
 };
 use bevy_egui::{
     egui_node::{EguiBevyPaintCallback, EguiBevyPaintCallbackImpl, EguiPipelineKey},
-    EguiContexts, EguiPlugin,
+    EguiContexts, EguiPlugin, EguiRenderToTextureHandle,
 };
 use std::path::Path;
+use wgpu_types::{Extent3d, TextureUsages};
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, EguiPlugin, CustomPipelinePlugin))
-        .add_systems(Update, ui_example_system)
+        .add_systems(Startup, setup_worldspace)
+        .add_systems(
+            Update,
+            (ui_example_system, ui_render_to_texture_example_system),
+        )
         .run();
 }
 
@@ -160,6 +165,67 @@ impl SpecializedRenderPipeline for CustomPipeline {
 fn ui_example_system(mut ctx: EguiContexts) {
     for id in 0..4 {
         egui::Window::new(id.to_string()).show(ctx.ctx_mut(), |ui| {
+            let (resp, painter) =
+                ui.allocate_painter(egui::Vec2 { x: 200., y: 200. }, egui::Sense::hover());
+
+            painter.add(EguiBevyPaintCallback::new_paint_callback(
+                resp.rect,
+                CustomPaintCallback,
+            ));
+        });
+    }
+}
+
+// The following systems are used to render UI in world space to demonstrate that paint callbacks
+// work for them as well (they aren't needed to set up pain callbacks for regular screen-space UI,
+// so feel free to skip them):
+
+fn setup_worldspace(
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut commands: Commands,
+) {
+    let output_texture = images.add({
+        let size = Extent3d {
+            width: 256,
+            height: 256,
+            depth_or_array_layers: 1,
+        };
+        let mut output_texture = Image {
+            // You should use `0` so that the pixels are transparent.
+            data: vec![0; (size.width * size.height * 4) as usize],
+            ..default()
+        };
+        output_texture.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT;
+        output_texture.texture_descriptor.size = size;
+        output_texture
+    });
+
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0).mesh()),
+        material: materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            base_color_texture: Some(Handle::clone(&output_texture)),
+            alpha_mode: AlphaMode::Blend,
+            // Remove this if you want it to use the world's lighting.
+            unlit: true,
+            ..default()
+        }),
+        ..default()
+    });
+    commands.spawn(EguiRenderToTextureHandle(output_texture));
+    commands.spawn(Camera3dBundle {
+        transform: Transform::from_xyz(1.5, 1.5, 1.5).looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
+        ..default()
+    });
+}
+
+fn ui_render_to_texture_example_system(
+    mut contexts: Query<&mut bevy_egui::EguiContext, With<EguiRenderToTextureHandle>>,
+) {
+    for mut ctx in contexts.iter_mut() {
+        egui::Window::new("Worldspace UI").show(ctx.get_mut(), |ui| {
             let (resp, painter) =
                 ui.allocate_painter(egui::Vec2 { x: 200., y: 200. }, egui::Sense::hover());
 

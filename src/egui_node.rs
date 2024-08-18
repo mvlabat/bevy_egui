@@ -2,7 +2,7 @@ use crate::{
     render_systems::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
     },
-    EguiRenderOutput, EguiSettings, WindowSize,
+    EguiRenderOutput, EguiSettings, RenderTargetSize,
 };
 use bevy::{
     ecs::world::{FromWorld, World},
@@ -22,7 +22,10 @@ use bevy::{
             VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
+        texture::{
+            GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler,
+            ImageSamplerDescriptor,
+        },
         view::{ExtractedWindow, ExtractedWindows},
     },
 };
@@ -96,11 +99,18 @@ pub struct EguiPipelineKey {
 }
 
 impl EguiPipelineKey {
-    /// Extracts target texture format in egui renderpass
+    /// Constructs a pipeline key from a window.
     pub fn from_extracted_window(window: &ExtractedWindow) -> Option<Self> {
         Some(Self {
             texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
         })
+    }
+
+    /// Constructs a pipeline key from a gpu image.
+    pub fn from_gpu_image(image: &GpuImage) -> Self {
+        EguiPipelineKey {
+            texture_format: image.texture_format.add_srgb_suffix(),
+        }
     }
 }
 
@@ -160,25 +170,24 @@ impl SpecializedRenderPipeline for EguiPipeline {
     }
 }
 
-struct DrawCommand {
-    clip_rect: egui::Rect,
-    primitive: DrawPrimitive,
+pub(crate) struct DrawCommand {
+    pub(crate) clip_rect: egui::Rect,
+    pub(crate) primitive: DrawPrimitive,
 }
 
-enum DrawPrimitive {
+pub(crate) enum DrawPrimitive {
     Egui(EguiDraw),
     PaintCallback(PaintCallbackDraw),
 }
 
-struct PaintCallbackDraw {
-    callback: std::sync::Arc<EguiBevyPaintCallback>,
-    rect: egui::Rect,
+pub(crate) struct PaintCallbackDraw {
+    pub(crate) callback: std::sync::Arc<EguiBevyPaintCallback>,
+    pub(crate) rect: egui::Rect,
 }
 
-#[derive(Debug)]
-struct EguiDraw {
-    vertices_count: usize,
-    egui_texture: EguiTextureId,
+pub(crate) struct EguiDraw {
+    pub(crate) vertices_count: usize,
+    pub(crate) egui_texture: EguiTextureId,
 }
 
 /// Egui render node.
@@ -223,9 +232,10 @@ impl Node for EguiNode {
             return;
         };
 
-        let mut window_sizes = world.query::<(&WindowSize, &mut EguiRenderOutput)>();
+        let mut render_target_size = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
 
-        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity)
+        let Ok((window_size, mut render_output)) =
+            render_target_size.get_mut(world, self.window_entity)
         else {
             return;
         };
@@ -382,20 +392,12 @@ impl Node for EguiNode {
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
-        let extracted_window =
-            if let Some(extracted_window) = extracted_windows.get(&self.window_entity) {
-                extracted_window
-            } else {
-                return Ok(()); // No window
+        let extracted_window = extracted_windows.get(&self.window_entity);
+        let swap_chain_texture_view =
+            match extracted_window.and_then(|v| v.swap_chain_texture_view.as_ref()) {
+                None => return Ok(()),
+                Some(window) => window,
             };
-
-        let swap_chain_texture_view = if let Some(swap_chain_texture_view) =
-            extracted_window.swap_chain_texture_view.as_ref()
-        {
-            swap_chain_texture_view
-        } else {
-            return Ok(()); // No swapchain texture
-        };
 
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
@@ -432,13 +434,19 @@ impl Node for EguiNode {
                 });
         let mut render_pass = TrackedRenderPass::new(device, render_pass);
 
-        let Some(key) = EguiPipelineKey::from_extracted_window(extracted_window) else {
+        let (physical_width, physical_height, pipeline_key) = match extracted_window {
+            Some(window) => (
+                window.physical_width,
+                window.physical_height,
+                EguiPipelineKey::from_extracted_window(window),
+            ),
+            None => unreachable!(),
+        };
+        let Some(key) = pipeline_key else {
             return Ok(());
         };
 
-        let Some(pipeline_id) = egui_pipelines.get(&extracted_window.entity) else {
-            return Ok(());
-        };
+        let pipeline_id = egui_pipelines.get(&self.window_entity).unwrap();
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
             return Ok(());
         };
@@ -454,8 +462,8 @@ impl Node for EguiNode {
                 render_pass.set_viewport(
                     0.,
                     0.,
-                    extracted_window.physical_width as f32,
-                    extracted_window.physical_height as f32,
+                    physical_width as f32,
+                    physical_height as f32,
                     0.,
                     1.,
                 );
@@ -479,11 +487,12 @@ impl Node for EguiNode {
                     y: (draw_command.clip_rect.max.y * self.pixels_per_point).round() as u32,
                 },
             };
+
             let scrissor_rect = clip_urect.intersect(bevy::math::URect::new(
                 0,
                 0,
-                extracted_window.physical_width,
-                extracted_window.physical_width,
+                physical_width,
+                physical_height,
             ));
             if scrissor_rect.is_empty() {
                 continue;
@@ -529,10 +538,7 @@ impl Node for EguiNode {
                         viewport: command.rect,
                         clip_rect: draw_command.clip_rect,
                         pixels_per_point: self.pixels_per_point,
-                        screen_size_px: [
-                            extracted_window.physical_width,
-                            extracted_window.physical_height,
-                        ],
+                        screen_size_px: [physical_width, physical_height],
                     };
 
                     let viewport = info.viewport_in_pixels();
@@ -649,7 +655,7 @@ impl EguiBevyPaintCallback {
         }
     }
 
-    fn cb(&self) -> &dyn EguiBevyPaintCallbackImpl {
+    pub(crate) fn cb(&self) -> &dyn EguiBevyPaintCallbackImpl {
         self.0.as_ref()
     }
 }

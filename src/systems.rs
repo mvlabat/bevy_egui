@@ -1,6 +1,11 @@
+#[cfg(feature = "render")]
+use crate::EguiRenderToTextureHandle;
 use crate::{
-    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiInput, EguiSettings, WindowSize,
+    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiInput, EguiSettings, RenderTargetSize,
 };
+
+#[cfg(feature = "render")]
+use bevy::{asset::Assets, render::texture::Image};
 use bevy::{
     ecs::{
         event::EventWriter,
@@ -13,7 +18,7 @@ use bevy::{
         touch::TouchInput,
         ButtonState,
     },
-    log,
+    log::{self, error},
     prelude::{Entity, EventReader, NonSend, Query, Resource, Time},
     time::Real,
     window::{CursorMoved, RequestRedraw},
@@ -431,21 +436,40 @@ pub fn process_input_system(
 }
 
 /// Initialises Egui contexts (for multiple windows).
-pub fn update_window_contexts_system(
+pub fn update_contexts_system(
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
+    #[cfg(feature = "render")] images: Res<Assets<Image>>,
 ) {
     for mut context in context_params.contexts.iter_mut() {
-        let new_window_size = WindowSize::new(
-            context.window.physical_width() as f32,
-            context.window.physical_height() as f32,
-            context.window.scale_factor(),
-        );
-        let width = new_window_size.physical_width
-            / new_window_size.scale_factor
+        let mut render_target_size = None;
+        if let Some(window) = context.window {
+            render_target_size = Some(RenderTargetSize::new(
+                window.physical_width() as f32,
+                window.physical_height() as f32,
+                window.scale_factor(),
+            ));
+        }
+        #[cfg(feature = "render")]
+        if let Some(EguiRenderToTextureHandle(handle)) = context.render_to_texture.as_deref() {
+            let image = images.get(handle).expect("rtt handle should be valid");
+            let size = image.size_f32();
+            render_target_size = Some(RenderTargetSize {
+                physical_width: size.x,
+                physical_height: size.y,
+                scale_factor: 1.0,
+            })
+        }
+
+        let Some(new_render_target_size) = render_target_size else {
+            error!("bevy_egui context without window or render to texture!");
+            continue;
+        };
+        let width = new_render_target_size.physical_width
+            / new_render_target_size.scale_factor
             / egui_settings.scale_factor;
-        let height = new_window_size.physical_height
-            / new_window_size.scale_factor
+        let height = new_render_target_size.physical_height
+            / new_render_target_size.scale_factor
             / egui_settings.scale_factor;
 
         if width < 1.0 || height < 1.0 {
@@ -460,9 +484,9 @@ pub fn update_window_contexts_system(
         context
             .ctx
             .get_mut()
-            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor);
+            .set_pixels_per_point(new_render_target_size.scale_factor * egui_settings.scale_factor);
 
-        *context.window_size = new_window_size;
+        *context.render_target_size = new_render_target_size;
     }
 }
 
@@ -513,21 +537,23 @@ pub fn process_output_system(
             egui_clipboard.set_contents(&platform_output.copied_text);
         }
 
-        let mut set_icon = || {
-            context.window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
-                .unwrap_or(bevy::window::CursorIcon::Default);
-        };
+        if let Some(mut window) = context.window {
+            let mut set_icon = || {
+                window.cursor.icon = egui_to_winit_cursor_icon(platform_output.cursor_icon)
+                    .unwrap_or(bevy::window::CursorIcon::Default);
+            };
 
-        #[cfg(windows)]
-        {
-            let last_cursor_icon = last_cursor_icon.entry(context.window_entity).or_default();
-            if *last_cursor_icon != platform_output.cursor_icon {
-                set_icon();
-                *last_cursor_icon = platform_output.cursor_icon;
+            #[cfg(windows)]
+            {
+                let last_cursor_icon = last_cursor_icon.entry(context.render_target).or_default();
+                if *last_cursor_icon != platform_output.cursor_icon {
+                    set_icon();
+                    *last_cursor_icon = platform_output.cursor_icon;
+                }
             }
+            #[cfg(not(windows))]
+            set_icon();
         }
-        #[cfg(not(windows))]
-        set_icon();
 
         let needs_repaint = !context.render_output.is_empty();
         should_request_redraw |= ctx.has_requested_repaint() && needs_repaint;
