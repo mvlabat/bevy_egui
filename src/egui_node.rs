@@ -253,14 +253,25 @@ impl Node for EguiNode {
             primitive,
         } in paint_jobs
         {
-            let clipping_zone = ClippingZone::new(&clip_rect, self.pixels_per_point);
+            let clip_urect = bevy::math::URect {
+                min: bevy::math::UVec2 {
+                    x: (clip_rect.min.x * self.pixels_per_point).round() as u32,
+                    y: (clip_rect.min.y * self.pixels_per_point).round() as u32,
+                },
+                max: bevy::math::UVec2 {
+                    x: (clip_rect.max.x * self.pixels_per_point).round() as u32,
+                    y: (clip_rect.max.y * self.pixels_per_point).round() as u32,
+                },
+            };
 
-            if clipping_zone
-                .valid_scrissor_rect(
+            if clip_urect
+                .intersect(bevy::math::URect::new(
+                    0,
+                    0,
                     window_size.physical_width as u32,
                     window_size.physical_height as u32,
-                )
-                .is_none()
+                ))
+                .is_empty()
             {
                 continue;
             }
@@ -458,21 +469,31 @@ impl Node for EguiNode {
                 requires_reset = false;
             }
 
-            let Some(scrissor_rect) =
-                ClippingZone::new(&draw_command.clip_rect, self.pixels_per_point)
-                    .valid_scrissor_rect(
-                        extracted_window.physical_width,
-                        extracted_window.physical_height,
-                    )
-            else {
-                continue;
+            let clip_urect = bevy::math::URect {
+                min: bevy::math::UVec2 {
+                    x: (draw_command.clip_rect.min.x * self.pixels_per_point).round() as u32,
+                    y: (draw_command.clip_rect.min.y * self.pixels_per_point).round() as u32,
+                },
+                max: bevy::math::UVec2 {
+                    x: (draw_command.clip_rect.max.x * self.pixels_per_point).round() as u32,
+                    y: (draw_command.clip_rect.max.y * self.pixels_per_point).round() as u32,
+                },
             };
+            let scrissor_rect = clip_urect.intersect(bevy::math::URect::new(
+                0,
+                0,
+                extracted_window.physical_width,
+                extracted_window.physical_width,
+            ));
+            if scrissor_rect.is_empty() {
+                continue;
+            }
 
             render_pass.set_scissor_rect(
-                scrissor_rect.x,
-                scrissor_rect.y,
-                scrissor_rect.w,
-                scrissor_rect.h,
+                scrissor_rect.min.x,
+                scrissor_rect.min.y,
+                scrissor_rect.width(),
+                scrissor_rect.height(),
             );
 
             match &draw_command.primitive {
@@ -608,46 +629,6 @@ pub(crate) fn texture_options_as_sampler_descriptor(
     }
 }
 
-#[derive(Debug)]
-struct ClippingZone {
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
-}
-impl ClippingZone {
-    fn new(clip_rect: &egui::Rect, pixels_per_point: f32) -> ClippingZone {
-        ClippingZone {
-            x: (clip_rect.min.x * pixels_per_point).round() as u32,
-            y: (clip_rect.min.y * pixels_per_point).round() as u32,
-            w: (clip_rect.width() * pixels_per_point).round() as u32,
-            h: (clip_rect.height() * pixels_per_point).round() as u32,
-        }
-    }
-
-    fn valid_scrissor_rect(&self, physical_width: u32, physical_height: u32) -> Option<Self> {
-        let x_viewport_clamp = (self.x + self.w).saturating_sub(physical_width as u32);
-        let y_viewport_clamp = (self.y + self.h).saturating_sub(physical_height as u32);
-
-        let scrissor = Self {
-            x: self.x,
-            y: self.y,
-            w: self.w.saturating_sub(x_viewport_clamp),
-            h: self.h.saturating_sub(y_viewport_clamp),
-        };
-
-        if self.w < 1
-            || self.h < 1
-            || self.x >= physical_width as u32
-            || self.y >= physical_height as u32
-        {
-            return None;
-        }
-
-        Some(scrissor)
-    }
-}
-
 /// Callback to execute custom 'wgpu' rendering inside [`EguiNode`] render graph node.
 ///
 /// Rendering can be implemented using for example:
@@ -668,8 +649,8 @@ impl EguiBevyPaintCallback {
         }
     }
 
-    fn cb(&self) -> &Box<dyn EguiBevyPaintCallbackImpl> {
-        &self.0
+    fn cb(&self) -> &dyn EguiBevyPaintCallbackImpl {
+        self.0.as_ref()
     }
 }
 

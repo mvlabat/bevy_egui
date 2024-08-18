@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use bevy::{
     asset::{embedded_asset, AssetPath},
     prelude::*,
@@ -17,6 +15,7 @@ use bevy_egui::{
     egui_node::{EguiBevyPaintCallback, EguiBevyPaintCallbackImpl, EguiPipelineKey},
     EguiContexts, EguiPlugin,
 };
+use std::path::Path;
 
 fn main() {
     App::new()
