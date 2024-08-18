@@ -229,11 +229,7 @@ fn clipboard_copy(contents: String) {
             return;
         };
 
-        let nav = window.navigator();
-        let Some(clipboard) = nav.clipboard() else {
-            log::warn!("Failed to access clipboard");
-            return;
-        };
+        let clipboard = window.navigator().clipboard();
 
         let promise = clipboard.write_text(&contents);
         if let Err(err) = wasm_bindgen_futures::JsFuture::from(promise).await {
