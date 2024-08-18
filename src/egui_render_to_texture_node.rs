@@ -1,5 +1,5 @@
 use crate::{
-    egui_node::DrawCommand,
+    egui_node::{DrawCommand, DrawPrimitive, EguiDraw},
     render_systems::{EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransforms},
     EguiRenderOutput, EguiRenderToTextureHandle, EguiSettings, WindowSize,
 };
@@ -18,6 +18,7 @@ use bevy::{
     },
 };
 use bytemuck::cast_slice;
+use egui::Rect;
 
 /// [`RenderLabel`] type for the Egui Render to Texture pass.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -126,13 +127,16 @@ impl Node for EguiRenderToTextureNode {
             let x_viewport_clamp = (x + w).saturating_sub(window_size.physical_width as u32);
             let y_viewport_clamp = (y + h).saturating_sub(window_size.physical_height as u32);
             self.draw_commands.push(DrawCommand {
-                vertices_count: mesh.indices.len(),
-                egui_texture: texture_handle,
-                clipping_zone: (
-                    x,
-                    y,
-                    w.saturating_sub(x_viewport_clamp).max(1),
-                    h.saturating_sub(y_viewport_clamp).max(1),
+                primitive: DrawPrimitive::Egui(EguiDraw {
+                    vertices_count: mesh.indices.len(),
+                    egui_texture: texture_handle,
+                }),
+                clip_rect: Rect::from_min_size(
+                    egui::Pos2::new(x as f32, y as f32),
+                    egui::Vec2::new(
+                        w.saturating_sub(x_viewport_clamp).max(1) as f32,
+                        h.saturating_sub(y_viewport_clamp).max(1) as f32,
+                    ),
                 ),
             });
         }
@@ -243,13 +247,17 @@ impl Node for EguiRenderToTextureNode {
 
         let mut vertex_offset: u32 = 0;
         for draw_command in &self.draw_commands {
-            if draw_command.clipping_zone.0 < physical_width
-                && draw_command.clipping_zone.1 < physical_height
+            if (draw_command.clip_rect.min.x as u32) < physical_width
+                && (draw_command.clip_rect.min.y as u32) < physical_height
             {
-                let texture_bind_group = match bind_groups.get(&draw_command.egui_texture) {
+                let draw_primitive = match &draw_command.primitive {
+                    DrawPrimitive::Egui(draw_primitive) => draw_primitive,
+                    DrawPrimitive::PaintCallback(_) => unimplemented!(),
+                };
+                let texture_bind_group = match bind_groups.get(&draw_primitive.egui_texture) {
                     Some(texture_resource) => texture_resource,
                     None => {
-                        vertex_offset += draw_command.vertices_count as u32;
+                        vertex_offset += draw_primitive.vertices_count as u32;
                         continue;
                     }
                 };
@@ -257,24 +265,20 @@ impl Node for EguiRenderToTextureNode {
                 render_pass.set_bind_group(1, texture_bind_group, &[]);
 
                 render_pass.set_scissor_rect(
-                    draw_command.clipping_zone.0,
-                    draw_command.clipping_zone.1,
-                    draw_command
-                        .clipping_zone
-                        .2
-                        .min(physical_width.saturating_sub(draw_command.clipping_zone.0)),
-                    draw_command
-                        .clipping_zone
-                        .3
-                        .min(physical_height.saturating_sub(draw_command.clipping_zone.1)),
+                    draw_command.clip_rect.min.x as u32,
+                    draw_command.clip_rect.min.y as u32,
+                    (draw_command.clip_rect.width() as u32)
+                        .min(physical_width.saturating_sub(draw_command.clip_rect.min.x as u32)),
+                    (draw_command.clip_rect.height() as u32)
+                        .min(physical_height.saturating_sub(draw_command.clip_rect.min.y as u32)),
                 );
 
                 render_pass.draw_indexed(
-                    vertex_offset..(vertex_offset + draw_command.vertices_count as u32),
+                    vertex_offset..(vertex_offset + draw_primitive.vertices_count as u32),
                     0,
                     0..1,
                 );
-                vertex_offset += draw_command.vertices_count as u32;
+                vertex_offset += draw_primitive.vertices_count as u32;
             }
         }
 

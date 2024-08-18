@@ -23,6 +23,9 @@ render = ["bevy/bevy_render"]
 serde = ["egui/serde"]
 
 [[example]]
+name = "paint_callback"
+required-features = ["render"]
+[[example]]
 name = "render_to_image_widget"
 required-features = ["render"]
 [[example]]
@@ -64,6 +67,7 @@ bevy = { version = "0.14.0", default-features = false, features = [
     "tonemapping_luts",
     "webgl2",
 ] }
+egui = { version = "0.28", default-features = false, features = ["bytemuck"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 winit = "0.30"

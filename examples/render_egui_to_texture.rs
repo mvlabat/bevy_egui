@@ -10,6 +10,7 @@ fn main() {
     app.add_systems(Update, (update_screenspace, update_worldspace));
     app.run();
 }
+
 fn update_screenspace(mut contexts: EguiContexts) {
     egui::Window::new("Screenspace UI").show(contexts.ctx_mut(), |ui| {
         ui.label("I'm rendering to screenspace!");
