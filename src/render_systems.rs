@@ -1,7 +1,8 @@
 use crate::{
     egui_node::{EguiNode, EguiPipeline, EguiPipelineKey},
     egui_render_to_texture_node::{EguiRenderToTextureNode, EguiRenderToTexturePass},
-    EguiManagedTextures, EguiRenderToTextureHandle, EguiSettings, EguiUserTextures, WindowSize,
+    EguiManagedTextures, EguiRenderToTextureHandle, EguiSettings, EguiUserTextures,
+    RenderTargetSize,
 };
 use bevy::{
     ecs::system::SystemParam,
@@ -102,16 +103,16 @@ pub fn setup_new_windows_render_system(
 }
 /// Sets up the pipeline for newly created Render to texture entities.
 pub fn setup_new_rtt_render_system(
-    windows: Extract<Query<Entity, Added<EguiRenderToTextureHandle>>>,
+    render_to_texture_targets: Extract<Query<Entity, Added<EguiRenderToTextureHandle>>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    for window in windows.iter() {
+    for render_to_texture_target in render_to_texture_targets.iter() {
         let egui_rtt_pass = EguiRenderToTexturePass {
-            entity_index: window.index(),
-            entity_generation: window.generation(),
+            entity_index: render_to_texture_target.index(),
+            entity_generation: render_to_texture_target.generation(),
         };
 
-        let new_node = EguiRenderToTextureNode::new(window);
+        let new_node = EguiRenderToTextureNode::new(render_to_texture_target);
 
         render_graph.add_node(egui_rtt_pass.clone(), new_node);
 
@@ -142,11 +143,14 @@ pub struct EguiTransform {
 
 impl EguiTransform {
     /// Calculates the transform from window size and scale factor.
-    pub fn from_window_size(window_size: WindowSize, scale_factor: f32) -> Self {
+    pub fn from_render_target_size(
+        render_target_size: RenderTargetSize,
+        scale_factor: f32,
+    ) -> Self {
         EguiTransform {
             scale: Vec2::new(
-                2.0 / (window_size.width() / scale_factor),
-                -2.0 / (window_size.height() / scale_factor),
+                2.0 / (render_target_size.width() / scale_factor),
+                -2.0 / (render_target_size.height() / scale_factor),
             ),
             translation: Vec2::new(-1.0, 1.0),
         }
@@ -156,7 +160,7 @@ impl EguiTransform {
 /// Prepares Egui transforms.
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
-    window_sizes: Query<(Entity, &WindowSize)>,
+    render_target_sizes: Query<(Entity, &RenderTargetSize)>,
     egui_settings: Res<EguiSettings>,
 
     render_device: Res<RenderDevice>,
@@ -167,10 +171,10 @@ pub fn prepare_egui_transforms_system(
     egui_transforms.buffer.clear();
     egui_transforms.offsets.clear();
 
-    for (window, size) in window_sizes.iter() {
+    for (window, size) in render_target_sizes.iter() {
         let offset = egui_transforms
             .buffer
-            .push(&EguiTransform::from_window_size(
+            .push(&EguiTransform::from_render_target_size(
                 *size,
                 egui_settings.scale_factor,
             ));
@@ -236,37 +240,36 @@ pub fn queue_bind_groups_system(
     commands.insert_resource(EguiTextureBindGroups(bind_groups))
 }
 
-/// Cached Pipeline IDs for the specialized `EguiPipeline`s
+/// Cached Pipeline IDs for the specialized instances of `EguiPipeline`.
 #[derive(Resource)]
 pub struct EguiPipelines(pub HashMap<Entity, CachedRenderPipelineId>);
 
-/// Queue [`EguiPipeline`]s specialized on each window's swap chain texture format.
+/// Queue [`EguiPipeline`] instances specialized on each window's swap chain texture format.
 pub fn queue_pipelines_system(
     mut commands: Commands,
     pipeline_cache: Res<PipelineCache>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
     egui_pipeline: Res<EguiPipeline>,
     windows: Res<ExtractedWindows>,
-    render_to_tex: Query<(Entity, &EguiRenderToTextureHandle)>,
+    render_to_texture: Query<(Entity, &EguiRenderToTextureHandle)>,
     images: Res<RenderAssets<GpuImage>>,
 ) {
     let mut pipelines: HashMap<Entity, CachedRenderPipelineId> = windows
         .iter()
         .filter_map(|(window_id, window)| {
             let key = EguiPipelineKey::from_extracted_window(window)?;
-            let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
+            let pipeline_id =
+                specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
             Some((*window_id, pipeline_id))
         })
         .collect();
 
-    pipelines.extend(render_to_tex.iter().filter_map(|(e, handle)| {
+    pipelines.extend(render_to_texture.iter().filter_map(|(entity_id, handle)| {
         let img = images.get(&handle.0)?;
-        let key = EguiPipelineKey {
-            texture_format: img.texture_format.add_srgb_suffix(),
-        };
+        let key = EguiPipelineKey::from_gpu_image(img);
         let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
-        Some((e, pipeline_id))
+        Some((entity_id, pipeline_id))
     }));
 
     commands.insert_resource(EguiPipelines(pipelines));

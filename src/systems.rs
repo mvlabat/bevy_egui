@@ -1,7 +1,7 @@
 #[cfg(feature = "render")]
 use crate::EguiRenderToTextureHandle;
 use crate::{
-    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiInput, EguiSettings, WindowSize,
+    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiInput, EguiSettings, RenderTargetSize,
 };
 
 #[cfg(feature = "render")]
@@ -442,34 +442,34 @@ pub fn update_contexts_system(
     #[cfg(feature = "render")] images: Res<Assets<Image>>,
 ) {
     for mut context in context_params.contexts.iter_mut() {
-        let mut new_window_size = None;
+        let mut render_target_size = None;
         if let Some(window) = context.window {
-            new_window_size = Some(WindowSize::new(
+            render_target_size = Some(RenderTargetSize::new(
                 window.physical_width() as f32,
                 window.physical_height() as f32,
                 window.scale_factor(),
             ));
         }
         #[cfg(feature = "render")]
-        if let Some(EguiRenderToTextureHandle(handle)) = context.render_to_tex.as_deref() {
+        if let Some(EguiRenderToTextureHandle(handle)) = context.render_to_texture.as_deref() {
             let image = images.get(handle).expect("rtt handle should be valid");
             let size = image.size_f32();
-            new_window_size = Some(WindowSize {
+            render_target_size = Some(RenderTargetSize {
                 physical_width: size.x,
                 physical_height: size.y,
                 scale_factor: 1.0,
             })
         }
 
-        let Some(new_window_size) = new_window_size else {
+        let Some(new_render_target_size) = render_target_size else {
             error!("bevy_egui context without window or render to texture!");
             continue;
         };
-        let width = new_window_size.physical_width
-            / new_window_size.scale_factor
+        let width = new_render_target_size.physical_width
+            / new_render_target_size.scale_factor
             / egui_settings.scale_factor;
-        let height = new_window_size.physical_height
-            / new_window_size.scale_factor
+        let height = new_render_target_size.physical_height
+            / new_render_target_size.scale_factor
             / egui_settings.scale_factor;
 
         if width < 1.0 || height < 1.0 {
@@ -484,9 +484,9 @@ pub fn update_contexts_system(
         context
             .ctx
             .get_mut()
-            .set_pixels_per_point(new_window_size.scale_factor * egui_settings.scale_factor);
+            .set_pixels_per_point(new_render_target_size.scale_factor * egui_settings.scale_factor);
 
-        *context.window_size = new_window_size;
+        *context.render_target_size = new_render_target_size;
     }
 }
 

@@ -2,7 +2,7 @@ use crate::{
     render_systems::{
         EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransform, EguiTransforms,
     },
-    EguiRenderOutput, EguiSettings, WindowSize,
+    EguiRenderOutput, EguiSettings, RenderTargetSize,
 };
 use bevy::{
     ecs::world::{FromWorld, World},
@@ -22,7 +22,10 @@ use bevy::{
             VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
+        texture::{
+            GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler,
+            ImageSamplerDescriptor,
+        },
         view::{ExtractedWindow, ExtractedWindows},
     },
 };
@@ -96,11 +99,18 @@ pub struct EguiPipelineKey {
 }
 
 impl EguiPipelineKey {
-    /// Extracts target texture format in egui renderpass
+    /// Constructs a pipeline key from a window.
     pub fn from_extracted_window(window: &ExtractedWindow) -> Option<Self> {
         Some(Self {
             texture_format: window.swap_chain_texture_format?.add_srgb_suffix(),
         })
+    }
+
+    /// Constructs a pipeline key from a gpu image.
+    pub fn from_gpu_image(image: &GpuImage) -> Self {
+        EguiPipelineKey {
+            texture_format: image.texture_format.add_srgb_suffix(),
+        }
     }
 }
 
@@ -222,9 +232,10 @@ impl Node for EguiNode {
             return;
         };
 
-        let mut window_sizes = world.query::<(&WindowSize, &mut EguiRenderOutput)>();
+        let mut render_target_size = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
 
-        let Ok((window_size, mut render_output)) = window_sizes.get_mut(world, self.window_entity)
+        let Ok((window_size, mut render_output)) =
+            render_target_size.get_mut(world, self.window_entity)
         else {
             return;
         };
@@ -644,7 +655,7 @@ impl EguiBevyPaintCallback {
         }
     }
 
-    fn cb(&self) -> &dyn EguiBevyPaintCallbackImpl {
+    pub(crate) fn cb(&self) -> &dyn EguiBevyPaintCallbackImpl {
         self.0.as_ref()
     }
 }

@@ -68,7 +68,7 @@ pub mod egui_render_to_texture_node;
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
-/// Clipboard management for web
+/// Clipboard management for web.
 #[cfg(all(
     feature = "manage_clipboard",
     target_arch = "wasm32",
@@ -177,7 +177,7 @@ impl Default for EguiSettings {
     }
 }
 
-/// Is used for storing Egui context input..
+/// Is used for storing Egui context input.
 ///
 /// It gets reset during the [`EguiSet::ProcessInput`] system.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
@@ -585,7 +585,7 @@ impl EguiUserTextures {
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
 #[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "render", derive(ExtractComponent))]
-pub struct WindowSize {
+pub struct RenderTargetSize {
     /// Physical width
     pub physical_width: f32,
     /// Physical height
@@ -594,7 +594,7 @@ pub struct WindowSize {
     pub scale_factor: f32,
 }
 
-impl WindowSize {
+impl RenderTargetSize {
     fn new(physical_width: f32, physical_height: f32, scale_factor: f32) -> Self {
         Self {
             physical_width,
@@ -603,13 +603,13 @@ impl WindowSize {
         }
     }
 
-    /// Returns the width of the window.
+    /// Returns the width of the render target.
     #[inline]
     pub fn width(&self) -> f32 {
         self.physical_width / self.scale_factor
     }
 
-    /// Returns the height of the window.
+    /// Returns the height of the render target.
     #[inline]
     pub fn height(&self) -> f32 {
         self.physical_height / self.scale_factor
@@ -632,7 +632,7 @@ pub enum EguiStartupSet {
 /// The `bevy_egui` plugin system sets.
 #[derive(SystemSet, Clone, Hash, Debug, Eq, PartialEq)]
 pub enum EguiSet {
-    /// Initializes Egui contexts for newly created windows.
+    /// Initializes Egui contexts for newly created render targets.
     InitContexts,
     /// Reads Egui inputs (keyboard, mouse, etc) and writes them into the [`EguiInput`] resource.
     ///
@@ -673,7 +673,7 @@ impl Plugin for EguiPlugin {
         #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
         #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<WindowSize>::default());
+        app.add_plugins(ExtractComponentPlugin::<RenderTargetSize>::default());
         #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
         #[cfg(feature = "render")]
@@ -784,7 +784,7 @@ impl Plugin for EguiPlugin {
 #[non_exhaustive]
 pub struct EguiContextQuery {
     /// Window entity.
-    pub window_entity: Entity,
+    pub render_target: Entity,
     /// Egui context associated with the window.
     pub ctx: &'static mut EguiContext,
     /// Encapsulates [`egui::RawInput`].
@@ -794,12 +794,12 @@ pub struct EguiContextQuery {
     /// Encapsulates [`egui::PlatformOutput`].
     pub egui_output: &'static mut EguiOutput,
     /// Stores physical size of the window and its scale factor.
-    pub window_size: &'static mut WindowSize,
-    /// [`Window`] component.
+    pub render_target_size: &'static mut RenderTargetSize,
+    /// [`Window`] component, when rendering to a window.
     pub window: Option<&'static mut Window>,
-    /// [`EguiRenderToTextureHandle`] component, if egui is rendering to a texture.
+    /// [`EguiRenderToTextureHandle`] component, when rendering to a texture.
     #[cfg(feature = "render")]
-    pub render_to_tex: Option<&'static mut EguiRenderToTextureHandle>,
+    pub render_to_texture: Option<&'static mut EguiRenderToTextureHandle>,
 }
 
 /// Contains textures allocated and painted by Egui.
@@ -827,26 +827,26 @@ pub fn setup_new_windows_system(
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),
-            WindowSize::default(),
+            RenderTargetSize::default(),
         ));
     }
 }
 /// Adds bevy_egui components to newly created windows.
 pub fn setup_render_to_texture_handles_system(
     mut commands: Commands,
-    #[cfg(feature = "render")] new_windows: Query<
+    #[cfg(feature = "render")] new_render_to_texture_targets: Query<
         Entity,
         (Added<EguiRenderToTextureHandle>, Without<EguiContext>),
     >,
     #[cfg(not(feature = "render"))] new_windows: Query<Entity, Without<EguiContext>>,
 ) {
-    for window in new_windows.iter() {
-        commands.entity(window).insert((
+    for render_to_texture_target in new_render_to_texture_targets.iter() {
+        commands.entity(render_to_texture_target).insert((
             EguiContext::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiOutput::default(),
-            WindowSize::default(),
+            RenderTargetSize::default(),
         ));
     }
 }
