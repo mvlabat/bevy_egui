@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial worldspace UI support ([#304](https://github.com/mvlabat/bevy_egui/pull/304) by @TheButlah, @Schmarni-Dev)
-- Paint callback support ([#303](https://github.com/mvlabat/bevy_egui/pull/303) by @no-materials)
+- Paint callback support ([#303](https://github.com/mvlabat/bevy_egui/pull/303) by @PPakalns)
 
 ### Changed
 
