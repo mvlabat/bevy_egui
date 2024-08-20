@@ -208,7 +208,9 @@ fn clipboard_copy(contents: String) {
 
         let clipboard = window.navigator().clipboard();
 
-        let promise = clipboard.write_text(&contents);
+        let promise = clipboard
+            .expect("failed to get promise")
+            .write_text(&contents);
         if let Err(err) = wasm_bindgen_futures::JsFuture::from(promise).await {
             log::warn!(
                 "Failed to write to clipboard: {}",
