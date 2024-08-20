@@ -27,7 +27,7 @@ use bevy::{
 use std::{marker::PhantomData, time::Duration};
 
 #[cfg(target_arch = "wasm32")]
-use crate::text_agent::{is_mobile_safari, update_text_agent};
+use crate::text_agent::{is_mobile_safari, update_text_agent, SafariVirtualKeyboardHack};
 
 #[allow(missing_docs)]
 #[derive(SystemParam)]
@@ -111,6 +111,7 @@ pub fn process_input_system(
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     time: Res<Time<Real>>,
+    safari_virtual_keyboard_hack: Res<SafariVirtualKeyboardHack>,
 ) {
     // Test whether it's macOS or OS X.
     use std::sync::Once;
@@ -429,7 +430,16 @@ pub fn process_input_system(
                         .push(egui::Event::PointerGone);
 
                     #[cfg(target_arch = "wasm32")]
-                    if !is_mobile_safari() {
+                    if is_mobile_safari() {
+                        match safari_virtual_keyboard_hack.touch_info.lock() {
+                            Ok(touch_info) => {
+                                update_text_agent(touch_info.editing_text);
+                            }
+                            Err(poisoned) => {
+                                let _unused = poisoned.into_inner();
+                            }
+                        };
+                    } else {
                         update_text_agent(editing_text);
                     }
                 }
