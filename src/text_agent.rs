@@ -1,15 +1,14 @@
 //! The text agent is an `<input>` element used to trigger
 //! mobile keyboard and IME input.
 
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use bevy::{
-    prelude::{EventWriter, Res, Resource},
+    prelude::{EventWriter, NonSendMut, Res, Resource},
     window::RequestRedraw,
 };
-use crossbeam_channel::Sender;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 
-use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
 
 use crate::{systems::ContextSystemParams, EventClosure, SubscribedEvents};
@@ -22,19 +21,46 @@ pub struct VirtualTouchInfo {
     pub editing_text: bool,
 }
 
-pub static VIRTUAL_KEYBOARD_GLOBAL: Lazy<Mutex<VirtualTouchInfo>> =
-    Lazy::new(|| Mutex::new(VirtualTouchInfo::default()));
-
 #[derive(Resource)]
 pub struct TextAgentChannel {
-    pub sender: crossbeam_channel::Sender<egui::Event>,
-    pub receiver: crossbeam_channel::Receiver<egui::Event>,
+    pub sender: Sender<egui::Event>,
+    pub receiver: Receiver<egui::Event>,
 }
 
 impl Default for TextAgentChannel {
     fn default() -> Self {
-        let (sender, receiver) = crossbeam_channel::unbounded();
+        let (sender, receiver) = unbounded();
         Self { sender, receiver }
+    }
+}
+
+#[derive(Resource)]
+pub struct SafariVirtualKeyboardHack {
+    pub sender: Sender<bool>,
+    pub receiver: Receiver<bool>,
+    pub touch_info: &'static LazyLock<Mutex<VirtualTouchInfo>>,
+}
+
+pub fn process_safari_virtual_keyboard(
+    context_params: ContextSystemParams,
+    safari_virtual_keyboard_hack: Res<SafariVirtualKeyboardHack>,
+) {
+    for contexts in context_params.contexts.iter() {
+        while let Ok(true) = safari_virtual_keyboard_hack.receiver.try_recv() {
+            let platform_output = &contexts.egui_output.platform_output;
+
+            if platform_output.ime.is_some() || platform_output.mutable_text_under_cursor {
+                match safari_virtual_keyboard_hack.touch_info.lock() {
+                    Ok(mut touch_info) => {
+                        touch_info.editing_text = true;
+                    }
+                    Err(poisoned) => {
+                        let _unused = poisoned.into_inner();
+                    }
+                };
+                break;
+            }
+        }
     }
 }
 
@@ -58,62 +84,66 @@ pub fn propagate_text(
     }
 }
 
-// stolen from https://github.com/emilk/egui/pull/4855
-pub fn is_mobile_safari() -> bool {
-    (|| {
-        let user_agent = web_sys::window()?.navigator().user_agent().ok()?;
-        let is_ios = user_agent.contains("iPhone")
-            || user_agent.contains("iPad")
-            || user_agent.contains("iPod");
-        let is_safari = user_agent.contains("Safari");
-        Some(is_ios && is_safari)
-    })()
-    .unwrap_or(false)
-}
-
-fn is_mobile() -> Option<bool> {
-    const MOBILE_DEVICE: [&str; 6] = ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];
-
-    let user_agent = web_sys::window()?.navigator().user_agent().ok()?;
-    let is_mobile = MOBILE_DEVICE.iter().any(|&name| user_agent.contains(name));
-    Some(is_mobile)
-}
-
 /// Text event handler,
 pub fn install_text_agent(
-    subscribed_keyboard_events: &mut SubscribedEvents<web_sys::KeyboardEvent>,
-    subscribed_input_events: &mut SubscribedEvents<web_sys::InputEvent>,
-    subscribed_touch_events: &mut SubscribedEvents<web_sys::TouchEvent>,
-    sender: Sender<egui::Event>,
-) -> Result<(), JsValue> {
+    mut subscribed_keyboard_events: NonSendMut<SubscribedEvents<web_sys::KeyboardEvent>>,
+    mut subscribed_input_events: NonSendMut<SubscribedEvents<web_sys::InputEvent>>,
+    mut subscribed_touch_events: NonSendMut<SubscribedEvents<web_sys::TouchEvent>>,
+    text_agent_channel: Res<TextAgentChannel>,
+    safari_virtual_keyboard_hack: Res<SafariVirtualKeyboardHack>,
+) {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let body = document.body().expect("document should have a body");
     let input = document
-        .create_element("input")?
-        .dyn_into::<web_sys::HtmlInputElement>()?;
+        .create_element("input")
+        .expect("failed to create input")
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .expect("failed input type coercion");
     let input = std::rc::Rc::new(input);
     input.set_type("text");
     input.set_autofocus(true);
-    input.set_attribute("autocapitalize", "off")?;
+    input
+        .set_attribute("autocapitalize", "off")
+        .expect("failed to turn off autocapitalize");
     input.set_id(AGENT_ID);
     {
         let style = input.style();
         // Transparent
-        style.set_property("background-color", "transparent")?;
-        style.set_property("border", "none")?;
-        style.set_property("outline", "none")?;
-        style.set_property("width", "1px")?;
-        style.set_property("height", "1px")?;
-        style.set_property("caret-color", "transparent")?;
-        style.set_property("position", "absolute")?;
-        style.set_property("top", "0")?;
-        style.set_property("left", "0")?;
+        style
+            .set_property("background-color", "transparent")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("border", "none")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("outline", "none")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("width", "1px")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("height", "1px")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("caret-color", "transparent")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("position", "absolute")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("top", "0")
+            .expect("failed to set text_agent css properties");
+        style
+            .set_property("left", "0")
+            .expect("failed to set text_agent css properties");
     }
     // Set size as small as possible, in case user may click on it.
     input.set_size(1);
     input.set_autofocus(true);
     input.set_hidden(true);
+
+    let sender = text_agent_channel.sender.clone();
 
     if let Some(true) = is_mobile() {
         let input_clone = input.clone();
@@ -130,7 +160,9 @@ pub fn install_text_agent(
                 }
             }
         }) as Box<dyn FnMut(_)>);
-        input.add_event_listener_with_callback("input", closure.as_ref().unchecked_ref())?;
+        input
+            .add_event_listener_with_callback("input", closure.as_ref().unchecked_ref())
+            .expect("failed to create input listener");
         subscribed_input_events.event_closures.push(EventClosure {
             target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
                 &document,
@@ -142,8 +174,25 @@ pub fn install_text_agent(
 
         // mobile safari doesn't let you set input focus outside of an event handler
         if is_mobile_safari() {
+            let safari_sender = safari_virtual_keyboard_hack.sender.clone();
             let closure = Closure::wrap(Box::new(move |_event: web_sys::TouchEvent| {
-                match VIRTUAL_KEYBOARD_GLOBAL.lock() {
+                let _ = safari_sender.send(true);
+            }) as Box<dyn FnMut(_)>);
+            document
+                .add_event_listener_with_callback("touchstart", closure.as_ref().unchecked_ref())
+                .expect("failed to create touchstart listener");
+            subscribed_touch_events.event_closures.push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_touchstart".to_owned(),
+                closure,
+            });
+
+            let safari_touch_info_lock = safari_virtual_keyboard_hack.touch_info;
+            let closure = Closure::wrap(Box::new(move |_event: web_sys::TouchEvent| {
+                match safari_touch_info_lock.lock() {
                     Ok(touch_info) => {
                         update_text_agent(touch_info.editing_text);
                     }
@@ -154,7 +203,7 @@ pub fn install_text_agent(
             }) as Box<dyn FnMut(_)>);
             document
                 .add_event_listener_with_callback("touchend", closure.as_ref().unchecked_ref())
-                .unwrap();
+                .expect("failed to create touchend listener");
             subscribed_touch_events.event_closures.push(EventClosure {
                 target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
                     &document,
@@ -182,7 +231,9 @@ pub fn install_text_agent(
                 });
             }
         }) as Box<dyn FnMut(_)>);
-        document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
+        document
+            .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
+            .expect("failed to create keydown listener");
         subscribed_keyboard_events
             .event_closures
             .push(EventClosure {
@@ -209,7 +260,9 @@ pub fn install_text_agent(
                 });
             }
         }) as Box<dyn FnMut(_)>);
-        document.add_event_listener_with_callback("keyup", closure.as_ref().unchecked_ref())?;
+        document
+            .add_event_listener_with_callback("keyup", closure.as_ref().unchecked_ref())
+            .expect("failed to create keyup listener");
         subscribed_keyboard_events
             .event_closures
             .push(EventClosure {
@@ -222,9 +275,7 @@ pub fn install_text_agent(
             });
     }
 
-    body.append_child(&input)?;
-
-    Ok(())
+    body.append_child(&input).expect("failed to append to body");
 }
 
 /// Focus or blur text agent to toggle mobile keyboard.
@@ -255,9 +306,10 @@ pub fn update_text_agent(editing_text: bool) {
     .dyn_into()
     .unwrap();
 
-    let keyboard_closed = input.hidden();
+    let keyboard_open = !input.hidden();
+    bevy::log::error!("updating keyboard with {}", editing_text);
 
-    if editing_text && keyboard_closed {
+    if editing_text {
         // open keyboard
         input.set_hidden(false);
         match input.focus().ok() {
@@ -266,7 +318,8 @@ pub fn update_text_agent(editing_text: bool) {
                 bevy::log::error!("Unable to set focus");
             }
         }
-    } else {
+    } else if !editing_text && keyboard_open {
+        bevy::log::error!("closingg keyboard");
         // close keyboard
         if input.blur().is_err() {
             bevy::log::error!("Agent element not found");
@@ -275,4 +328,25 @@ pub fn update_text_agent(editing_text: bool) {
 
         input.set_hidden(true);
     }
+}
+
+// stolen from https://github.com/emilk/egui/pull/4855
+pub fn is_mobile_safari() -> bool {
+    (|| {
+        let user_agent = web_sys::window()?.navigator().user_agent().ok()?;
+        let is_ios = user_agent.contains("iPhone")
+            || user_agent.contains("iPad")
+            || user_agent.contains("iPod");
+        let is_safari = user_agent.contains("Safari");
+        Some(is_ios && is_safari)
+    })()
+    .unwrap_or(false)
+}
+
+fn is_mobile() -> Option<bool> {
+    const MOBILE_DEVICE: [&str; 6] = ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];
+
+    let user_agent = web_sys::window()?.navigator().user_agent().ok()?;
+    let is_mobile = MOBILE_DEVICE.iter().any(|&name| user_agent.contains(name));
+    Some(is_mobile)
 }

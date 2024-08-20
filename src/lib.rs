@@ -96,8 +96,6 @@ use arboard::Clipboard;
 use bevy::ecs::query::Or;
 #[allow(unused_imports)]
 use bevy::log;
-#[cfg(target_arch = "wasm32")]
-use bevy::prelude::NonSendMut;
 #[cfg(feature = "render")]
 use bevy::{
     app::Last,
@@ -136,6 +134,12 @@ use std::cell::{RefCell, RefMut};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+use crate::text_agent::{
+    install_text_agent, is_mobile_safari, process_safari_virtual_keyboard, propagate_text,
+    SafariVirtualKeyboardHack, TextAgentChannel, VirtualTouchInfo,
+};
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
@@ -731,7 +735,7 @@ impl Plugin for EguiPlugin {
         );
         #[cfg(target_arch = "wasm32")]
         {
-            use bevy::prelude::Res;
+            use std::sync::{LazyLock, Mutex};
 
             let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
 
@@ -743,42 +747,42 @@ impl Plugin for EguiPlugin {
                     .unwrap()
                     .prevent_default_event_handling
             {
-                app.init_resource::<text_agent::TextAgentChannel>();
+                app.init_resource::<TextAgentChannel>();
 
                 app.add_systems(
                     PreStartup,
-                    (|channel: Res<text_agent::TextAgentChannel>,
-                      mut subscribed_keyboard_events: NonSendMut<
-                        SubscribedEvents<web_sys::KeyboardEvent>,
-                    >,
-                      mut subscribed_input_events: NonSendMut<
-                        SubscribedEvents<web_sys::InputEvent>,
-                    >,
-                      mut subscribed_touch_events: NonSendMut<
-                        SubscribedEvents<web_sys::TouchEvent>,
-                    >| {
-                        text_agent::install_text_agent(
-                            &mut subscribed_keyboard_events,
-                            &mut subscribed_input_events,
-                            &mut subscribed_touch_events,
-                            channel.sender.clone(),
-                        )
-                        .unwrap();
-                    })
-                    .in_set(EguiSet::ProcessInput)
-                    .after(process_input_system)
-                    .after(InputSystem)
-                    .after(EguiSet::InitContexts),
-                );
-
-                app.add_systems(
-                    PreUpdate,
-                    text_agent::propagate_text
+                    install_text_agent
                         .in_set(EguiSet::ProcessInput)
                         .after(process_input_system)
                         .after(InputSystem)
                         .after(EguiSet::InitContexts),
                 );
+
+                app.add_systems(
+                    PreUpdate,
+                    propagate_text
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+
+                if is_mobile_safari() {
+                    let (sender, receiver) = crossbeam_channel::unbounded();
+                    static TOUCH_INFO: LazyLock<Mutex<VirtualTouchInfo>> =
+                        LazyLock::new(|| Mutex::new(VirtualTouchInfo::default()));
+
+                    app.insert_resource(SafariVirtualKeyboardHack {
+                        sender,
+                        receiver,
+                        touch_info: &TOUCH_INFO,
+                    });
+
+                    app.add_systems(
+                        PostUpdate,
+                        process_safari_virtual_keyboard.after(process_output_system),
+                    );
+                }
             }
         }
         app.add_systems(

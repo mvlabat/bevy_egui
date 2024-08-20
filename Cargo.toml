@@ -1,6 +1,7 @@
 [package]
 name = "bevy_egui"
 version = "0.29.0"
+rust-version = "1.80.0" # needed for LazyLock https://doc.rust-lang.org/stable/std/sync/struct.LazyLock.html
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
@@ -91,8 +92,6 @@ wasm-bindgen-futures = "0.4.36"
 console_log = "1.0.0"
 log = "0.4"
 crossbeam-channel = "0.5.8"
-# https://doc.rust-lang.org/std/sync/struct.LazyLock.html is an experimental alt
-once_cell = "1.19.0"
 
 [workspace]
 members = ["run-wasm"]
