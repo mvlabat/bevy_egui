@@ -111,7 +111,7 @@ pub fn process_input_system(
     mut context_params: ContextSystemParams,
     egui_settings: Res<EguiSettings>,
     time: Res<Time<Real>>,
-    safari_virtual_keyboard_hack: Res<SafariVirtualKeyboardHack>,
+    #[cfg(target_arch = "wasm32")] safari_virtual_keyboard_hack: Res<SafariVirtualKeyboardHack>,
 ) {
     // Test whether it's macOS or OS X.
     use std::sync::Once;

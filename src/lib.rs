@@ -749,6 +749,16 @@ impl Plugin for EguiPlugin {
             {
                 app.init_resource::<TextAgentChannel>();
 
+                let (sender, receiver) = crossbeam_channel::unbounded();
+                static TOUCH_INFO: LazyLock<Mutex<VirtualTouchInfo>> =
+                    LazyLock::new(|| Mutex::new(VirtualTouchInfo::default()));
+
+                app.insert_resource(SafariVirtualKeyboardHack {
+                    sender,
+                    receiver,
+                    touch_info: &TOUCH_INFO,
+                });
+
                 app.add_systems(
                     PreStartup,
                     install_text_agent
@@ -768,16 +778,6 @@ impl Plugin for EguiPlugin {
                 );
 
                 if is_mobile_safari() {
-                    let (sender, receiver) = crossbeam_channel::unbounded();
-                    static TOUCH_INFO: LazyLock<Mutex<VirtualTouchInfo>> =
-                        LazyLock::new(|| Mutex::new(VirtualTouchInfo::default()));
-
-                    app.insert_resource(SafariVirtualKeyboardHack {
-                        sender,
-                        receiver,
-                        touch_info: &TOUCH_INFO,
-                    });
-
                     app.add_systems(
                         PostUpdate,
                         process_safari_virtual_keyboard.after(process_output_system),
