@@ -48,18 +48,19 @@ pub fn process_safari_virtual_keyboard(
     for contexts in context_params.contexts.iter() {
         while let Ok(true) = safari_virtual_keyboard_hack.receiver.try_recv() {
             let platform_output = &contexts.egui_output.platform_output;
+            let mut editing_text = false;
 
             if platform_output.ime.is_some() || platform_output.mutable_text_under_cursor {
-                match safari_virtual_keyboard_hack.touch_info.lock() {
-                    Ok(mut touch_info) => {
-                        touch_info.editing_text = true;
-                    }
-                    Err(poisoned) => {
-                        let _unused = poisoned.into_inner();
-                    }
-                };
-                break;
+                editing_text = true;
             }
+            match safari_virtual_keyboard_hack.touch_info.lock() {
+                Ok(mut touch_info) => {
+                    touch_info.editing_text = editing_text;
+                }
+                Err(poisoned) => {
+                    let _unused = poisoned.into_inner();
+                }
+            };
         }
     }
 }
@@ -307,7 +308,6 @@ pub fn update_text_agent(editing_text: bool) {
     .unwrap();
 
     let keyboard_open = !input.hidden();
-    bevy::log::error!("updating keyboard with {}", editing_text);
 
     if editing_text {
         // open keyboard
@@ -318,8 +318,7 @@ pub fn update_text_agent(editing_text: bool) {
                 bevy::log::error!("Unable to set focus");
             }
         }
-    } else if !editing_text && keyboard_open {
-        bevy::log::error!("closingg keyboard");
+    } else if keyboard_open {
         // close keyboard
         if input.blur().is_err() {
             bevy::log::error!("Agent element not found");
