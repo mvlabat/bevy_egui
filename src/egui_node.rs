@@ -382,11 +382,11 @@ impl Node for EguiNode {
         }
     }
 
-    fn run(
+    fn run<'w>(
         &self,
         _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
+        render_context: &mut RenderContext<'w>,
+        world: &'w World,
     ) -> Result<(), NodeRunError> {
         let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().0;
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
@@ -408,6 +408,40 @@ impl Node for EguiNode {
 
         render_queue.write_buffer(vertex_buffer, 0, &self.vertex_data);
         render_queue.write_buffer(index_buffer, 0, &self.index_data);
+
+        let (physical_width, physical_height, pipeline_key) = match extracted_window {
+            Some(window) => (
+                window.physical_width,
+                window.physical_height,
+                EguiPipelineKey::from_extracted_window(window),
+            ),
+            None => unreachable!(),
+        };
+        let Some(key) = pipeline_key else {
+            return Ok(());
+        };
+
+        for draw_command in &self.draw_commands {
+            match &draw_command.primitive {
+                DrawPrimitive::Egui(_command) => {}
+                DrawPrimitive::PaintCallback(command) => {
+                    let info = egui::PaintCallbackInfo {
+                        viewport: command.rect,
+                        clip_rect: draw_command.clip_rect,
+                        pixels_per_point: self.pixels_per_point,
+                        screen_size_px: [physical_width, physical_height],
+                    };
+
+                    command.callback.cb().prepare_render(
+                        info,
+                        render_context,
+                        self.window_entity,
+                        key,
+                        world,
+                    );
+                }
+            }
+        }
 
         let bind_groups = &world.get_resource::<EguiTextureBindGroups>().unwrap();
 
@@ -433,18 +467,6 @@ impl Node for EguiNode {
                     occlusion_query_set: None,
                 });
         let mut render_pass = TrackedRenderPass::new(device, render_pass);
-
-        let (physical_width, physical_height, pipeline_key) = match extracted_window {
-            Some(window) => (
-                window.physical_width,
-                window.physical_height,
-                EguiPipelineKey::from_extracted_window(window),
-            ),
-            None => unreachable!(),
-        };
-        let Some(key) = pipeline_key else {
-            return Ok(());
-        };
 
         let pipeline_id = egui_pipelines.get(&self.window_entity).unwrap();
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
@@ -670,6 +692,23 @@ pub trait EguiBevyPaintCallbackImpl: Send + Sync {
         pipeline_key: EguiPipelineKey,
         world: &mut World,
     );
+
+    /// Paint callback call before render step
+    ///
+    ///
+    /// Can be used to implement custom render passes
+    /// or to submit command buffers for execution before egui render pass
+    fn prepare_render<'w>(
+        &self,
+        info: egui::PaintCallbackInfo,
+        render_context: &mut RenderContext<'w>,
+        window_entity: Entity,
+        pipeline_key: EguiPipelineKey,
+        world: &'w World,
+    ) {
+        let _ = (info, render_context, window_entity, pipeline_key, world);
+        // Do nothing by default
+    }
 
     /// Paint callback render step
     ///
