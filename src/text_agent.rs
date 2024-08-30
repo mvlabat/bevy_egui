@@ -87,6 +87,7 @@ pub fn propagate_text(
 
 /// Text event handler,
 pub fn install_text_agent(
+    mut subscribed_composition_events: NonSendMut<SubscribedEvents<web_sys::CompositionEvent>>,
     mut subscribed_keyboard_events: NonSendMut<SubscribedEvents<web_sys::KeyboardEvent>>,
     mut subscribed_input_events: NonSendMut<SubscribedEvents<web_sys::InputEvent>>,
     mut subscribed_touch_events: NonSendMut<SubscribedEvents<web_sys::TouchEvent>>,
@@ -172,6 +173,68 @@ pub fn install_text_agent(
             event_name: "virtual_keyboard_input".to_owned(),
             closure,
         });
+
+        let input_clone = input.clone();
+        let sender_clone = sender.clone();
+        let closure = Closure::wrap(Box::new(move |_event: web_sys::CompositionEvent| {
+            input_clone.set_value("");
+            let _ = sender_clone.send(egui::Event::Ime(egui::ImeEvent::Enabled));
+        }) as Box<dyn FnMut(_)>);
+        input
+            .add_event_listener_with_callback("compositionstart", closure.as_ref().unchecked_ref())
+            .expect("failed to create compositionstart listener");
+        subscribed_composition_events
+            .event_closures
+            .push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_compositionstart".to_owned(),
+                closure,
+            });
+
+        let sender_clone = sender.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::CompositionEvent| {
+            let Some(text) = event.data() else { return };
+            let event = egui::Event::Ime(egui::ImeEvent::Preedit(text));
+            let _ = sender_clone.send(event);
+        }) as Box<dyn FnMut(_)>);
+        input
+            .add_event_listener_with_callback("compositionupdate", closure.as_ref().unchecked_ref())
+            .expect("failed to create compositionupdate listener");
+        subscribed_composition_events
+            .event_closures
+            .push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_compositionupdate".to_owned(),
+                closure,
+            });
+
+        let input_clone = input.clone();
+        let sender_clone = sender.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::CompositionEvent| {
+            let Some(text) = event.data() else { return };
+            input_clone.set_value("");
+            let event = egui::Event::Ime(egui::ImeEvent::Commit(text));
+            let _ = sender_clone.send(event);
+        }) as Box<dyn FnMut(_)>);
+        input
+            .add_event_listener_with_callback("compositionend", closure.as_ref().unchecked_ref())
+            .expect("failed to create compositionend listener");
+        subscribed_composition_events
+            .event_closures
+            .push(EventClosure {
+                target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                    &document,
+                )
+                .clone(),
+                event_name: "virtual_keyboard_compositionend".to_owned(),
+                closure,
+            });
 
         // mobile safari doesn't let you set input focus outside of an event handler
         if is_mobile_safari() {

@@ -676,6 +676,8 @@ impl Plugin for EguiPlugin {
         world.init_non_send_resource::<SubscribedEvents<web_sys::ClipboardEvent>>();
         // virtual keyboard events for text_agent
         #[cfg(target_arch = "wasm32")]
+        world.init_non_send_resource::<SubscribedEvents<web_sys::CompositionEvent>>();
+        #[cfg(target_arch = "wasm32")]
         world.init_non_send_resource::<SubscribedEvents<web_sys::KeyboardEvent>>();
         #[cfg(target_arch = "wasm32")]
         world.init_non_send_resource::<SubscribedEvents<web_sys::InputEvent>>();
