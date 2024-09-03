@@ -150,10 +150,10 @@ pub fn install_text_agent(
     if let Some(true) = is_mobile() {
         let input_clone = input.clone();
         let sender_clone = sender.clone();
-        let closure = Closure::wrap(Box::new(move |_event: web_sys::InputEvent| {
+        let closure = Closure::wrap(Box::new(move |event: web_sys::InputEvent| {
             let text = input_clone.value();
 
-            if !text.is_empty() {
+            if !text.is_empty() && !event.is_composing() {
                 input_clone.set_value("");
                 if text.len() == 1 {
                     input_clone.blur().ok();
