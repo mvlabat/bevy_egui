@@ -121,6 +121,7 @@ use bevy::{
         SystemSet, With, Without,
     },
     reflect::Reflect,
+    render::view::cursor::CursorIcon,
     window::{PrimaryWindow, Window},
 };
 #[cfg(all(
@@ -797,6 +798,8 @@ pub struct EguiContextQuery {
     pub render_target_size: &'static mut RenderTargetSize,
     /// [`Window`] component, when rendering to a window.
     pub window: Option<&'static mut Window>,
+    /// Cursor for the
+    pub cursor: Option<&'static mut CursorIcon>,
     /// [`EguiRenderToTextureHandle`] component, when rendering to a texture.
     #[cfg(feature = "render")]
     pub render_to_texture: Option<&'static mut EguiRenderToTextureHandle>,
