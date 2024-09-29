@@ -231,11 +231,11 @@ impl Node for EguiRenderToTextureNode {
         }
     }
 
-    fn run(
+    fn run<'w>(
         &self,
         _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
+        render_context: &mut RenderContext<'w>,
+        world: &'w World,
     ) -> Result<(), NodeRunError> {
         let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().0;
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
@@ -259,6 +259,28 @@ impl Node for EguiRenderToTextureNode {
 
         render_queue.write_buffer(vertex_buffer, 0, &self.vertex_data);
         render_queue.write_buffer(index_buffer, 0, &self.index_data);
+
+        for draw_command in &self.draw_commands {
+            match &draw_command.primitive {
+                DrawPrimitive::Egui(_command) => {}
+                DrawPrimitive::PaintCallback(command) => {
+                    let info = egui::PaintCallbackInfo {
+                        viewport: command.rect,
+                        clip_rect: draw_command.clip_rect,
+                        pixels_per_point: self.pixels_per_point,
+                        screen_size_px: [gpu_image.size.x, gpu_image.size.y],
+                    };
+
+                    command.callback.cb().prepare_render(
+                        info,
+                        render_context,
+                        self.render_to_texture_target,
+                        key,
+                        world,
+                    );
+                }
+            }
+        }
 
         let bind_groups = &world.get_resource::<EguiTextureBindGroups>().unwrap();
 
