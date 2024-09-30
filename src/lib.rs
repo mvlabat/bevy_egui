@@ -798,7 +798,7 @@ pub struct EguiContextQuery {
     pub render_target_size: &'static mut RenderTargetSize,
     /// [`Window`] component, when rendering to a window.
     pub window: Option<&'static mut Window>,
-    /// Cursor for the
+    /// [`CursorIcon`] component.
     pub cursor: Option<&'static mut CursorIcon>,
     /// [`EguiRenderToTextureHandle`] component, when rendering to a texture.
     #[cfg(feature = "render")]
