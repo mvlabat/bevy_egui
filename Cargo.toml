@@ -92,4 +92,4 @@ crossbeam-channel = "0.5.8"
 members = ["run-wasm"]
 
 [patch.crates-io]
-bevy = { path = "../bevy" }
+bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d15" }
