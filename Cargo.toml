@@ -49,7 +49,7 @@ bevy = { version = "0.14.0", default-features = false, features = [
     "bevy_asset",
     "bevy_winit",
 ] }
-egui = { version = "0.28", default-features = false, features = ["bytemuck"] }
+egui = { version = "0.29", default-features = false, features = ["bytemuck"] }
 bytemuck = "1"
 webbrowser = { version = "1.0.1", optional = true }
 wgpu-types = "0.20"
@@ -68,7 +68,7 @@ bevy = { version = "0.14.0", default-features = false, features = [
     "tonemapping_luts",
     "webgl2",
 ] }
-egui = { version = "0.28", default-features = false, features = ["bytemuck"] }
+egui = { version = "0.29", default-features = false, features = ["bytemuck"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 winit = "0.30"
