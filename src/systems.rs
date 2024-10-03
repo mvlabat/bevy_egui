@@ -1,7 +1,8 @@
 #[cfg(feature = "render")]
 use crate::EguiRenderToTextureHandle;
 use crate::{
-    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiInput, EguiSettings, RenderTargetSize,
+    EguiContext, EguiContextQuery, EguiContextQueryItem, EguiFullOutput, EguiInput, EguiSettings,
+    RenderTargetSize,
 };
 
 #[cfg(feature = "render")]
@@ -491,9 +492,16 @@ pub fn update_contexts_system(
 }
 
 /// Marks frame start for Egui.
-pub fn begin_frame_system(mut contexts: Query<(&mut EguiContext, &mut EguiInput)>) {
+pub fn begin_pass_system(mut contexts: Query<(&mut EguiContext, &mut EguiInput)>) {
     for (mut ctx, mut egui_input) in contexts.iter_mut() {
-        ctx.get_mut().begin_frame(egui_input.take());
+        ctx.get_mut().begin_pass(egui_input.take());
+    }
+}
+
+/// Marks frame end for Egui.
+pub fn end_pass_system(mut contexts: Query<(&mut EguiContext, &mut EguiFullOutput)>) {
+    for (mut ctx, mut full_output) in contexts.iter_mut() {
+        **full_output = Some(ctx.get_mut().end_pass());
     }
 }
 
@@ -513,7 +521,10 @@ pub fn process_output_system(
 
     for mut context in contexts.iter_mut() {
         let ctx = context.ctx.get_mut();
-        let full_output = ctx.end_frame();
+        let Some(full_output) = context.egui_full_output.0.take() else {
+            log::error!("bevy_egui frame output has not been prepared!");
+            continue;
+        };
         let egui::FullOutput {
             platform_output,
             shapes,

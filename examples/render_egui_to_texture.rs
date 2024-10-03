@@ -5,7 +5,7 @@ use wgpu_types::{Extent3d, TextureUsages};
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins);
-    app.add_plugins(EguiPlugin);
+    app.add_plugins(EguiPlugin::default());
     app.add_systems(Startup, setup_worldspace);
     app.add_systems(Update, (update_screenspace, update_worldspace));
     app.run();

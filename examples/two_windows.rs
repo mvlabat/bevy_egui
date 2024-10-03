@@ -13,7 +13,7 @@ struct Images {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin::default())
         .init_resource::<SharedUiState>()
         .add_systems(Startup, load_assets_system)
         .add_systems(Startup, create_new_window_system)

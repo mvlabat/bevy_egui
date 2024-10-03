@@ -20,7 +20,7 @@ use wgpu_types::{Extent3d, TextureUsages};
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, EguiPlugin, CustomPipelinePlugin))
+        .add_plugins((DefaultPlugins, EguiPlugin::default(), CustomPipelinePlugin))
         .add_systems(Startup, setup_worldspace)
         .add_systems(
             Update,

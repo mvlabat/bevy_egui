@@ -130,7 +130,13 @@ use bevy::{
 use std::cell::{RefCell, RefMut};
 
 /// Adds all Egui resources and render graph nodes.
-pub struct EguiPlugin;
+#[derive(Default)]
+pub struct EguiPlugin {
+    /// Controls if egui must be run manually
+    ///
+    /// using `egui::context::Context` object `run` or `begin_pass` and `end_pass` function calls.
+    pub manual_run: bool,
+}
 
 /// A resource for storing global UI settings.
 #[derive(Clone, Debug, Resource, Reflect)]
@@ -182,6 +188,10 @@ impl Default for EguiSettings {
 /// It gets reset during the [`EguiSet::ProcessInput`] system.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
 pub struct EguiInput(pub egui::RawInput);
+
+/// Is used to store Egui context output.
+#[derive(Component, Clone, Default, Deref, DerefMut)]
+pub struct EguiFullOutput(pub Option<egui::FullOutput>);
 
 /// A resource for accessing clipboard.
 ///
@@ -714,12 +724,17 @@ impl Plugin for EguiPlugin {
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
-        app.add_systems(
-            PreUpdate,
-            begin_frame_system
-                .in_set(EguiSet::BeginFrame)
-                .after(EguiSet::ProcessInput),
-        );
+
+        if !self.manual_run {
+            app.add_systems(
+                PreUpdate,
+                begin_pass_system
+                    .in_set(EguiSet::BeginFrame)
+                    .after(EguiSet::ProcessInput),
+            );
+            app.add_systems(PostUpdate, end_pass_system.before(EguiSet::ProcessOutput));
+        }
+
         app.add_systems(
             PostUpdate,
             process_output_system.in_set(EguiSet::ProcessOutput),
@@ -789,6 +804,8 @@ pub struct EguiContextQuery {
     pub ctx: &'static mut EguiContext,
     /// Encapsulates [`egui::RawInput`].
     pub egui_input: &'static mut EguiInput,
+    /// Encapsulates [`egui::FullOutput`].
+    pub egui_full_output: &'static mut EguiFullOutput,
     /// Egui shapes and textures delta.
     pub render_output: &'static mut EguiRenderOutput,
     /// Encapsulates [`egui::PlatformOutput`].
@@ -826,6 +843,7 @@ pub fn setup_new_windows_system(
             EguiContext::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
+            EguiFullOutput::default(),
             EguiOutput::default(),
             RenderTargetSize::default(),
         ));
@@ -848,6 +866,7 @@ pub fn setup_render_to_texture_handles_system(
             EguiContext::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
+            EguiFullOutput::default(),
             EguiOutput::default(),
             RenderTargetSize::default(),
         ));
@@ -978,7 +997,7 @@ mod tests {
                     .build()
                     .disable::<WinitPlugin>(),
             )
-            .add_plugins(EguiPlugin)
+            .add_plugins(EguiPlugin::default())
             .update();
     }
 }
