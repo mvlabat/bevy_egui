@@ -488,7 +488,7 @@ pub fn update_contexts_system(
     }
 }
 
-/// Marks frame start for Egui.
+/// Marks a pass start for Egui.
 pub fn begin_pass_system(mut contexts: Query<(&mut EguiContext, &EguiSettings, &mut EguiInput)>) {
     for (mut ctx, egui_settings, mut egui_input) in contexts.iter_mut() {
         if !egui_settings.run_manually {
@@ -497,7 +497,7 @@ pub fn begin_pass_system(mut contexts: Query<(&mut EguiContext, &EguiSettings, &
     }
 }
 
-/// Marks frame end for Egui.
+/// Marks a pass end for Egui.
 pub fn end_pass_system(
     mut contexts: Query<(&mut EguiContext, &EguiSettings, &mut EguiFullOutput)>,
 ) {
@@ -522,7 +522,7 @@ pub fn process_output_system(
     for mut context in contexts.iter_mut() {
         let ctx = context.ctx.get_mut();
         let Some(full_output) = context.egui_full_output.0.take() else {
-            log::error!("bevy_egui frame output has not been prepared!");
+            log::error!("bevy_egui pass output has not been prepared (if EguiSettings::run_manually is set to true, make sure to call egui::Context::run or egui::Context::begin_pass and egui::Context::end_pass)");
             continue;
         };
         let egui::FullOutput {

@@ -28,7 +28,7 @@
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugins(EguiPlugin)
 //!         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
-//!         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
+//!         // or after the `EguiSet::BeginPass` system (which belongs to the `CoreSet::PreUpdate` set).
 //!         .add_systems(Update, ui_example_system)
 //!         .run();
 //! }
@@ -647,10 +647,10 @@ pub enum EguiSet {
     ///
     /// To modify the input, you can hook your system like this:
     ///
-    /// `system.after(EguiSet::ProcessInput).before(EguiSet::BeginFrame)`.
+    /// `system.after(EguiSet::ProcessInput).before(EguiSet::BeginPass)`.
     ProcessInput,
-    /// Begins the `egui` frame.
-    BeginFrame,
+    /// Begins the `egui` pass.
+    BeginPass,
     /// Processes the [`EguiOutput`] resource.
     ProcessOutput,
 }
@@ -718,7 +718,7 @@ impl Plugin for EguiPlugin {
         app.add_systems(
             PreUpdate,
             begin_pass_system
-                .in_set(EguiSet::BeginFrame)
+                .in_set(EguiSet::BeginPass)
                 .after(EguiSet::ProcessInput),
         );
 
