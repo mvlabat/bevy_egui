@@ -79,9 +79,10 @@ impl Node for EguiRenderToTextureNode {
             return;
         };
 
-        let mut render_target_sizes = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
-        let Ok((render_target_size, mut render_output)) =
-            render_target_sizes.get_mut(world, self.render_to_texture_target)
+        let mut render_target_query =
+            world.query::<(&EguiSettings, &RenderTargetSize, &mut EguiRenderOutput)>();
+        let Ok((egui_settings, render_target_size, mut render_output)) =
+            render_target_query.get_mut(world, self.render_to_texture_target)
         else {
             return;
         };
@@ -89,15 +90,12 @@ impl Node for EguiRenderToTextureNode {
         let render_target_size = *render_target_size;
         let paint_jobs = std::mem::take(&mut render_output.paint_jobs);
 
-        let egui_settings = &world.get_resource::<EguiSettings>().unwrap();
-
-        let render_device = world.get_resource::<RenderDevice>().unwrap();
-
         self.pixels_per_point = render_target_size.scale_factor * egui_settings.scale_factor;
         if render_target_size.physical_width == 0.0 || render_target_size.physical_height == 0.0 {
             return;
         }
 
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
         let mut index_offset = 0;
 
         self.draw_commands.clear();
