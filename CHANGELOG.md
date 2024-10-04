@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `prepare_render` step support for `EguiBevyPaintCallbackImpl` ([#306](https://github.com/mvlabat/bevy_egui/pull/306) by @PPakalns).
+- Mobile virtual keyboard support in web ([#279](https://github.com/mvlabat/bevy_egui/pull/279) by @v-kat).
+  - Requires `Window::prevent_default_event_handling` being set to `false`.
+- IME support (#[204](https://github.com/mvlabat/bevy_egui/pull/204) by @EReeves).
+
 ### Changed
 
 - Update Egui to 0.29 ([#313](https://github.com/mvlabat/bevy_egui/pull/313) by @PPakalns).

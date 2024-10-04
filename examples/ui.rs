@@ -27,6 +27,7 @@ fn main() {
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
+                // You may want this set to `true` if you need virtual keyboard work in mobile browsers.
                 prevent_default_event_handling: false,
                 ..default()
             }),

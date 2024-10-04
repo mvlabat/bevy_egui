@@ -1,6 +1,7 @@
 [package]
 name = "bevy_egui"
 version = "0.29.0"
+rust-version = "1.80.0" # needed for LazyLock https://doc.rust-lang.org/stable/std/sync/struct.LazyLock.html
 authors = ["mvlabat <mvlabat@gmail.com>"]
 description = "A plugin for Egui integration into Bevy"
 license = "MIT"
@@ -21,6 +22,8 @@ open_url = ["webbrowser"]
 default_fonts = ["egui/default_fonts"]
 render = ["bevy/bevy_render"]
 serde = ["egui/serde"]
+# The enabled logs will print with the info log level, to make it less cumbersome to debug in browsers.
+log_input_events = []
 
 [[example]]
 name = "paint_callback"
@@ -76,18 +79,22 @@ egui = { version = "0.29", default-features = false, features = ["bytemuck"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 winit = "0.30"
 web-sys = { version = "0.3.63", features = [
-  "Clipboard",
-  "ClipboardEvent",
-  "DataTransfer",
-  'Document',
-  'EventTarget',
-  "Window",
-  "Navigator",
+    "Clipboard",
+    "ClipboardEvent",
+    "CompositionEvent",
+    "DataTransfer",
+    "Document",
+    "EventTarget",
+    "HtmlInputElement",
+    "InputEvent",
+    "KeyboardEvent",
+    "Navigator",
+    "TouchEvent",
+    "Window",
 ] }
 js-sys = "0.3.63"
 wasm-bindgen = "0.2.84"
 wasm-bindgen-futures = "0.4.36"
-console_log = "1.0.0"
 log = "0.4"
 crossbeam-channel = "0.5.8"
 

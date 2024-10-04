@@ -1,10 +1,11 @@
+#[cfg(target_arch = "wasm32")]
+use crate::text_agent::{is_mobile_safari, update_text_agent};
 #[cfg(feature = "render")]
 use crate::EguiRenderToTextureHandle;
 use crate::{
     EguiContext, EguiContextQuery, EguiContextQueryItem, EguiFullOutput, EguiInput, EguiSettings,
     RenderTargetSize,
 };
-
 #[cfg(feature = "render")]
 use bevy::{asset::Assets, render::texture::Image};
 use bevy::{
@@ -133,6 +134,8 @@ pub fn process_input_system(
     for event in input_events.ev_keyboard_input.read() {
         // Copy the events as we might want to pass them to an Egui context later.
         keyboard_input_events.push(event.clone());
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         let KeyboardInput {
             logical_key, state, ..
@@ -196,6 +199,8 @@ pub fn process_input_system(
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         let button = match event.button {
             MouseButton::Left => Some(egui::PointerButton::Primary),
@@ -224,6 +229,8 @@ pub fn process_input_system(
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         let delta = egui::vec2(event.x, event.y);
 
@@ -242,6 +249,17 @@ pub fn process_input_system(
             });
     }
 
+    #[cfg(target_arch = "wasm32")]
+    let mut editing_text = false;
+    #[cfg(target_arch = "wasm32")]
+    for context in context_params.contexts.iter() {
+        let platform_output = &context.egui_output.platform_output;
+        if platform_output.ime.is_some() || platform_output.mutable_text_under_cursor {
+            editing_text = true;
+            break;
+        }
+    }
+
     for event in input_events.ev_ime_input.read() {
         let window = match &event {
             Ime::Preedit { window, .. }
@@ -253,6 +271,8 @@ pub fn process_input_system(
         let Some(mut window_context) = context_params.window_context(window) else {
             continue;
         };
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         // Aligned with the egui-winit implementation: https://github.com/emilk/egui/blob/0f2b427ff4c0a8c68f6622ec7d0afb7ba7e71bba/crates/egui-winit/src/lib.rs#L348
         match event {
@@ -288,6 +308,8 @@ pub fn process_input_system(
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         if text_event_allowed && event.state.is_pressed() {
             match &event.logical_key {
@@ -353,6 +375,8 @@ pub fn process_input_system(
     while let Some(event) = input_resources.egui_clipboard.try_receive_clipboard_event() {
         // In web, we assume that we have only 1 window per app.
         let mut window_context = context_params.contexts.single_mut();
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         match event {
             crate::web_clipboard::WebClipboardEvent::Copy => {
@@ -377,6 +401,8 @@ pub fn process_input_system(
         let Some(mut window_context) = context_params.window_context(event.window) else {
             continue;
         };
+        #[cfg(feature = "log_input_events")]
+        log::info!("{event:?}");
 
         let touch_id = egui::TouchId::from(event.id);
         let scale_factor = window_context.egui_settings.scale_factor;
@@ -456,6 +482,11 @@ pub fn process_input_system(
                         .egui_input
                         .events
                         .push(egui::Event::PointerGone);
+
+                    #[cfg(target_arch = "wasm32")]
+                    if !is_mobile_safari() {
+                        update_text_agent(editing_text);
+                    }
                 }
                 bevy::input::touch::TouchPhase::Canceled => {
                     window_context.ctx.pointer_touch_id = None;

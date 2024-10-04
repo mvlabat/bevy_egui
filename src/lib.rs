@@ -68,7 +68,10 @@ pub mod egui_render_to_texture_node;
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
-/// Clipboard management for web.
+/// Mobile web keyboard hacky input support
+#[cfg(target_arch = "wasm32")]
+mod text_agent;
+/// Clipboard management for web
 #[cfg(all(
     feature = "manage_clipboard",
     target_arch = "wasm32",
@@ -128,6 +131,15 @@ use bevy::{
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use std::cell::{RefCell, RefMut};
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+use crate::text_agent::{
+    install_text_agent, is_mobile_safari, process_safari_virtual_keyboard, propagate_text,
+    SafariVirtualKeyboardHack, TextAgentChannel, VirtualTouchInfo,
+};
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
@@ -673,6 +685,9 @@ impl Plugin for EguiPlugin {
             app.add_plugins(ExtractComponentPlugin::<EguiRenderToTextureHandle>::default());
         }
 
+        #[cfg(target_arch = "wasm32")]
+        app.init_non_send_resource::<SubscribedEvents>();
+
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
         app.init_resource::<EguiClipboard>();
 
@@ -682,7 +697,6 @@ impl Plugin for EguiPlugin {
             web_sys_unstable_apis
         ))]
         {
-            app.init_non_send_resource::<web_clipboard::SubscribedEvents>();
             app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
         }
 
@@ -716,6 +730,58 @@ impl Plugin for EguiPlugin {
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
+        #[cfg(target_arch = "wasm32")]
+        {
+            use std::sync::{LazyLock, Mutex};
+
+            let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
+
+            if !maybe_window_plugin.is_empty()
+                && maybe_window_plugin[0].primary_window.is_some()
+                && maybe_window_plugin[0]
+                    .primary_window
+                    .as_ref()
+                    .unwrap()
+                    .prevent_default_event_handling
+            {
+                app.init_resource::<TextAgentChannel>();
+
+                let (sender, receiver) = crossbeam_channel::unbounded();
+                static TOUCH_INFO: LazyLock<Mutex<VirtualTouchInfo>> =
+                    LazyLock::new(|| Mutex::new(VirtualTouchInfo::default()));
+
+                app.insert_resource(SafariVirtualKeyboardHack {
+                    sender,
+                    receiver,
+                    touch_info: &TOUCH_INFO,
+                });
+
+                app.add_systems(
+                    PreStartup,
+                    install_text_agent
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+
+                app.add_systems(
+                    PreUpdate,
+                    propagate_text
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+
+                if is_mobile_safari() {
+                    app.add_systems(
+                        PostUpdate,
+                        process_safari_virtual_keyboard.after(process_output_system),
+                    );
+                }
+            }
+        }
         app.add_systems(
             PreUpdate,
             begin_pass_system
@@ -974,6 +1040,63 @@ fn free_egui_textures_system(
     for image_event in image_events.read() {
         if let AssetEvent::Removed { id } = image_event {
             egui_user_textures.remove_image(&Handle::<Image>::Weak(*id));
+        }
+    }
+}
+
+/// Helper function for outputting a String from a JsValue
+#[cfg(target_arch = "wasm32")]
+pub fn string_from_js_value(value: &JsValue) -> String {
+    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
+}
+
+#[cfg(target_arch = "wasm32")]
+struct EventClosure<T> {
+    target: web_sys::EventTarget,
+    event_name: String,
+    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
+}
+
+/// Stores event listeners.
+#[cfg(target_arch = "wasm32")]
+#[derive(Default)]
+pub struct SubscribedEvents {
+    #[cfg(all(feature = "manage_clipboard", web_sys_unstable_apis))]
+    clipboard_event_closures: Vec<EventClosure<web_sys::ClipboardEvent>>,
+    composition_event_closures: Vec<EventClosure<web_sys::CompositionEvent>>,
+    keyboard_event_closures: Vec<EventClosure<web_sys::KeyboardEvent>>,
+    input_event_closures: Vec<EventClosure<web_sys::InputEvent>>,
+    touch_event_closures: Vec<EventClosure<web_sys::TouchEvent>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl SubscribedEvents {
+    /// Use this method to unsubscribe from all stored events, this can be useful
+    /// for gracefully destroying a Bevy instance in a page.
+    pub fn unsubscribe_from_all_events(&mut self) {
+        #[cfg(all(feature = "manage_clipboard", web_sys_unstable_apis))]
+        Self::unsubscribe_from_events(&mut self.clipboard_event_closures);
+        Self::unsubscribe_from_events(&mut self.composition_event_closures);
+        Self::unsubscribe_from_events(&mut self.keyboard_event_closures);
+        Self::unsubscribe_from_events(&mut self.input_event_closures);
+        Self::unsubscribe_from_events(&mut self.touch_event_closures);
+    }
+
+    fn unsubscribe_from_events<T>(events: &mut Vec<EventClosure<T>>) {
+        let events_to_unsubscribe = std::mem::take(events);
+
+        if !events_to_unsubscribe.is_empty() {
+            for event in events_to_unsubscribe {
+                if let Err(err) = event.target.remove_event_listener_with_callback(
+                    event.event_name.as_str(),
+                    event.closure.as_ref().unchecked_ref(),
+                ) {
+                    log::error!(
+                        "Failed to unsubscribe from event: {}",
+                        string_from_js_value(&err)
+                    );
+                }
+            }
         }
     }
 }
