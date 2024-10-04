@@ -323,6 +323,7 @@ pub struct EguiContext {
     ctx: egui::Context,
     mouse_position: egui::Pos2,
     pointer_touch_id: Option<u64>,
+    has_sent_ime_enabled: bool,
 }
 
 impl EguiContext {
@@ -363,7 +364,7 @@ type EguiContextsFilter = With<Window>;
 type EguiContextsFilter = Or<(With<Window>, With<EguiRenderToTextureHandle>)>;
 
 #[derive(SystemParam)]
-/// A helper SystemParam that provides a way to get `[EguiContext]` with less boilerplate and
+/// A helper SystemParam that provides a way to get [`EguiContext`] with less boilerplate and
 /// combines a proxy interface to the [`EguiUserTextures`] resource.
 pub struct EguiContexts<'w, 's> {
     q: Query<
@@ -380,7 +381,7 @@ pub struct EguiContexts<'w, 's> {
     user_textures: ResMut<'w, EguiUserTextures>,
 }
 
-impl<'w, 's> EguiContexts<'w, 's> {
+impl EguiContexts<'_, '_> {
     /// Egui context of the primary window.
     #[must_use]
     pub fn ctx_mut(&mut self) -> &mut egui::Context {
@@ -807,6 +808,26 @@ pub struct EguiContextQuery {
     /// [`EguiRenderToTextureHandle`] component, when rendering to a texture.
     #[cfg(feature = "render")]
     pub render_to_texture: Option<&'static mut EguiRenderToTextureHandle>,
+}
+
+impl EguiContextQueryItem<'_> {
+    fn ime_event_enable(&mut self) {
+        if !self.ctx.has_sent_ime_enabled {
+            self.egui_input
+                .events
+                .push(egui::Event::Ime(egui::ImeEvent::Enabled));
+            self.ctx.has_sent_ime_enabled = true;
+        }
+    }
+
+    fn ime_event_disable(&mut self) {
+        if self.ctx.has_sent_ime_enabled {
+            self.egui_input
+                .events
+                .push(egui::Event::Ime(egui::ImeEvent::Disabled));
+            self.ctx.has_sent_ime_enabled = false;
+        }
+    }
 }
 
 /// Contains textures allocated and painted by Egui.
