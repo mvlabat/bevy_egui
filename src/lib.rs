@@ -117,8 +117,8 @@ use bevy::{
     },
     input::InputSystem,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
-        SystemSet, With, Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, SystemSet,
+        With, Without,
     },
     reflect::Reflect,
     window::{PrimaryWindow, Window},
@@ -196,7 +196,7 @@ pub struct EguiFullOutput(pub Option<egui::FullOutput>);
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-#[derive(Default, Resource)]
+#[derive(Default, bevy::ecs::system::Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
@@ -549,7 +549,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
 pub struct EguiRenderToTextureHandle(pub Handle<Image>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource, Default, ExtractResource)]
+#[derive(Clone, bevy::ecs::system::Resource, Default, ExtractResource)]
 #[cfg(feature = "render")]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
@@ -659,40 +659,32 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<EguiSettings>();
 
-        let world = app.world_mut();
         #[cfg(feature = "render")]
-        world.init_resource::<EguiManagedTextures>();
+        {
+            app.init_resource::<EguiManagedTextures>();
+            app.init_resource::<EguiUserTextures>();
+            app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
+            app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiSettings>::default());
+            app.add_plugins(ExtractComponentPlugin::<RenderTargetSize>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiRenderToTextureHandle>::default());
+        }
+
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-        world.init_resource::<EguiClipboard>();
-        #[cfg(all(
-            feature = "manage_clipboard",
-            target_arch = "wasm32",
-            web_sys_unstable_apis
-        ))]
-        world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
-        #[cfg(feature = "render")]
-        world.init_resource::<EguiUserTextures>();
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiSettings>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<RenderTargetSize>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiRenderToTextureHandle>::default());
+        app.init_resource::<EguiClipboard>();
 
         #[cfg(all(
             feature = "manage_clipboard",
             target_arch = "wasm32",
             web_sys_unstable_apis
         ))]
-        app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
+        {
+            app.init_non_send_resource::<web_clipboard::SubscribedEvents>();
+            app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
+        }
+
         app.add_systems(
             PreStartup,
             (
@@ -740,21 +732,20 @@ impl Plugin for EguiPlugin {
         app.add_systems(
             PostUpdate,
             update_egui_textures_system.after(EguiSet::ProcessOutput),
-        );
-        #[cfg(feature = "render")]
-        app.add_systems(Last, free_egui_textures_system)
-            .add_systems(
-                Render,
-                render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
-            )
-            .add_systems(
-                Render,
-                render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
-            )
-            .add_systems(
-                Render,
-                render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
-            );
+        )
+        .add_systems(
+            Render,
+            render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
+        )
+        .add_systems(
+            Render,
+            render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+        )
+        .add_systems(
+            Render,
+            render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+        )
+        .add_systems(Last, free_egui_textures_system);
 
         #[cfg(feature = "render")]
         load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
@@ -820,7 +811,7 @@ pub struct EguiContextQuery {
 
 /// Contains textures allocated and painted by Egui.
 #[cfg(feature = "render")]
-#[derive(Resource, Deref, DerefMut, Default)]
+#[derive(bevy::ecs::system::Resource, Deref, DerefMut, Default)]
 pub struct EguiManagedTextures(pub HashMap<(Entity, u64), EguiManagedTexture>);
 
 /// Represents a texture allocated and painted by Egui.
