@@ -232,19 +232,16 @@ impl Node for EguiNode {
             return;
         };
 
-        let mut render_target_size = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
+        let mut render_target_query =
+            world.query::<(&EguiSettings, &RenderTargetSize, &mut EguiRenderOutput)>();
 
-        let Ok((window_size, mut render_output)) =
-            render_target_size.get_mut(world, self.window_entity)
+        let Ok((egui_settings, window_size, mut render_output)) =
+            render_target_query.get_mut(world, self.window_entity)
         else {
             return;
         };
         let window_size = *window_size;
         let paint_jobs = std::mem::take(&mut render_output.paint_jobs);
-
-        let egui_settings = &world.get_resource::<EguiSettings>().unwrap();
-
-        let render_device = world.get_resource::<RenderDevice>().unwrap();
 
         self.pixels_per_point = window_size.scale_factor * egui_settings.scale_factor;
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
@@ -257,6 +254,8 @@ impl Node for EguiNode {
         self.vertex_data.clear();
         self.index_data.clear();
         self.postponed_updates.clear();
+
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
 
         for egui::epaint::ClippedPrimitive {
             clip_rect,

@@ -5,12 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Update Egui to 0.29 ([#313](https://github.com/mvlabat/bevy_egui/pull/313) by @PPakalns).
+
+### Additional notes on breaking changes
+
+- `EguiSettings` is now a component.
+- `EguiSet::BeginFrame` has been renamed to `EguiSet::BeginPass`.
+
 ## [0.29.0] - 18-Aug-2024
 
 ### Added
 
-- Initial worldspace UI support ([#304](https://github.com/mvlabat/bevy_egui/pull/304) by @TheButlah, @Schmarni-Dev)
-- Paint callback support ([#303](https://github.com/mvlabat/bevy_egui/pull/303) by @PPakalns)
+- Initial worldspace UI support ([#304](https://github.com/mvlabat/bevy_egui/pull/304) by @TheButlah, @Schmarni-Dev).
+- Paint callback support ([#303](https://github.com/mvlabat/bevy_egui/pull/303) by @PPakalns).
 
 ### Changed
 
@@ -75,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Update Bevy to 0.13 ([#236](https://github.com/mvlabat/bevy_egui/pull/236) by @eri).
-- Update Egui to 0.26
+- Update Egui to 0.26.
 
 ### Fixed
 

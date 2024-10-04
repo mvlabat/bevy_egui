@@ -107,7 +107,6 @@ pub fn process_input_system(
     mut input_events: InputEvents,
     mut input_resources: InputResources,
     mut context_params: ContextSystemParams,
-    egui_settings: Res<EguiSettings>,
     time: Res<Time<Real>>,
 ) {
     // Test whether it's macOS or OS X.
@@ -181,7 +180,7 @@ pub fn process_input_system(
             continue;
         };
 
-        let scale_factor = egui_settings.scale_factor;
+        let scale_factor = window_context.egui_settings.scale_factor;
         let (x, y): (f32, f32) = (event.position / scale_factor).into();
         let mouse_position = egui::pos2(x, y);
         window_context.ctx.mouse_position = mouse_position;
@@ -337,7 +336,7 @@ pub fn process_input_system(
         };
 
         let touch_id = egui::TouchId::from(event.id);
-        let scale_factor = egui_settings.scale_factor;
+        let scale_factor = window_context.egui_settings.scale_factor;
         let touch_position: (f32, f32) = (event.position / scale_factor).into();
 
         // Emit touch event
@@ -439,7 +438,6 @@ pub fn process_input_system(
 /// Initialises Egui contexts (for multiple windows).
 pub fn update_contexts_system(
     mut context_params: ContextSystemParams,
-    egui_settings: Res<EguiSettings>,
     #[cfg(feature = "render")] images: Res<Assets<Image>>,
 ) {
     for mut context in context_params.contexts.iter_mut() {
@@ -468,10 +466,10 @@ pub fn update_contexts_system(
         };
         let width = new_render_target_size.physical_width
             / new_render_target_size.scale_factor
-            / egui_settings.scale_factor;
+            / context.egui_settings.scale_factor;
         let height = new_render_target_size.physical_height
             / new_render_target_size.scale_factor
-            / egui_settings.scale_factor;
+            / context.egui_settings.scale_factor;
 
         if width < 1.0 || height < 1.0 {
             continue;
@@ -482,34 +480,36 @@ pub fn update_contexts_system(
             egui::pos2(width, height),
         ));
 
-        context
-            .ctx
-            .get_mut()
-            .set_pixels_per_point(new_render_target_size.scale_factor * egui_settings.scale_factor);
+        context.ctx.get_mut().set_pixels_per_point(
+            new_render_target_size.scale_factor * context.egui_settings.scale_factor,
+        );
 
         *context.render_target_size = new_render_target_size;
     }
 }
 
 /// Marks frame start for Egui.
-pub fn begin_pass_system(mut contexts: Query<(&mut EguiContext, &mut EguiInput)>) {
-    for (mut ctx, mut egui_input) in contexts.iter_mut() {
-        ctx.get_mut().begin_pass(egui_input.take());
+pub fn begin_pass_system(mut contexts: Query<(&mut EguiContext, &EguiSettings, &mut EguiInput)>) {
+    for (mut ctx, egui_settings, mut egui_input) in contexts.iter_mut() {
+        if !egui_settings.run_manually {
+            ctx.get_mut().begin_pass(egui_input.take());
+        }
     }
 }
 
 /// Marks frame end for Egui.
-pub fn end_pass_system(mut contexts: Query<(&mut EguiContext, &mut EguiFullOutput)>) {
-    for (mut ctx, mut full_output) in contexts.iter_mut() {
-        **full_output = Some(ctx.get_mut().end_pass());
+pub fn end_pass_system(
+    mut contexts: Query<(&mut EguiContext, &EguiSettings, &mut EguiFullOutput)>,
+) {
+    for (mut ctx, egui_settings, mut full_output) in contexts.iter_mut() {
+        if !egui_settings.run_manually {
+            **full_output = Some(ctx.get_mut().end_pass());
+        }
     }
 }
 
 /// Reads Egui output.
 pub fn process_output_system(
-    #[cfg_attr(not(feature = "open_url"), allow(unused_variables))] egui_settings: Res<
-        EguiSettings,
-    >,
     mut contexts: Query<EguiContextQuery>,
     #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
     mut egui_clipboard: bevy::ecs::system::ResMut<crate::EguiClipboard>,
@@ -589,7 +589,8 @@ pub fn process_output_system(
             let target = if new_tab {
                 "_blank"
             } else {
-                egui_settings
+                context
+                    .egui_settings
                     .default_open_url_target
                     .as_deref()
                     .unwrap_or("_self")

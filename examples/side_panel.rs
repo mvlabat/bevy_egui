@@ -18,7 +18,7 @@ fn main() {
     App::new()
         .insert_resource(WinitSettings::desktop_app())
         .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin::default())
+        .add_plugins(EguiPlugin)
         .init_resource::<OccupiedScreenSpace>()
         .add_systems(Startup, setup_system)
         .add_systems(Update, ui_example_system)

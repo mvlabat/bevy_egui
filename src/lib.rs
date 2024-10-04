@@ -130,18 +130,16 @@ use bevy::{
 use std::cell::{RefCell, RefMut};
 
 /// Adds all Egui resources and render graph nodes.
-#[derive(Default)]
-pub struct EguiPlugin {
-    /// Controls if egui must be run manually
-    ///
-    /// using `egui::context::Context` object `run` or `begin_pass` and `end_pass` function calls.
-    pub manual_run: bool,
-}
+pub struct EguiPlugin;
 
-/// A resource for storing global UI settings.
-#[derive(Clone, Debug, Resource, Reflect)]
-#[cfg_attr(feature = "render", derive(ExtractResource))]
+/// A component for storing Egui context settings.
+#[derive(Clone, Debug, Component, Reflect)]
+#[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct EguiSettings {
+    /// Controls if Egui is run manually.
+    ///
+    /// If set to `true`, a user is expected to call [`egui::Context::run`] or [`egui::Context::begin_pass`] and [`egui::Context::end_pass`] manually.
+    pub run_manually: bool,
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
     /// This setting can be used to force the UI to render in physical pixels regardless of DPI as follows:
@@ -149,14 +147,14 @@ pub struct EguiSettings {
     /// use bevy::{prelude::*, window::PrimaryWindow};
     /// use bevy_egui::EguiSettings;
     ///
-    /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Query<&Window, With<PrimaryWindow>>) {
-    ///     if let Ok(window) = windows.get_single() {
+    /// fn update_ui_scale_factor(mut windows: Query<(&mut EguiSettings, &Window), With<PrimaryWindow>>) {
+    ///     if let Ok((mut egui_settings, window)) = windows.get_single_mut() {
     ///         egui_settings.scale_factor = 1.0 / window.scale_factor();
     ///     }
     /// }
     /// ```
     pub scale_factor: f32,
-    /// Will be used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
+    /// Is used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
     pub default_open_url_target: Option<String>,
@@ -176,6 +174,7 @@ impl PartialEq for EguiSettings {
 impl Default for EguiSettings {
     fn default() -> Self {
         Self {
+            run_manually: false,
             scale_factor: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
@@ -661,7 +660,6 @@ impl Plugin for EguiPlugin {
         app.register_type::<EguiSettings>();
 
         let world = app.world_mut();
-        world.init_resource::<EguiSettings>();
         #[cfg(feature = "render")]
         world.init_resource::<EguiManagedTextures>();
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
@@ -679,9 +677,9 @@ impl Plugin for EguiPlugin {
         #[cfg(feature = "render")]
         app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
         #[cfg(feature = "render")]
-        app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
-        #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
+        #[cfg(feature = "render")]
+        app.add_plugins(ExtractComponentPlugin::<EguiSettings>::default());
         #[cfg(feature = "render")]
         app.add_plugins(ExtractComponentPlugin::<RenderTargetSize>::default());
         #[cfg(feature = "render")]
@@ -706,6 +704,7 @@ impl Plugin for EguiPlugin {
                 .chain()
                 .in_set(EguiStartupSet::InitContexts),
         );
+
         app.add_systems(
             PreUpdate,
             (
@@ -724,21 +723,19 @@ impl Plugin for EguiPlugin {
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
+        app.add_systems(
+            PreUpdate,
+            begin_pass_system
+                .in_set(EguiSet::BeginFrame)
+                .after(EguiSet::ProcessInput),
+        );
 
-        if !self.manual_run {
-            app.add_systems(
-                PreUpdate,
-                begin_pass_system
-                    .in_set(EguiSet::BeginFrame)
-                    .after(EguiSet::ProcessInput),
-            );
-            app.add_systems(PostUpdate, end_pass_system.before(EguiSet::ProcessOutput));
-        }
-
+        app.add_systems(PostUpdate, end_pass_system.before(EguiSet::ProcessOutput));
         app.add_systems(
             PostUpdate,
             process_output_system.in_set(EguiSet::ProcessOutput),
         );
+
         #[cfg(feature = "render")]
         app.add_systems(
             PostUpdate,
@@ -800,8 +797,10 @@ impl Plugin for EguiPlugin {
 pub struct EguiContextQuery {
     /// Window entity.
     pub render_target: Entity,
-    /// Egui context associated with the window.
+    /// Egui context associated with the render target.
     pub ctx: &'static mut EguiContext,
+    /// Settings associated with the context.
+    pub egui_settings: &'static mut EguiSettings,
     /// Encapsulates [`egui::RawInput`].
     pub egui_input: &'static mut EguiInput,
     /// Encapsulates [`egui::FullOutput`].
@@ -841,6 +840,7 @@ pub fn setup_new_windows_system(
     for window in new_windows.iter() {
         commands.entity(window).insert((
             EguiContext::default(),
+            EguiSettings::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiFullOutput::default(),
@@ -864,6 +864,7 @@ pub fn setup_render_to_texture_handles_system(
     for render_to_texture_target in new_render_to_texture_targets.iter() {
         commands.entity(render_to_texture_target).insert((
             EguiContext::default(),
+            EguiSettings::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
             EguiFullOutput::default(),
@@ -997,7 +998,7 @@ mod tests {
                     .build()
                     .disable::<WinitPlugin>(),
             )
-            .add_plugins(EguiPlugin::default())
+            .add_plugins(EguiPlugin)
             .update();
     }
 }
