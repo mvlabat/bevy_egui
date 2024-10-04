@@ -22,7 +22,7 @@ use bevy::{
     log::{self, error},
     prelude::{Entity, EventReader, NonSend, Query, Resource, Time},
     time::Real,
-    window::{CursorMoved, RequestRedraw},
+    window::{CursorMoved, Ime, RequestRedraw},
     winit::{EventLoopProxy, WakeUp},
 };
 use std::{marker::PhantomData, time::Duration};
@@ -37,9 +37,10 @@ pub struct InputEvents<'w, 's> {
     pub ev_keyboard_input: EventReader<'w, 's, KeyboardInput>,
     pub ev_touch: EventReader<'w, 's, TouchInput>,
     pub ev_focus: EventReader<'w, 's, KeyboardFocusLost>,
+    pub ev_ime_input: EventReader<'w, 's, Ime>,
 }
 
-impl<'w, 's> InputEvents<'w, 's> {
+impl InputEvents<'_, '_> {
     /// Consumes all the events.
     pub fn clear(&mut self) {
         self.ev_cursor.clear();
@@ -48,6 +49,7 @@ impl<'w, 's> InputEvents<'w, 's> {
         self.ev_keyboard_input.clear();
         self.ev_touch.clear();
         self.ev_focus.clear();
+        self.ev_ime_input.clear();
     }
 }
 
@@ -84,7 +86,7 @@ pub struct ContextSystemParams<'w, 's> {
     _marker: PhantomData<&'s ()>,
 }
 
-impl<'w, 's> ContextSystemParams<'w, 's> {
+impl ContextSystemParams<'_, '_> {
     fn window_context(&mut self, window: Entity) -> Option<EguiContextQueryItem> {
         match self.contexts.get_mut(window) {
             Ok(context) => Some(context),
@@ -238,6 +240,47 @@ pub fn process_input_system(
                 delta,
                 modifiers,
             });
+    }
+
+    for event in input_events.ev_ime_input.read() {
+        let window = match &event {
+            Ime::Preedit { window, .. }
+            | Ime::Commit { window, .. }
+            | Ime::Disabled { window }
+            | Ime::Enabled { window } => *window,
+        };
+
+        let Some(mut window_context) = context_params.window_context(window) else {
+            continue;
+        };
+
+        // Aligned with the egui-winit implementation: https://github.com/emilk/egui/blob/0f2b427ff4c0a8c68f6622ec7d0afb7ba7e71bba/crates/egui-winit/src/lib.rs#L348
+        match event {
+            Ime::Enabled { window: _ } => {
+                window_context.ime_event_enable();
+            }
+            Ime::Preedit {
+                value,
+                window: _,
+                cursor: _,
+            } => {
+                window_context.ime_event_enable();
+                window_context
+                    .egui_input
+                    .events
+                    .push(egui::Event::Ime(egui::ImeEvent::Preedit(value.clone())));
+            }
+            Ime::Commit { value, window: _ } => {
+                window_context
+                    .egui_input
+                    .events
+                    .push(egui::Event::Ime(egui::ImeEvent::Commit(value.clone())));
+                window_context.ime_event_disable();
+            }
+            Ime::Disabled { window: _ } => {
+                window_context.ime_event_disable();
+            }
+        }
     }
 
     for event in keyboard_input_events {
