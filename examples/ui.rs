@@ -38,6 +38,7 @@ fn main() {
                 })
                 .set(WindowPlugin {
                     primary_window: Some(Window {
+                        // You may want this set to `true` if you need virtual keyboard work in mobile browsers.
                         prevent_default_event_handling: false,
                         ..default()
                     }),
@@ -85,13 +86,12 @@ fn configure_ui_state_system(mut ui_state: ResMut<UiState>) {
 fn update_ui_scale_factor_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
-    mut egui_settings: ResMut<EguiSettings>,
-    windows: Query<&Window, With<PrimaryWindow>>,
+    mut contexts: Query<(&mut EguiSettings, &Window)>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
         *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
 
-        if let Ok(window) = windows.get_single() {
+        if let Ok((mut egui_settings, window)) = contexts.get_single_mut() {
             let scale_factor = if toggle_scale_factor.unwrap() {
                 1.0
             } else {

@@ -24,6 +24,7 @@ An example WASM project is live at [mvlabat.github.io/bevy_egui_web_showcase](ht
 - Opening URLs
 - Multiple windows support (see [./examples/two_windows.rs](https://github.com/mvlabat/bevy_egui/blob/v0.29.0/examples/two_windows.rs))
 - Paint callback support (see [./examples/paint_callback.rs](https://github.com/mvlabat/bevy_egui/blob/v0.29.0/examples/paint_callback.rs))
+- Mobile web virtual keyboard (still rough support and only works without prevent_default_event_handling set to false on the WindowPlugin primary_window)
 
 `bevy_egui` can be compiled with using only `bevy`, `egui` and `bytemuck` as dependencies: `manage_clipboard` and `open_url` features,
 that require additional crates, can be disabled.
@@ -45,7 +46,7 @@ Here's a minimal usage example:
 # Cargo.toml
 [dependencies]
 bevy = "0.14"
-bevy_egui = "0.29"
+bevy_egui = "0.30"
 ```
 
 ```rust
@@ -57,7 +58,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin)
         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
-        // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
+        // or after the `EguiSet::BeginPass` system (which belongs to the `CoreSet::PreUpdate` set).
         .add_systems(Update, ui_example_system)
         .run();
 }
@@ -86,7 +87,7 @@ cargo run --example ui
 
 | bevy | bevy_egui |
 |------|-----------|
-| 0.14 | 0.28-0.29 |
+| 0.14 | 0.28-0.30 |
 | 0.13 | 0.25-0.27 |
 | 0.12 | 0.23-0.24 |
 | 0.11 | 0.21-0.22 |

@@ -28,7 +28,7 @@
 //!         .add_plugins(DefaultPlugins)
 //!         .add_plugins(EguiPlugin)
 //!         // Systems that create Egui widgets should be run during the `CoreSet::Update` set,
-//!         // or after the `EguiSet::BeginFrame` system (which belongs to the `CoreSet::PreUpdate` set).
+//!         // or after the `EguiSet::BeginPass` system (which belongs to the `CoreSet::PreUpdate` set).
 //!         .add_systems(Update, ui_example_system)
 //!         .run();
 //! }
@@ -68,7 +68,10 @@ pub mod egui_render_to_texture_node;
 pub mod render_systems;
 /// Plugin systems.
 pub mod systems;
-/// Clipboard management for web.
+/// Mobile web keyboard hacky input support
+#[cfg(target_arch = "wasm32")]
+mod text_agent;
+/// Clipboard management for web
 #[cfg(all(
     feature = "manage_clipboard",
     target_arch = "wasm32",
@@ -117,8 +120,8 @@ use bevy::{
     },
     input::InputSystem,
     prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, Resource,
-        SystemSet, With, Without,
+        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, SystemSet,
+        With, Without,
     },
     reflect::Reflect,
     window::{PrimaryWindow, Window},
@@ -130,13 +133,26 @@ use bevy::{
 ))]
 use std::cell::{RefCell, RefMut};
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+use crate::text_agent::{
+    install_text_agent, is_mobile_safari, process_safari_virtual_keyboard, propagate_text,
+    SafariVirtualKeyboardHack, TextAgentChannel, VirtualTouchInfo,
+};
+
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin;
 
-/// A resource for storing global UI settings.
-#[derive(Clone, Debug, Resource, Reflect)]
-#[cfg_attr(feature = "render", derive(ExtractResource))]
+/// A component for storing Egui context settings.
+#[derive(Clone, Debug, Component, Reflect)]
+#[cfg_attr(feature = "render", derive(ExtractComponent))]
 pub struct EguiSettings {
+    /// Controls if Egui is run manually.
+    ///
+    /// If set to `true`, a user is expected to call [`egui::Context::run`] or [`egui::Context::begin_pass`] and [`egui::Context::end_pass`] manually.
+    pub run_manually: bool,
     /// Global scale factor for Egui widgets (`1.0` by default).
     ///
     /// This setting can be used to force the UI to render in physical pixels regardless of DPI as follows:
@@ -144,14 +160,14 @@ pub struct EguiSettings {
     /// use bevy::{prelude::*, window::PrimaryWindow};
     /// use bevy_egui::EguiSettings;
     ///
-    /// fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Query<&Window, With<PrimaryWindow>>) {
-    ///     if let Ok(window) = windows.get_single() {
+    /// fn update_ui_scale_factor(mut windows: Query<(&mut EguiSettings, &Window), With<PrimaryWindow>>) {
+    ///     if let Ok((mut egui_settings, window)) = windows.get_single_mut() {
     ///         egui_settings.scale_factor = 1.0 / window.scale_factor();
     ///     }
     /// }
     /// ```
     pub scale_factor: f32,
-    /// Will be used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
+    /// Is used as a default value for hyperlink [target](https://www.w3schools.com/tags/att_a_target.asp) hints.
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
     pub default_open_url_target: Option<String>,
@@ -171,6 +187,7 @@ impl PartialEq for EguiSettings {
 impl Default for EguiSettings {
     fn default() -> Self {
         Self {
+            run_manually: false,
             scale_factor: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
@@ -184,11 +201,15 @@ impl Default for EguiSettings {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
 pub struct EguiInput(pub egui::RawInput);
 
+/// Is used to store Egui context output.
+#[derive(Component, Clone, Default, Deref, DerefMut)]
+pub struct EguiFullOutput(pub Option<egui::FullOutput>);
+
 /// A resource for accessing clipboard.
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-#[derive(Default, Resource)]
+#[derive(Default, bevy::ecs::system::Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
@@ -315,6 +336,7 @@ pub struct EguiContext {
     ctx: egui::Context,
     mouse_position: egui::Pos2,
     pointer_touch_id: Option<u64>,
+    has_sent_ime_enabled: bool,
 }
 
 impl EguiContext {
@@ -355,7 +377,7 @@ type EguiContextsFilter = With<Window>;
 type EguiContextsFilter = Or<(With<Window>, With<EguiRenderToTextureHandle>)>;
 
 #[derive(SystemParam)]
-/// A helper SystemParam that provides a way to get `[EguiContext]` with less boilerplate and
+/// A helper SystemParam that provides a way to get [`EguiContext`] with less boilerplate and
 /// combines a proxy interface to the [`EguiUserTextures`] resource.
 pub struct EguiContexts<'w, 's> {
     q: Query<
@@ -372,7 +394,7 @@ pub struct EguiContexts<'w, 's> {
     user_textures: ResMut<'w, EguiUserTextures>,
 }
 
-impl<'w, 's> EguiContexts<'w, 's> {
+impl EguiContexts<'_, '_> {
     /// Egui context of the primary window.
     #[must_use]
     pub fn ctx_mut(&mut self) -> &mut egui::Context {
@@ -541,7 +563,7 @@ impl<'w, 's> EguiContexts<'w, 's> {
 pub struct EguiRenderToTextureHandle(pub Handle<Image>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, Resource, Default, ExtractResource)]
+#[derive(Clone, bevy::ecs::system::Resource, Default, ExtractResource)]
 #[cfg(feature = "render")]
 pub struct EguiUserTextures {
     textures: HashMap<Handle<Image>, u64>,
@@ -639,10 +661,10 @@ pub enum EguiSet {
     ///
     /// To modify the input, you can hook your system like this:
     ///
-    /// `system.after(EguiSet::ProcessInput).before(EguiSet::BeginFrame)`.
+    /// `system.after(EguiSet::ProcessInput).before(EguiSet::BeginPass)`.
     ProcessInput,
-    /// Begins the `egui` frame.
-    BeginFrame,
+    /// Begins the `egui` pass.
+    BeginPass,
     /// Processes the [`EguiOutput`] resource.
     ProcessOutput,
 }
@@ -651,41 +673,34 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<EguiSettings>();
 
-        let world = app.world_mut();
-        world.init_resource::<EguiSettings>();
         #[cfg(feature = "render")]
-        world.init_resource::<EguiManagedTextures>();
+        {
+            app.init_resource::<EguiManagedTextures>();
+            app.init_resource::<EguiUserTextures>();
+            app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
+            app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiSettings>::default());
+            app.add_plugins(ExtractComponentPlugin::<RenderTargetSize>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
+            app.add_plugins(ExtractComponentPlugin::<EguiRenderToTextureHandle>::default());
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        app.init_non_send_resource::<SubscribedEvents>();
+
         #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-        world.init_resource::<EguiClipboard>();
-        #[cfg(all(
-            feature = "manage_clipboard",
-            target_arch = "wasm32",
-            web_sys_unstable_apis
-        ))]
-        world.init_non_send_resource::<web_clipboard::SubscribedEvents>();
-        #[cfg(feature = "render")]
-        world.init_resource::<EguiUserTextures>();
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractResourcePlugin::<ExtractedEguiManagedTextures>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractResourcePlugin::<EguiSettings>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiContext>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<RenderTargetSize>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiRenderOutput>::default());
-        #[cfg(feature = "render")]
-        app.add_plugins(ExtractComponentPlugin::<EguiRenderToTextureHandle>::default());
+        app.init_resource::<EguiClipboard>();
 
         #[cfg(all(
             feature = "manage_clipboard",
             target_arch = "wasm32",
             web_sys_unstable_apis
         ))]
-        app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
+        {
+            app.add_systems(PreStartup, web_clipboard::startup_setup_web_events);
+        }
+
         app.add_systems(
             PreStartup,
             (
@@ -697,6 +712,7 @@ impl Plugin for EguiPlugin {
                 .chain()
                 .in_set(EguiStartupSet::InitContexts),
         );
+
         app.add_systems(
             PreUpdate,
             (
@@ -715,35 +731,89 @@ impl Plugin for EguiPlugin {
                 .after(InputSystem)
                 .after(EguiSet::InitContexts),
         );
+        #[cfg(target_arch = "wasm32")]
+        {
+            use std::sync::{LazyLock, Mutex};
+
+            let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
+
+            if !maybe_window_plugin.is_empty()
+                && maybe_window_plugin[0].primary_window.is_some()
+                && maybe_window_plugin[0]
+                    .primary_window
+                    .as_ref()
+                    .unwrap()
+                    .prevent_default_event_handling
+            {
+                app.init_resource::<TextAgentChannel>();
+
+                let (sender, receiver) = crossbeam_channel::unbounded();
+                static TOUCH_INFO: LazyLock<Mutex<VirtualTouchInfo>> =
+                    LazyLock::new(|| Mutex::new(VirtualTouchInfo::default()));
+
+                app.insert_resource(SafariVirtualKeyboardHack {
+                    sender,
+                    receiver,
+                    touch_info: &TOUCH_INFO,
+                });
+
+                app.add_systems(
+                    PreStartup,
+                    install_text_agent
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+
+                app.add_systems(
+                    PreUpdate,
+                    propagate_text
+                        .in_set(EguiSet::ProcessInput)
+                        .after(process_input_system)
+                        .after(InputSystem)
+                        .after(EguiSet::InitContexts),
+                );
+
+                if is_mobile_safari() {
+                    app.add_systems(
+                        PostUpdate,
+                        process_safari_virtual_keyboard.after(process_output_system),
+                    );
+                }
+            }
+        }
         app.add_systems(
             PreUpdate,
-            begin_frame_system
-                .in_set(EguiSet::BeginFrame)
+            begin_pass_system
+                .in_set(EguiSet::BeginPass)
                 .after(EguiSet::ProcessInput),
         );
+
+        app.add_systems(PostUpdate, end_pass_system.before(EguiSet::ProcessOutput));
         app.add_systems(
             PostUpdate,
             process_output_system.in_set(EguiSet::ProcessOutput),
         );
+
         #[cfg(feature = "render")]
         app.add_systems(
             PostUpdate,
             update_egui_textures_system.after(EguiSet::ProcessOutput),
-        );
-        #[cfg(feature = "render")]
-        app.add_systems(Last, free_egui_textures_system)
-            .add_systems(
-                Render,
-                render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
-            )
-            .add_systems(
-                Render,
-                render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
-            )
-            .add_systems(
-                Render,
-                render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
-            );
+        )
+        .add_systems(
+            Render,
+            render_systems::prepare_egui_transforms_system.in_set(RenderSet::Prepare),
+        )
+        .add_systems(
+            Render,
+            render_systems::queue_bind_groups_system.in_set(RenderSet::Queue),
+        )
+        .add_systems(
+            Render,
+            render_systems::queue_pipelines_system.in_set(RenderSet::Queue),
+        )
+        .add_systems(Last, free_egui_textures_system);
 
         #[cfg(feature = "render")]
         load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
@@ -786,10 +856,14 @@ impl Plugin for EguiPlugin {
 pub struct EguiContextQuery {
     /// Window entity.
     pub render_target: Entity,
-    /// Egui context associated with the window.
+    /// Egui context associated with the render target.
     pub ctx: &'static mut EguiContext,
+    /// Settings associated with the context.
+    pub egui_settings: &'static mut EguiSettings,
     /// Encapsulates [`egui::RawInput`].
     pub egui_input: &'static mut EguiInput,
+    /// Encapsulates [`egui::FullOutput`].
+    pub egui_full_output: &'static mut EguiFullOutput,
     /// Egui shapes and textures delta.
     pub render_output: &'static mut EguiRenderOutput,
     /// Encapsulates [`egui::PlatformOutput`].
@@ -805,9 +879,29 @@ pub struct EguiContextQuery {
     pub render_to_texture: Option<&'static mut EguiRenderToTextureHandle>,
 }
 
+impl EguiContextQueryItem<'_> {
+    fn ime_event_enable(&mut self) {
+        if !self.ctx.has_sent_ime_enabled {
+            self.egui_input
+                .events
+                .push(egui::Event::Ime(egui::ImeEvent::Enabled));
+            self.ctx.has_sent_ime_enabled = true;
+        }
+    }
+
+    fn ime_event_disable(&mut self) {
+        if self.ctx.has_sent_ime_enabled {
+            self.egui_input
+                .events
+                .push(egui::Event::Ime(egui::ImeEvent::Disabled));
+            self.ctx.has_sent_ime_enabled = false;
+        }
+    }
+}
+
 /// Contains textures allocated and painted by Egui.
 #[cfg(feature = "render")]
-#[derive(Resource, Deref, DerefMut, Default)]
+#[derive(bevy::ecs::system::Resource, Deref, DerefMut, Default)]
 pub struct EguiManagedTextures(pub HashMap<(Entity, u64), EguiManagedTexture>);
 
 /// Represents a texture allocated and painted by Egui.
@@ -827,8 +921,10 @@ pub fn setup_new_windows_system(
     for window in new_windows.iter() {
         commands.entity(window).insert((
             EguiContext::default(),
+            EguiSettings::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
+            EguiFullOutput::default(),
             EguiOutput::default(),
             RenderTargetSize::default(),
         ));
@@ -849,8 +945,10 @@ pub fn setup_render_to_texture_handles_system(
     for render_to_texture_target in new_render_to_texture_targets.iter() {
         commands.entity(render_to_texture_target).insert((
             EguiContext::default(),
+            EguiSettings::default(),
             EguiRenderOutput::default(),
             EguiInput::default(),
+            EguiFullOutput::default(),
             EguiOutput::default(),
             RenderTargetSize::default(),
         ));
@@ -945,6 +1043,63 @@ fn free_egui_textures_system(
     for image_event in image_events.read() {
         if let AssetEvent::Removed { id } = image_event {
             egui_user_textures.remove_image(&Handle::<Image>::Weak(*id));
+        }
+    }
+}
+
+/// Helper function for outputting a String from a JsValue
+#[cfg(target_arch = "wasm32")]
+pub fn string_from_js_value(value: &JsValue) -> String {
+    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
+}
+
+#[cfg(target_arch = "wasm32")]
+struct EventClosure<T> {
+    target: web_sys::EventTarget,
+    event_name: String,
+    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
+}
+
+/// Stores event listeners.
+#[cfg(target_arch = "wasm32")]
+#[derive(Default)]
+pub struct SubscribedEvents {
+    #[cfg(all(feature = "manage_clipboard", web_sys_unstable_apis))]
+    clipboard_event_closures: Vec<EventClosure<web_sys::ClipboardEvent>>,
+    composition_event_closures: Vec<EventClosure<web_sys::CompositionEvent>>,
+    keyboard_event_closures: Vec<EventClosure<web_sys::KeyboardEvent>>,
+    input_event_closures: Vec<EventClosure<web_sys::InputEvent>>,
+    touch_event_closures: Vec<EventClosure<web_sys::TouchEvent>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl SubscribedEvents {
+    /// Use this method to unsubscribe from all stored events, this can be useful
+    /// for gracefully destroying a Bevy instance in a page.
+    pub fn unsubscribe_from_all_events(&mut self) {
+        #[cfg(all(feature = "manage_clipboard", web_sys_unstable_apis))]
+        Self::unsubscribe_from_events(&mut self.clipboard_event_closures);
+        Self::unsubscribe_from_events(&mut self.composition_event_closures);
+        Self::unsubscribe_from_events(&mut self.keyboard_event_closures);
+        Self::unsubscribe_from_events(&mut self.input_event_closures);
+        Self::unsubscribe_from_events(&mut self.touch_event_closures);
+    }
+
+    fn unsubscribe_from_events<T>(events: &mut Vec<EventClosure<T>>) {
+        let events_to_unsubscribe = std::mem::take(events);
+
+        if !events_to_unsubscribe.is_empty() {
+            for event in events_to_unsubscribe {
+                if let Err(err) = event.target.remove_event_listener_with_callback(
+                    event.event_name.as_str(),
+                    event.closure.as_ref().unchecked_ref(),
+                ) {
+                    log::error!(
+                        "Failed to unsubscribe from event: {}",
+                        string_from_js_value(&err)
+                    );
+                }
+            }
         }
     }
 }

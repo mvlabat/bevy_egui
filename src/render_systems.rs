@@ -166,18 +166,15 @@ impl EguiTransform {
 /// Prepares Egui transforms.
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
-    render_target_sizes: Query<(&MainEntity, &RenderTargetSize)>,
-    egui_settings: Res<EguiSettings>,
-
+    render_targets: Query<(&MainEntity, &EguiSettings, &RenderTargetSize)>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
-
     egui_pipeline: Res<EguiPipeline>,
 ) {
     egui_transforms.buffer.clear();
     egui_transforms.offsets.clear();
 
-    for (window_main, size) in render_target_sizes.iter() {
+    for (window_main, egui_settings, size) in render_targets.iter() {
         let offset = egui_transforms
             .buffer
             .push(&EguiTransform::from_render_target_size(
