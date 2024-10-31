@@ -45,7 +45,7 @@ name = "render_egui_to_texture"
 required-features = ["render"]
 
 [dependencies]
-bevy = { version = "0.15.0-dev", default-features = false, features = [
+bevy = { version = "0.15.0-rc.2", default-features = false, features = [
     "bevy_asset",
     "bevy_winit",
 ] }
@@ -59,15 +59,18 @@ arboard = { version = "3.2.0", optional = true }
 thread_local = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
-version-sync = "0.9.4"
-bevy = { version = "0.15.0-dev", default-features = false, features = [
+# 0.15.0-rc.1
+# 0.15.0-dev
+bevy = { version = "0.15.0-rc.2", default-features = false, features = [
     "x11",
     "png",
     "bevy_pbr",
     "bevy_core_pipeline",
     "tonemapping_luts",
     "webgl2",
+    "custom_cursor",
 ] }
+version-sync = "0.9.4"
 egui = { version = "0.28", default-features = false, features = ["bytemuck"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -92,4 +95,19 @@ crossbeam-channel = "0.5.8"
 members = ["run-wasm"]
 
 [patch.crates-io]
-bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d15" }
+# doesnt work:
+# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "a2b53d46e73b98f7f5d074ed2bb8ddfedfcc5d4d" }
+# doesnt work:
+#bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "cab00766d99c2bf0519464a60e8a91e05c83d0fd" }
+# doesnt work:
+# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "1df8238e8d8fe968d682468301ad4140c95b7604" }
+# doesnt work, breakage appears here!
+# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "56f8e526dde49b4e4ad62efb7ad27bfe0bd6f617" }
+# works:
+# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "01dce4742f77a572a1ef21ce8f64ce3b6d2328a8" }
+# works:
+# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "7ee5143d45f9246f9cffc52e916ae12d85a71779" }
+# works:
+# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "3139b03e7400313d947dc912e12d7c2d98207653" }
+# works:
+#bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d15" }

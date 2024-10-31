@@ -92,7 +92,7 @@ impl<'w, 's> ContextSystemParams<'w, 's> {
             }
             Err(
                 err @ QueryEntityError::NoSuchEntity(_)
-                | err @ QueryEntityError::QueryDoesNotMatch(_),
+                | err @ QueryEntityError::QueryDoesNotMatch(_, _),
             ) => {
                 log::error!("Failed to get an Egui context for a window ({window:?}): {err:?}",);
                 None
@@ -427,7 +427,7 @@ pub fn process_input_system(
 
     for mut context in context_params.contexts.iter_mut() {
         context.egui_input.modifiers = modifiers;
-        context.egui_input.time = Some(time.elapsed_seconds_f64());
+        context.egui_input.time = Some(time.elapsed_secs_f64());
     }
 
     // In some cases, we may skip certain events. For example, we ignore `ReceivedCharacter` events
@@ -539,7 +539,7 @@ pub fn process_output_system(
 
         if let Some(mut cursor) = context.cursor {
             let mut set_icon = || {
-                *cursor = bevy::render::view::cursor::CursorIcon::System(
+                *cursor = bevy::winit::cursor::CursorIcon::System(
                     egui_to_winit_cursor_icon(platform_output.cursor_icon)
                         .unwrap_or(bevy::window::SystemCursorIcon::Default),
                 );

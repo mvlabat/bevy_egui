@@ -16,6 +16,7 @@ use bevy::{
             DynamicUniformBuffer, PipelineCache, ShaderType, SpecializedRenderPipelines,
         },
         renderer::{RenderDevice, RenderQueue},
+        sync_world::{MainEntity, RenderEntity},
         texture::GpuImage,
         view::ExtractedWindows,
         Extract,
@@ -85,16 +86,16 @@ impl ExtractedEguiTextures<'_> {
 
 /// Sets up the pipeline for newly created windows.
 pub fn setup_new_windows_render_system(
-    windows: Extract<Query<Entity, Added<Window>>>,
+    windows: Extract<Query<(Entity, &RenderEntity), Added<Window>>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    for window in windows.iter() {
+    for (window, render_window) in windows.iter() {
         let egui_pass = EguiPass {
             entity_index: window.index(),
             entity_generation: window.generation(),
         };
-
-        let new_node = EguiNode::new(window);
+        dbg!("setup_new_windows_render_system");
+        let new_node = EguiNode::new(MainEntity::from(window), *render_window);
 
         render_graph.add_node(egui_pass.clone(), new_node);
 
@@ -112,7 +113,12 @@ pub fn setup_new_rtt_render_system(
             entity_generation: render_to_texture_target.generation(),
         };
 
-        let new_node = EguiRenderToTextureNode::new(render_to_texture_target);
+        let new_node = EguiRenderToTextureNode::new(
+            // FIXME: this RenderEntity is incorrect!
+            RenderEntity::from(render_to_texture_target),
+            //
+            MainEntity::from(render_to_texture_target),
+        );
 
         render_graph.add_node(egui_rtt_pass.clone(), new_node);
 
@@ -125,8 +131,8 @@ pub fn setup_new_rtt_render_system(
 pub struct EguiTransforms {
     /// Uniform buffer.
     pub buffer: DynamicUniformBuffer<EguiTransform>,
-    /// Offsets for each window.
-    pub offsets: HashMap<Entity, u32>,
+    /// The Entity is from the main world.
+    pub offsets: HashMap<MainEntity, u32>,
     /// Bind group.
     pub bind_group: Option<(BufferId, BindGroup)>,
 }
@@ -160,7 +166,7 @@ impl EguiTransform {
 /// Prepares Egui transforms.
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
-    render_target_sizes: Query<(Entity, &RenderTargetSize)>,
+    render_target_sizes: Query<(&MainEntity, &RenderTargetSize)>,
     egui_settings: Res<EguiSettings>,
 
     render_device: Res<RenderDevice>,
@@ -171,14 +177,14 @@ pub fn prepare_egui_transforms_system(
     egui_transforms.buffer.clear();
     egui_transforms.offsets.clear();
 
-    for (window, size) in render_target_sizes.iter() {
+    for (window_main, size) in render_target_sizes.iter() {
         let offset = egui_transforms
             .buffer
             .push(&EguiTransform::from_render_target_size(
                 *size,
                 egui_settings.scale_factor,
             ));
-        egui_transforms.offsets.insert(window, offset);
+        egui_transforms.offsets.insert(*window_main, offset);
     }
 
     egui_transforms
@@ -242,7 +248,7 @@ pub fn queue_bind_groups_system(
 
 /// Cached Pipeline IDs for the specialized instances of `EguiPipeline`.
 #[derive(Resource)]
-pub struct EguiPipelines(pub HashMap<Entity, CachedRenderPipelineId>);
+pub struct EguiPipelines(pub HashMap<MainEntity, CachedRenderPipelineId>);
 
 /// Queue [`EguiPipeline`] instances specialized on each window's swap chain texture format.
 pub fn queue_pipelines_system(
@@ -251,26 +257,35 @@ pub fn queue_pipelines_system(
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
     egui_pipeline: Res<EguiPipeline>,
     windows: Res<ExtractedWindows>,
-    render_to_texture: Query<(Entity, &EguiRenderToTextureHandle)>,
+    render_to_texture: Query<(&MainEntity, &EguiRenderToTextureHandle)>,
     images: Res<RenderAssets<GpuImage>>,
 ) {
-    let mut pipelines: HashMap<Entity, CachedRenderPipelineId> = windows
+    dbg!("queue_pipelines_system");
+    let mut pipelines: HashMap<MainEntity, CachedRenderPipelineId> = windows
         .iter()
         .filter_map(|(window_id, window)| {
+            dbg!("pipeline");
+            //let window_id = render_entity.get(*window_id).ok()?.id();
+            dbg!("pipeline contd");
             let key = EguiPipelineKey::from_extracted_window(window)?;
             let pipeline_id =
                 specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
-            Some((*window_id, pipeline_id))
+            Some((dbg!(MainEntity::from(*window_id)), pipeline_id))
         })
         .collect();
 
-    pipelines.extend(render_to_texture.iter().filter_map(|(entity_id, handle)| {
-        let img = images.get(&handle.0)?;
-        let key = EguiPipelineKey::from_gpu_image(img);
-        let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
+    pipelines.extend(
+        render_to_texture
+            .iter()
+            .filter_map(|(main_entity, handle)| {
+                let img = images.get(&handle.0)?;
+                let key = EguiPipelineKey::from_gpu_image(img);
+                let pipeline_id =
+                    specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
-        Some((entity_id, pipeline_id))
-    }));
+                Some((dbg!(*main_entity), pipeline_id))
+            }),
+    );
 
     commands.insert_resource(EguiPipelines(pipelines));
 }

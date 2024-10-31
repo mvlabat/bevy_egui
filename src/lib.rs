@@ -121,8 +121,8 @@ use bevy::{
         SystemSet, With, Without,
     },
     reflect::Reflect,
-    render::view::cursor::CursorIcon,
     window::{PrimaryWindow, Window},
+    winit::cursor::CursorIcon,
 };
 #[cfg(all(
     feature = "manage_clipboard",

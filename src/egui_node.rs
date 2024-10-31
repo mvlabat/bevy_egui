@@ -22,6 +22,7 @@ use bevy::{
             VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
+        sync_world::{MainEntity, RenderEntity},
         texture::{
             GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler,
             ImageSamplerDescriptor,
@@ -192,7 +193,8 @@ pub(crate) struct EguiDraw {
 
 /// Egui render node.
 pub struct EguiNode {
-    window_entity: Entity,
+    window_entity_main: MainEntity,
+    window_entity_render: RenderEntity,
     vertex_data: Vec<u8>,
     vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
@@ -206,9 +208,10 @@ pub struct EguiNode {
 
 impl EguiNode {
     /// Constructs Egui render node.
-    pub fn new(window_entity: Entity) -> Self {
+    pub fn new(window_entity_main: MainEntity, window_entity_render: RenderEntity) -> Self {
         EguiNode {
-            window_entity,
+            window_entity_main,
+            window_entity_render,
             draw_commands: Vec::new(),
             vertex_data: Vec::new(),
             vertex_buffer_capacity: 0,
@@ -226,7 +229,7 @@ impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
         let Some(key) = world
             .get_resource::<ExtractedWindows>()
-            .and_then(|windows| windows.windows.get(&self.window_entity))
+            .and_then(|windows| windows.windows.get(&self.window_entity_main.id()))
             .and_then(EguiPipelineKey::from_extracted_window)
         else {
             return;
@@ -235,7 +238,7 @@ impl Node for EguiNode {
         let mut render_target_size = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
 
         let Ok((window_size, mut render_output)) =
-            render_target_size.get_mut(world, self.window_entity)
+            render_target_size.get_mut(world, self.window_entity_render.id())
         else {
             return;
         };
@@ -325,7 +328,9 @@ impl Node for EguiNode {
             index_offset += mesh.vertices.len() as u32;
 
             let texture_handle = match mesh.texture_id {
-                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.window_entity, id),
+                egui::TextureId::Managed(id) => {
+                    EguiTextureId::Managed(self.window_entity_render.id(), id)
+                }
                 egui::TextureId::User(id) => EguiTextureId::User(id),
             };
 
@@ -378,7 +383,7 @@ impl Node for EguiNode {
             command
                 .callback
                 .cb()
-                .update(info, self.window_entity, key, world);
+                .update(info, self.window_entity_render, key, world);
         }
     }
 
@@ -392,7 +397,7 @@ impl Node for EguiNode {
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_windows = &world.get_resource::<ExtractedWindows>().unwrap().windows;
-        let extracted_window = extracted_windows.get(&self.window_entity);
+        let extracted_window = extracted_windows.get(&self.window_entity_main.id());
         let swap_chain_texture_view =
             match extracted_window.and_then(|v| v.swap_chain_texture_view.as_ref()) {
                 None => return Ok(()),
@@ -446,12 +451,12 @@ impl Node for EguiNode {
             return Ok(());
         };
 
-        let pipeline_id = egui_pipelines.get(&self.window_entity).unwrap();
+        let pipeline_id = egui_pipelines.get(&self.window_entity_main).unwrap();
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
             return Ok(());
         };
 
-        let transform_buffer_offset = egui_transforms.offsets[&self.window_entity];
+        let transform_buffer_offset = egui_transforms.offsets[&self.window_entity_main];
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
 
         let mut requires_reset = true;
@@ -556,7 +561,7 @@ impl Node for EguiNode {
                         command.callback.cb().render(
                             info,
                             &mut render_pass,
-                            self.window_entity,
+                            self.window_entity_render,
                             key,
                             world,
                         );
@@ -666,7 +671,7 @@ pub trait EguiBevyPaintCallbackImpl: Send + Sync {
     fn update(
         &self,
         info: egui::PaintCallbackInfo,
-        window_entity: Entity,
+        window_entity: RenderEntity,
         pipeline_key: EguiPipelineKey,
         world: &mut World,
     );
@@ -679,7 +684,7 @@ pub trait EguiBevyPaintCallbackImpl: Send + Sync {
         &self,
         info: egui::PaintCallbackInfo,
         render_pass: &mut TrackedRenderPass<'pass>,
-        window_entity: Entity,
+        window_entity: RenderEntity,
         pipeline_key: EguiPipelineKey,
         world: &'pass World,
     );

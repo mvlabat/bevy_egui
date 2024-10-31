@@ -18,6 +18,7 @@ use bevy::{
             PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
+        sync_world::{MainEntity, RenderEntity},
         texture::GpuImage,
     },
 };
@@ -34,7 +35,8 @@ pub struct EguiRenderToTexturePass {
 
 /// Egui render to texture node.
 pub struct EguiRenderToTextureNode {
-    render_to_texture_target: Entity,
+    render_to_texture_target_render: RenderEntity,
+    render_to_texture_target_main: MainEntity,
     vertex_data: Vec<u8>,
     vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
@@ -47,9 +49,13 @@ pub struct EguiRenderToTextureNode {
 }
 impl EguiRenderToTextureNode {
     /// Constructs Egui render node.
-    pub fn new(render_to_texture_target: Entity) -> Self {
+    pub fn new(
+        render_to_texture_target_render: RenderEntity,
+        render_to_texture_target_main: MainEntity,
+    ) -> Self {
         EguiRenderToTextureNode {
-            render_to_texture_target,
+            render_to_texture_target_render,
+            render_to_texture_target_main,
             draw_commands: Vec::new(),
             vertex_data: Vec::new(),
             vertex_buffer_capacity: 0,
@@ -66,7 +72,7 @@ impl Node for EguiRenderToTextureNode {
     fn update(&mut self, world: &mut World) {
         let Ok(image_handle) = world
             .query::<&EguiRenderToTextureHandle>()
-            .get(world, self.render_to_texture_target)
+            .get(world, self.render_to_texture_target_render.id())
             .map(|handle| handle.0.clone_weak())
         else {
             return;
@@ -81,7 +87,7 @@ impl Node for EguiRenderToTextureNode {
 
         let mut render_target_sizes = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
         let Ok((render_target_size, mut render_output)) =
-            render_target_sizes.get_mut(world, self.render_to_texture_target)
+            render_target_sizes.get_mut(world, self.render_to_texture_target_render.id())
         else {
             return;
         };
@@ -173,7 +179,7 @@ impl Node for EguiRenderToTextureNode {
 
             let texture_handle = match mesh.texture_id {
                 egui::TextureId::Managed(id) => {
-                    EguiTextureId::Managed(self.render_to_texture_target, id)
+                    EguiTextureId::Managed(self.render_to_texture_target_render.id(), id)
                 }
                 egui::TextureId::User(id) => EguiTextureId::User(id),
             };
@@ -227,7 +233,7 @@ impl Node for EguiRenderToTextureNode {
             command
                 .callback
                 .cb()
-                .update(info, self.render_to_texture_target, key, world);
+                .update(info, self.render_to_texture_target_render, key, world);
         }
     }
 
@@ -241,7 +247,7 @@ impl Node for EguiRenderToTextureNode {
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_render_to_texture: Option<&EguiRenderToTextureHandle> =
-            world.get(self.render_to_texture_target);
+            world.get(self.render_to_texture_target_render.id());
         let Some(render_to_texture_gpu_image) = extracted_render_to_texture else {
             return Ok(());
         };
@@ -286,7 +292,7 @@ impl Node for EguiRenderToTextureNode {
 
         let mut render_pass = TrackedRenderPass::new(device, render_pass);
 
-        let Some(pipeline_id) = egui_pipelines.get(&self.render_to_texture_target) else {
+        let Some(pipeline_id) = egui_pipelines.get(&self.render_to_texture_target_main) else {
             bevy::log::error!("no egui_pipeline");
             return Ok(());
         };
@@ -294,7 +300,7 @@ impl Node for EguiRenderToTextureNode {
             return Ok(());
         };
 
-        let transform_buffer_offset = egui_transforms.offsets[&self.render_to_texture_target];
+        let transform_buffer_offset = egui_transforms.offsets[&self.render_to_texture_target_main];
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
 
         let mut requires_reset = true;
@@ -397,7 +403,7 @@ impl Node for EguiRenderToTextureNode {
                         command.callback.cb().render(
                             info,
                             &mut render_pass,
-                            self.render_to_texture_target,
+                            self.render_to_texture_target_render,
                             key,
                             world,
                         );

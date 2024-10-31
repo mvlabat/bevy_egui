@@ -1,7 +1,8 @@
 use bevy::{
+    log::{Level, LogPlugin},
     prelude::*,
-    render::view::cursor::CursorIcon,
     window::{PrimaryWindow, SystemCursorIcon},
+    winit::cursor::CursorIcon,
 };
 use bevy_egui::{EguiContexts, EguiPlugin, EguiSettings};
 
@@ -28,19 +29,30 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
         .init_resource::<UiState>()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                prevent_default_event_handling: false,
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(LogPlugin {
+                    filter: "warn,ui=info".to_string(),
+                    level: Level::INFO,
+                    ..Default::default()
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        prevent_default_event_handling: false,
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        )
         .add_plugins(EguiPlugin)
         .add_systems(Startup, configure_cursor)
         .add_systems(Startup, configure_visuals_system)
         .add_systems(Startup, configure_ui_state_system)
         .add_systems(Update, update_ui_scale_factor_system)
         .add_systems(Update, ui_example_system)
+        .add_systems(PreUpdate, || {
+            info!("new frame:");
+        })
         .run();
 }
 #[derive(Default, Resource)]
