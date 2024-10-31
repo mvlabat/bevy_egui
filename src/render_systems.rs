@@ -104,19 +104,19 @@ pub fn setup_new_windows_render_system(
 }
 /// Sets up the pipeline for newly created Render to texture entities.
 pub fn setup_new_rtt_render_system(
-    render_to_texture_targets: Extract<Query<Entity, Added<EguiRenderToTextureHandle>>>,
+    render_to_texture_targets: Extract<
+        Query<(Entity, &RenderEntity), Added<EguiRenderToTextureHandle>>,
+    >,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    for render_to_texture_target in render_to_texture_targets.iter() {
+    for (render_to_texture_target, render_entity) in render_to_texture_targets.iter() {
         let egui_rtt_pass = EguiRenderToTexturePass {
             entity_index: render_to_texture_target.index(),
             entity_generation: render_to_texture_target.generation(),
         };
 
         let new_node = EguiRenderToTextureNode::new(
-            // FIXME: this RenderEntity is incorrect!
-            RenderEntity::from(render_to_texture_target),
-            //
+            *render_entity,
             MainEntity::from(render_to_texture_target),
         );
 
