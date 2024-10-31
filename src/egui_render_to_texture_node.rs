@@ -79,9 +79,10 @@ impl Node for EguiRenderToTextureNode {
             return;
         };
 
-        let mut render_target_sizes = world.query::<(&RenderTargetSize, &mut EguiRenderOutput)>();
-        let Ok((render_target_size, mut render_output)) =
-            render_target_sizes.get_mut(world, self.render_to_texture_target)
+        let mut render_target_query =
+            world.query::<(&EguiSettings, &RenderTargetSize, &mut EguiRenderOutput)>();
+        let Ok((egui_settings, render_target_size, mut render_output)) =
+            render_target_query.get_mut(world, self.render_to_texture_target)
         else {
             return;
         };
@@ -89,15 +90,12 @@ impl Node for EguiRenderToTextureNode {
         let render_target_size = *render_target_size;
         let paint_jobs = std::mem::take(&mut render_output.paint_jobs);
 
-        let egui_settings = &world.get_resource::<EguiSettings>().unwrap();
-
-        let render_device = world.get_resource::<RenderDevice>().unwrap();
-
         self.pixels_per_point = render_target_size.scale_factor * egui_settings.scale_factor;
         if render_target_size.physical_width == 0.0 || render_target_size.physical_height == 0.0 {
             return;
         }
 
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
         let mut index_offset = 0;
 
         self.draw_commands.clear();
@@ -231,11 +229,11 @@ impl Node for EguiRenderToTextureNode {
         }
     }
 
-    fn run(
+    fn run<'w>(
         &self,
         _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
+        render_context: &mut RenderContext<'w>,
+        world: &'w World,
     ) -> Result<(), NodeRunError> {
         let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().0;
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
@@ -259,6 +257,28 @@ impl Node for EguiRenderToTextureNode {
 
         render_queue.write_buffer(vertex_buffer, 0, &self.vertex_data);
         render_queue.write_buffer(index_buffer, 0, &self.index_data);
+
+        for draw_command in &self.draw_commands {
+            match &draw_command.primitive {
+                DrawPrimitive::Egui(_command) => {}
+                DrawPrimitive::PaintCallback(command) => {
+                    let info = egui::PaintCallbackInfo {
+                        viewport: command.rect,
+                        clip_rect: draw_command.clip_rect,
+                        pixels_per_point: self.pixels_per_point,
+                        screen_size_px: [gpu_image.size.x, gpu_image.size.y],
+                    };
+
+                    command.callback.cb().prepare_render(
+                        info,
+                        render_context,
+                        self.render_to_texture_target,
+                        key,
+                        world,
+                    );
+                }
+            }
+        }
 
         let bind_groups = &world.get_resource::<EguiTextureBindGroups>().unwrap();
 

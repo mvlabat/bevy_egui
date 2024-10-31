@@ -1,4 +1,4 @@
-use crate::EguiClipboard;
+use crate::{string_from_js_value, EguiClipboard, EventClosure, SubscribedEvents};
 use bevy::{log, prelude::*};
 use crossbeam_channel::{Receiver, Sender};
 use wasm_bindgen::prelude::*;
@@ -71,40 +71,6 @@ impl WebClipboard {
     }
 }
 
-/// Stores the clipboard event listeners.
-#[derive(Default)]
-pub struct SubscribedEvents {
-    event_closures: Vec<EventClosure>,
-}
-
-impl SubscribedEvents {
-    /// Use this method to unsubscribe from all the clipboard events, this can be useful
-    /// for gracefully destroying a Bevy instance in a page.
-    pub fn unsubscribe_from_events(&mut self) {
-        let events_to_unsubscribe = std::mem::take(&mut self.event_closures);
-
-        if !events_to_unsubscribe.is_empty() {
-            for event in events_to_unsubscribe {
-                if let Err(err) = event.target.remove_event_listener_with_callback(
-                    event.event_name.as_str(),
-                    event.closure.as_ref().unchecked_ref(),
-                ) {
-                    log::error!(
-                        "Failed to unsubscribe from event: {}",
-                        string_from_js_value(&err)
-                    );
-                }
-            }
-        }
-    }
-}
-
-struct EventClosure {
-    target: web_sys::EventTarget,
-    event_name: String,
-    closure: Closure<dyn FnMut(web_sys::ClipboardEvent)>,
-}
-
 fn setup_clipboard_copy(subscribed_events: &mut SubscribedEvents, tx: Sender<WebClipboardEvent>) {
     let Some(window) = web_sys::window() else {
         log::error!("Failed to add the \"copy\" listener: no window object");
@@ -131,12 +97,16 @@ fn setup_clipboard_copy(subscribed_events: &mut SubscribedEvents, tx: Sender<Web
         drop(closure);
         return;
     };
-    subscribed_events.event_closures.push(EventClosure {
-        target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(&document)
+    subscribed_events
+        .clipboard_event_closures
+        .push(EventClosure {
+            target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                &document,
+            )
             .clone(),
-        event_name: "copy".to_owned(),
-        closure,
-    });
+            event_name: "copy".to_owned(),
+            closure,
+        });
 }
 
 fn setup_clipboard_cut(subscribed_events: &mut SubscribedEvents, tx: Sender<WebClipboardEvent>) {
@@ -165,12 +135,16 @@ fn setup_clipboard_cut(subscribed_events: &mut SubscribedEvents, tx: Sender<WebC
         drop(closure);
         return;
     };
-    subscribed_events.event_closures.push(EventClosure {
-        target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(&document)
+    subscribed_events
+        .clipboard_event_closures
+        .push(EventClosure {
+            target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                &document,
+            )
             .clone(),
-        event_name: "cut".to_owned(),
-        closure,
-    });
+            event_name: "cut".to_owned(),
+            closure,
+        });
 }
 
 fn setup_clipboard_paste(subscribed_events: &mut SubscribedEvents, tx: Sender<WebClipboardEvent>) {
@@ -213,12 +187,16 @@ fn setup_clipboard_paste(subscribed_events: &mut SubscribedEvents, tx: Sender<We
         drop(closure);
         return;
     };
-    subscribed_events.event_closures.push(EventClosure {
-        target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(&document)
+    subscribed_events
+        .clipboard_event_closures
+        .push(EventClosure {
+            target: <web_sys::Document as std::convert::AsRef<web_sys::EventTarget>>::as_ref(
+                &document,
+            )
             .clone(),
-        event_name: "paste".to_owned(),
-        closure,
-    });
+            event_name: "paste".to_owned(),
+            closure,
+        });
 }
 
 /// Sets contents of the clipboard via the Web API.
@@ -239,8 +217,4 @@ fn clipboard_copy(contents: String) {
             );
         }
     });
-}
-
-fn string_from_js_value(value: &JsValue) -> String {
-    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
 }
