@@ -101,6 +101,7 @@ impl EguiBevyPaintCallbackImpl for CustomPaintCallback {
                     .and_then(|cache| cache.get_render_pipeline(comp.pipeline_id))
             })
         else {
+            warn!("Could not find pipeline.");
             return;
         };
 

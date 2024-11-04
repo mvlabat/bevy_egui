@@ -6,7 +6,8 @@ use crate::{
 };
 use bevy::{
     ecs::world::{FromWorld, World},
-    prelude::{Entity, Handle, Resource},
+    log::{info, warn},
+    prelude::{Handle, Resource},
     render::{
         render_asset::RenderAssetUsages,
         render_graph::{Node, NodeRunError, RenderGraphContext},
@@ -227,11 +228,13 @@ impl EguiNode {
 
 impl Node for EguiNode {
     fn update(&mut self, world: &mut World) {
+        info!("drawing");
         let Some(key) = world
             .get_resource::<ExtractedWindows>()
             .and_then(|windows| windows.windows.get(&self.window_entity_main.id()))
             .and_then(EguiPipelineKey::from_extracted_window)
         else {
+            warn!("Could not make EguiPipelineKey.");
             return;
         };
 
@@ -241,6 +244,7 @@ impl Node for EguiNode {
         let Ok((egui_settings, window_size, mut render_output)) =
             render_target_query.get_mut(world, self.window_entity_render.id())
         else {
+            warn!("Could not find settings.");
             return;
         };
         let window_size = *window_size;
@@ -248,6 +252,8 @@ impl Node for EguiNode {
 
         self.pixels_per_point = window_size.scale_factor * egui_settings.scale_factor;
         if window_size.physical_width == 0.0 || window_size.physical_height == 0.0 {
+            warn!("small window");
+
             return;
         }
 
@@ -285,6 +291,7 @@ impl Node for EguiNode {
                 ))
                 .is_empty()
             {
+                warn!("empty clip");
                 continue;
             }
 
@@ -327,9 +334,7 @@ impl Node for EguiNode {
             index_offset += mesh.vertices.len() as u32;
 
             let texture_handle = match mesh.texture_id {
-                egui::TextureId::Managed(id) => {
-                    EguiTextureId::Managed(self.window_entity_render.id(), id)
-                }
+                egui::TextureId::Managed(id) => EguiTextureId::Managed(self.window_entity_main, id),
                 egui::TextureId::User(id) => EguiTextureId::User(id),
             };
 
@@ -399,7 +404,11 @@ impl Node for EguiNode {
         let extracted_window = extracted_windows.get(&self.window_entity_main.id());
         let swap_chain_texture_view =
             match extracted_window.and_then(|v| v.swap_chain_texture_view.as_ref()) {
-                None => return Ok(()),
+                None => {
+                    warn!("no extracted_window for eguinode");
+
+                    return Ok(());
+                }
                 Some(window) => window,
             };
 
@@ -407,7 +416,10 @@ impl Node for EguiNode {
 
         let (vertex_buffer, index_buffer) = match (&self.vertex_buffer, &self.index_buffer) {
             (Some(vertex), Some(index)) => (vertex, index),
-            _ => return Ok(()),
+            _ => {
+                warn!("no vertex or index buffer for eguinode");
+                return Ok(());
+            }
         };
 
         render_queue.write_buffer(vertex_buffer, 0, &self.vertex_data);
@@ -422,6 +434,8 @@ impl Node for EguiNode {
             None => unreachable!(),
         };
         let Some(key) = pipeline_key else {
+            warn!("no pipeline KEY for eguinode");
+
             return Ok(());
         };
 
@@ -474,6 +488,7 @@ impl Node for EguiNode {
 
         let pipeline_id = egui_pipelines.get(&self.window_entity_main).unwrap();
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
+            warn!("no pipeline for eguinode");
             return Ok(());
         };
 
@@ -521,6 +536,7 @@ impl Node for EguiNode {
                 physical_height,
             ));
             if scrissor_rect.is_empty() {
+                warn!("too small scissor");
                 continue;
             }
 

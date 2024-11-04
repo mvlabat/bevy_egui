@@ -8,7 +8,6 @@ use crate::{
 };
 use bevy::{
     ecs::world::World,
-    prelude::Entity,
     render::{
         render_asset::RenderAssets,
         render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
@@ -177,7 +176,7 @@ impl Node for EguiRenderToTextureNode {
 
             let texture_handle = match mesh.texture_id {
                 egui::TextureId::Managed(id) => {
-                    EguiTextureId::Managed(self.render_to_texture_target_render.id(), id)
+                    EguiTextureId::Managed(self.render_to_texture_target_main, id)
                 }
                 egui::TextureId::User(id) => EguiTextureId::User(id),
             };

@@ -43,7 +43,7 @@ impl ExtractResource for ExtractedEguiManagedTextures {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum EguiTextureId {
     /// Textures allocated via Egui.
-    Managed(Entity, u64),
+    Managed(MainEntity, u64),
     /// Textures allocated via Bevy.
     User(u64),
 }
@@ -73,7 +73,10 @@ impl ExtractedEguiTextures<'_> {
             .0
             .iter()
             .map(|(&(window, texture_id), managed_tex)| {
-                (EguiTextureId::Managed(window, texture_id), managed_tex.id())
+                (
+                    EguiTextureId::Managed(MainEntity::from(window), texture_id),
+                    managed_tex.id(),
+                )
             })
             .chain(
                 self.user_textures
@@ -91,8 +94,8 @@ pub fn setup_new_windows_render_system(
 ) {
     for (window, render_window) in windows.iter() {
         let egui_pass = EguiPass {
-            entity_index: window.index(),
-            entity_generation: window.generation(),
+            entity_index: render_window.index(),
+            entity_generation: render_window.generation(),
         };
         dbg!("setup_new_windows_render_system");
         let new_node = EguiNode::new(MainEntity::from(window), *render_window);
@@ -166,11 +169,12 @@ impl EguiTransform {
 /// Prepares Egui transforms.
 pub fn prepare_egui_transforms_system(
     mut egui_transforms: ResMut<EguiTransforms>,
-    render_targets: Query<(&MainEntity, &EguiSettings, &RenderTargetSize)>,
+    render_targets: Query<(Option<&MainEntity>, &EguiSettings, &RenderTargetSize)>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     egui_pipeline: Res<EguiPipeline>,
 ) {
+    info!("prepare_egui_transforms_system");
     egui_transforms.buffer.clear();
     egui_transforms.offsets.clear();
 
@@ -181,7 +185,10 @@ pub fn prepare_egui_transforms_system(
                 *size,
                 egui_settings.scale_factor,
             ));
-        egui_transforms.offsets.insert(*window_main, offset);
+        info!(offset);
+        if let Some(window_main) = window_main {
+            egui_transforms.offsets.insert(*window_main, offset);
+        }
     }
 
     egui_transforms
@@ -192,6 +199,7 @@ pub fn prepare_egui_transforms_system(
         match egui_transforms.bind_group {
             Some((id, _)) if buffer.id() == id => {}
             _ => {
+                info!("{:?}", buffer.id());
                 let transform_bind_group = render_device.create_bind_group(
                     Some("egui transform bind group"),
                     &egui_pipeline.transform_bind_group_layout,
@@ -261,8 +269,6 @@ pub fn queue_pipelines_system(
     let mut pipelines: HashMap<MainEntity, CachedRenderPipelineId> = windows
         .iter()
         .filter_map(|(window_id, window)| {
-            dbg!("pipeline");
-            //let window_id = render_entity.get(*window_id).ok()?.id();
             dbg!("pipeline contd");
             let key = EguiPipelineKey::from_extracted_window(window)?;
             let pipeline_id =
@@ -275,6 +281,7 @@ pub fn queue_pipelines_system(
         render_to_texture
             .iter()
             .filter_map(|(main_entity, handle)| {
+                dbg!("pipeline rtt");
                 let img = images.get(&handle.0)?;
                 let key = EguiPipelineKey::from_gpu_image(img);
                 let pipeline_id =
