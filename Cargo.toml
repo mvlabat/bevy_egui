@@ -54,6 +54,7 @@ required-features = ["render"]
 bevy = { version = "0.15.0-rc.2", default-features = false, features = [
   "bevy_asset",
   "bevy_winit",
+  "custom_cursor",
 ] }
 egui = { version = "0.29", default-features = false, features = ["bytemuck"] }
 bytemuck = "1"
@@ -73,7 +74,6 @@ bevy = { version = "0.15.0-rc.2", default-features = false, features = [
   "bevy_core_pipeline",
   "tonemapping_luts",
   "webgl2",
-  "custom_cursor",
 ] }
 egui = { version = "0.29", default-features = false, features = ["bytemuck"] }
 
@@ -101,21 +101,3 @@ crossbeam-channel = "0.5.8"
 
 [workspace]
 members = ["run-wasm"]
-
-[patch.crates-io]
-# doesnt work:
-# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "a2b53d46e73b98f7f5d074ed2bb8ddfedfcc5d4d" }
-# doesnt work:
-#bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "cab00766d99c2bf0519464a60e8a91e05c83d0fd" }
-# doesnt work:
-# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "1df8238e8d8fe968d682468301ad4140c95b7604" }
-# doesnt work, breakage appears here!
-# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "56f8e526dde49b4e4ad62efb7ad27bfe0bd6f617" }
-# works:
-# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "01dce4742f77a572a1ef21ce8f64ce3b6d2328a8" }
-# works:
-# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "7ee5143d45f9246f9cffc52e916ae12d85a71779" }
-# works:
-# bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "3139b03e7400313d947dc912e12d7c2d98207653" }
-# works:
-#bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d15" }

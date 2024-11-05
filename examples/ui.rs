@@ -1,8 +1,6 @@
 use bevy::{
     log::{Level, LogPlugin},
     prelude::*,
-    window::{PrimaryWindow, SystemCursorIcon},
-    winit::cursor::CursorIcon,
 };
 use bevy_egui::{EguiContexts, EguiPlugin, EguiSettings};
 
@@ -46,7 +44,6 @@ fn main() {
                 }),
         )
         .add_plugins(EguiPlugin)
-        .add_systems(Startup, configure_cursor)
         .add_systems(Startup, configure_visuals_system)
         .add_systems(Startup, configure_ui_state_system)
         .add_systems(Update, update_ui_scale_factor_system)
@@ -64,12 +61,6 @@ struct UiState {
     inverted: bool,
     egui_texture_handle: Option<egui::TextureHandle>,
     is_window_open: bool,
-}
-
-fn configure_cursor(mut commands: Commands, windows: Query<Entity, With<PrimaryWindow>>) {
-    commands
-        .entity(windows.single())
-        .insert(CursorIcon::System(SystemCursorIcon::Default));
 }
 
 fn configure_visuals_system(mut contexts: EguiContexts) {

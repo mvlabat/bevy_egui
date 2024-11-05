@@ -124,7 +124,7 @@ use bevy::{
         With, Without,
     },
     reflect::Reflect,
-    window::{PrimaryWindow, Window},
+    window::{PrimaryWindow, SystemCursorIcon, Window},
     winit::cursor::CursorIcon,
 };
 #[cfg(all(
@@ -927,6 +927,7 @@ pub fn setup_new_windows_system(
             EguiFullOutput::default(),
             EguiOutput::default(),
             RenderTargetSize::default(),
+            CursorIcon::System(SystemCursorIcon::Default),
         ));
     }
 }
