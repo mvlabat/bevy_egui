@@ -48,9 +48,6 @@ fn main() {
         .add_systems(Startup, configure_ui_state_system)
         .add_systems(Update, update_ui_scale_factor_system)
         .add_systems(Update, ui_example_system)
-        .add_systems(PreUpdate, || {
-            info!("new frame:");
-        })
         .run();
 }
 #[derive(Default, Resource)]

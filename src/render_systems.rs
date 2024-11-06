@@ -97,7 +97,6 @@ pub fn setup_new_windows_render_system(
             entity_index: render_window.index(),
             entity_generation: render_window.generation(),
         };
-        dbg!("setup_new_windows_render_system");
         let new_node = EguiNode::new(MainEntity::from(window), *render_window);
 
         render_graph.add_node(egui_pass.clone(), new_node);
@@ -174,7 +173,6 @@ pub fn prepare_egui_transforms_system(
     render_queue: Res<RenderQueue>,
     egui_pipeline: Res<EguiPipeline>,
 ) {
-    info!("prepare_egui_transforms_system");
     egui_transforms.buffer.clear();
     egui_transforms.offsets.clear();
 
@@ -185,7 +183,6 @@ pub fn prepare_egui_transforms_system(
                 *size,
                 egui_settings.scale_factor,
             ));
-        info!(offset);
         if let Some(window_main) = window_main {
             egui_transforms.offsets.insert(*window_main, offset);
         }
@@ -199,7 +196,6 @@ pub fn prepare_egui_transforms_system(
         match egui_transforms.bind_group {
             Some((id, _)) if buffer.id() == id => {}
             _ => {
-                info!("{:?}", buffer.id());
                 let transform_bind_group = render_device.create_bind_group(
                     Some("egui transform bind group"),
                     &egui_pipeline.transform_bind_group_layout,
@@ -265,15 +261,13 @@ pub fn queue_pipelines_system(
     render_to_texture: Query<(&MainEntity, &EguiRenderToTextureHandle)>,
     images: Res<RenderAssets<GpuImage>>,
 ) {
-    dbg!("queue_pipelines_system");
     let mut pipelines: HashMap<MainEntity, CachedRenderPipelineId> = windows
         .iter()
         .filter_map(|(window_id, window)| {
-            dbg!("pipeline contd");
             let key = EguiPipelineKey::from_extracted_window(window)?;
             let pipeline_id =
                 specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
-            Some((dbg!(MainEntity::from(*window_id)), pipeline_id))
+            Some((MainEntity::from(*window_id), pipeline_id))
         })
         .collect();
 
@@ -281,13 +275,12 @@ pub fn queue_pipelines_system(
         render_to_texture
             .iter()
             .filter_map(|(main_entity, handle)| {
-                dbg!("pipeline rtt");
                 let img = images.get(&handle.0)?;
                 let key = EguiPipelineKey::from_gpu_image(img);
                 let pipeline_id =
                     specialized_pipelines.specialize(&pipeline_cache, &egui_pipeline, key);
 
-                Some((dbg!(*main_entity), pipeline_id))
+                Some((*main_entity, pipeline_id))
             }),
     );
 

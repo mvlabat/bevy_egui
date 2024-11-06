@@ -70,7 +70,6 @@ fn ui_first_window_system(
 ) {
     let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     let Ok(mut ctx) = egui_ctx.get_single_mut() else {
-        warn!("Could not find ctx.");
         return;
     };
     egui::Window::new("First Window")
@@ -101,7 +100,6 @@ fn ui_second_window_system(
 ) {
     let bevy_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     let Ok(mut ctx) = egui_ctx.get_single_mut() else {
-        warn!("Could not find ctx(2).");
         return;
     };
     egui::Window::new("Second Window")
