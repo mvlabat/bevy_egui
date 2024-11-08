@@ -656,7 +656,7 @@ pub(crate) fn texture_options_as_sampler_descriptor(
 ///
 /// Rendering can be implemented using for example:
 /// * native wgpu rendering libraries,
-/// * or with [`bevy::render::render_phase`] approach.
+/// * or with [`bevy_render::render_phase`] approach.
 pub struct EguiBevyPaintCallback(Box<dyn EguiBevyPaintCallbackImpl>);
 
 impl EguiBevyPaintCallback {
