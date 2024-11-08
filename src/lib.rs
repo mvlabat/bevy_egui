@@ -724,7 +724,7 @@ impl Plugin for EguiPlugin {
         {
             use std::sync::{LazyLock, Mutex};
 
-            let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
+            let maybe_window_plugin = app.get_added_plugins::<bevy_window::WindowPlugin>();
 
             if !maybe_window_plugin.is_empty()
                 && maybe_window_plugin[0].primary_window.is_some()
