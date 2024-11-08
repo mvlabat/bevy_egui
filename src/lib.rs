@@ -92,10 +92,10 @@ use crate::{
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use arboard::Clipboard;
+
 #[cfg(feature = "render")]
-use bevy_app::Last;
 use bevy_asset::{load_internal_asset, AssetEvent, Assets, Handle};
-use bevy_ecs::{event::EventReader, system::ResMut};
+#[cfg(feature = "render")]
 use bevy_render::{
     extract_component::{ExtractComponent, ExtractComponentPlugin},
     extract_resource::{ExtractResource, ExtractResourcePlugin},
@@ -103,9 +103,8 @@ use bevy_render::{
     texture::{Image, ImageSampler},
     ExtractSchedule, Render, RenderApp, RenderSet,
 };
-use bevy_utils::HashMap;
 
-use bevy_app::{App, Plugin, PostUpdate, PreStartup, PreUpdate};
+use bevy_app::prelude::*;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     prelude::*,
@@ -114,14 +113,9 @@ use bevy_ecs::{
     system::SystemParam,
 };
 use bevy_input::InputSystem;
-
 use bevy_reflect::Reflect;
 use bevy_window::{PrimaryWindow, Window};
 
-#[cfg(feature = "render")]
-use bevy_ecs::query::Or;
-#[allow(unused_imports)]
-use bevy_log;
 #[cfg(all(
     feature = "manage_clipboard",
     not(any(target_arch = "wasm32", target_os = "android"))
@@ -561,7 +555,7 @@ pub struct EguiRenderToTextureHandle(pub Handle<Image>);
 #[derive(Clone, bevy_ecs::system::Resource, Default, ExtractResource)]
 #[cfg(feature = "render")]
 pub struct EguiUserTextures {
-    textures: HashMap<Handle<Image>, u64>,
+    textures: bevy_utils::HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
 }
 
@@ -900,7 +894,7 @@ impl EguiContextQueryItem<'_> {
 /// Contains textures allocated and painted by Egui.
 #[cfg(feature = "render")]
 #[derive(bevy_ecs::system::Resource, Deref, DerefMut, Default)]
-pub struct EguiManagedTextures(pub HashMap<(Entity, u64), EguiManagedTexture>);
+pub struct EguiManagedTextures(pub bevy_utils::HashMap<(Entity, u64), EguiManagedTexture>);
 
 /// Represents a texture allocated and painted by Egui.
 #[cfg(feature = "render")]
