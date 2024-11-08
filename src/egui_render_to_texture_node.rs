@@ -6,21 +6,19 @@ use crate::{
     render_systems::{EguiPipelines, EguiTextureBindGroups, EguiTextureId, EguiTransforms},
     EguiRenderOutput, EguiRenderToTextureHandle, EguiSettings, RenderTargetSize,
 };
-use bevy::{
-    ecs::world::World,
-    prelude::Entity,
-    render::{
-        render_asset::RenderAssets,
-        render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
-        render_phase::TrackedRenderPass,
-        render_resource::{
-            Buffer, BufferAddress, BufferDescriptor, BufferUsages, IndexFormat, LoadOp, Operations,
-            PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
-        },
-        renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::GpuImage,
+use bevy_ecs::{prelude::*, world::World};
+use bevy_render::{
+    render_asset::RenderAssets,
+    render_graph::{Node, NodeRunError, RenderGraphContext, RenderLabel},
+    render_phase::TrackedRenderPass,
+    render_resource::{
+        Buffer, BufferAddress, BufferDescriptor, BufferUsages, IndexFormat, LoadOp, Operations,
+        PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
     },
+    renderer::{RenderContext, RenderDevice, RenderQueue},
+    texture::GpuImage,
 };
+
 use bytemuck::cast_slice;
 
 /// [`RenderLabel`] type for the Egui Render to Texture pass.
@@ -108,19 +106,19 @@ impl Node for EguiRenderToTextureNode {
             primitive,
         } in paint_jobs
         {
-            let clip_urect = bevy::math::URect {
-                min: bevy::math::UVec2 {
+            let clip_urect = bevy_math::URect {
+                min: bevy_math::UVec2 {
                     x: (clip_rect.min.x * self.pixels_per_point).round() as u32,
                     y: (clip_rect.min.y * self.pixels_per_point).round() as u32,
                 },
-                max: bevy::math::UVec2 {
+                max: bevy_math::UVec2 {
                     x: (clip_rect.max.x * self.pixels_per_point).round() as u32,
                     y: (clip_rect.max.y * self.pixels_per_point).round() as u32,
                 },
             };
 
             if clip_urect
-                .intersect(bevy::math::URect::new(
+                .intersect(bevy_math::URect::new(
                     0,
                     0,
                     render_target_size.physical_width as u32,
@@ -307,7 +305,7 @@ impl Node for EguiRenderToTextureNode {
         let mut render_pass = TrackedRenderPass::new(device, render_pass);
 
         let Some(pipeline_id) = egui_pipelines.get(&self.render_to_texture_target) else {
-            bevy::log::error!("no egui_pipeline");
+            bevy_log::error!("no egui_pipeline");
             return Ok(());
         };
         let Some(pipeline) = pipeline_cache.get_render_pipeline(*pipeline_id) else {
@@ -341,18 +339,18 @@ impl Node for EguiRenderToTextureNode {
                 requires_reset = false;
             }
 
-            let clip_urect = bevy::math::URect {
-                min: bevy::math::UVec2 {
+            let clip_urect = bevy_math::URect {
+                min: bevy_math::UVec2 {
                     x: (draw_command.clip_rect.min.x * self.pixels_per_point).round() as u32,
                     y: (draw_command.clip_rect.min.y * self.pixels_per_point).round() as u32,
                 },
-                max: bevy::math::UVec2 {
+                max: bevy_math::UVec2 {
                     x: (draw_command.clip_rect.max.x * self.pixels_per_point).round() as u32,
                     y: (draw_command.clip_rect.max.y * self.pixels_per_point).round() as u32,
                 },
             };
-            let scrissor_rect = clip_urect.intersect(bevy::math::URect::from_corners(
-                bevy::math::UVec2::ZERO,
+            let scrissor_rect = clip_urect.intersect(bevy_math::URect::from_corners(
+                bevy_math::UVec2::ZERO,
                 gpu_image.size,
             ));
             if scrissor_rect.is_empty() {
