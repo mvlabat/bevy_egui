@@ -35,14 +35,14 @@ fn create_new_window_system(mut commands: Commands) {
         .id();
 
     // second window camera
-    commands.spawn(Camera3dBundle {
-        camera: Camera {
+    commands.spawn((
+        Camera3d::default(),
+        Camera {
             target: RenderTarget::Window(WindowRef::Entity(second_window_id)),
             ..Default::default()
         },
-        transform: Transform::from_xyz(6.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
-    });
+        Transform::from_xyz(6.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
 }
 
 fn load_assets_system(mut commands: Commands, assets: Res<AssetServer>) {

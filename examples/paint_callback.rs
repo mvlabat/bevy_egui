@@ -8,6 +8,7 @@ use bevy::{
             MultisampleState, PipelineCache, PolygonMode, PrimitiveState, RenderPipelineDescriptor,
             SpecializedRenderPipeline, SpecializedRenderPipelines,
         },
+        sync_world::RenderEntity,
         RenderApp,
     },
 };
@@ -52,7 +53,7 @@ impl EguiBevyPaintCallbackImpl for CustomPaintCallback {
     fn update(
         &self,
         _info: egui::PaintCallbackInfo,
-        window_entity: Entity,
+        window_entity: RenderEntity,
         key: EguiPipelineKey,
         world: &mut World,
     ) {
@@ -72,7 +73,7 @@ impl EguiBevyPaintCallbackImpl for CustomPaintCallback {
                     );
 
                     world
-                        .entity_mut(window_entity)
+                        .entity_mut(window_entity.id())
                         .insert(CustomPaintPipelineIdComp { pipeline_id });
                     pipeline_id
                 },
@@ -86,12 +87,13 @@ impl EguiBevyPaintCallbackImpl for CustomPaintCallback {
         &self,
         _info: egui::PaintCallbackInfo,
         render_pass: &mut bevy::render::render_phase::TrackedRenderPass<'pass>,
-        window_entity: Entity,
+        window_entity: RenderEntity,
         _key: EguiPipelineKey,
         world: &'pass World,
     ) {
         let Some(pipeline) = world
-            .get_entity(window_entity)
+            .get_entity(window_entity.id())
+            .ok()
             .and_then(|entity| entity.get::<CustomPaintPipelineIdComp>())
             .and_then(|comp| {
                 world
@@ -202,23 +204,22 @@ fn setup_worldspace(
         output_texture
     });
 
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0).mesh()),
-        material: materials.add(StandardMaterial {
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0).mesh())),
+        MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::WHITE,
             base_color_texture: Some(Handle::clone(&output_texture)),
             alpha_mode: AlphaMode::Blend,
             // Remove this if you want it to use the world's lighting.
             unlit: true,
             ..default()
-        }),
-        ..default()
-    });
+        })),
+    ));
     commands.spawn(EguiRenderToTextureHandle(output_texture));
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(1.5, 1.5, 1.5).looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
-        ..default()
-    });
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(1.5, 1.5, 1.5).looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
+    ));
 }
 
 fn ui_render_to_texture_example_system(

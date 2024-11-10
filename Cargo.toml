@@ -21,12 +21,12 @@ manage_clipboard = ["arboard", "thread_local"]
 open_url = ["webbrowser"]
 default_fonts = ["egui/default_fonts"]
 render = [
-  "bevy_render",
-  "bevy_asset",
-  "encase",
-  "bytemuck",
-  "egui/bytemuck",
-  "wgpu-types",
+    "bevy_render",
+    "bevy_asset",
+    "encase",
+    "bytemuck",
+    "egui/bytemuck",
+    "wgpu-types",
 ]
 serde = ["egui/serde"]
 # The enabled logs will print with the info log level, to make it less cumbersome to debug in browsers.
@@ -59,28 +59,27 @@ required-features = ["render"]
 
 [dependencies]
 egui = { version = "0.29", default-features = false }
-
-bevy_app = "0.14"
-bevy_derive = "0.14"
-bevy_ecs = "0.14"
-bevy_input = "0.14"
-bevy_log = "0.14"
-bevy_math = "0.14"
-bevy_reflect = "0.14"
-bevy_time = "0.14"
-bevy_utils = "0.14"
-bevy_winit = "0.14"
-bevy_window = "0.14"
+bevy_app = "0.15.0-rc.3"
+bevy_derive = "0.15.0-rc.3"
+bevy_ecs = "0.15.0-rc.3"
+bevy_input = "0.15.0-rc.3"
+bevy_log = "0.15.0-rc.3"
+bevy_math = "0.15.0-rc.3"
+bevy_reflect = "0.15.0-rc.3"
+bevy_time = "0.15.0-rc.3"
+bevy_utils = "0.15.0-rc.3"
+bevy_winit = { version = "0.15.0-rc.3", features = ["custom_cursor"] }
+bevy_window = "0.15.0-rc.3"
 
 # `open_url` feature
 webbrowser = { version = "1.0.1", optional = true }
 
 # `render` feature
 bytemuck = { version = "1", optional = true }
-bevy_asset = { version = "0.14", optional = true }
-bevy_render = { version = "0.14", optional = true }
-encase = { version = "0.8", optional = true }
-wgpu-types = { version = "0.20", optional = true }
+bevy_asset = { version = "0.15.0-rc.3", optional = true }
+bevy_render = { version = "0.15.0-rc.3", optional = true }
+encase = { version = "0.10", optional = true }
+wgpu-types = { version = "23.0", optional = true }
 
 # `manage_clipboard` feature
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
@@ -89,33 +88,33 @@ thread_local = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
 version-sync = "0.9.4"
-bevy = { version = "0.14.0", default-features = false, features = [
-  "x11",
-  "png",
-  "bevy_pbr",
-  "bevy_core_pipeline",
-  "bevy_asset",
-  "bevy_winit",
-  "tonemapping_luts",
-  "webgl2",
+bevy = { version = "0.15.0-rc.3", default-features = false, features = [
+    "x11",
+    "png",
+    "bevy_pbr",
+    "bevy_core_pipeline",
+    "bevy_asset",
+    "bevy_winit",
+    "tonemapping_luts",
+    "webgl2",
 ] }
 egui = { version = "0.29", default-features = false, features = ["bytemuck"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 winit = "0.30"
 web-sys = { version = "0.3.63", features = [
-  "Clipboard",
-  "ClipboardEvent",
-  "CompositionEvent",
-  "DataTransfer",
-  "Document",
-  "EventTarget",
-  "HtmlInputElement",
-  "InputEvent",
-  "KeyboardEvent",
-  "Navigator",
-  "TouchEvent",
-  "Window",
+    "Clipboard",
+    "ClipboardEvent",
+    "CompositionEvent",
+    "DataTransfer",
+    "Document",
+    "EventTarget",
+    "HtmlInputElement",
+    "InputEvent",
+    "KeyboardEvent",
+    "Navigator",
+    "TouchEvent",
+    "Window",
 ] }
 js-sys = "0.3.63"
 wasm-bindgen = "0.2.84"

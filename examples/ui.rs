@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    log::{Level, LogPlugin},
+    prelude::*,
+};
 use bevy_egui::{EguiContexts, EguiPlugin, EguiSettings};
 
 struct Images {
@@ -23,16 +26,23 @@ impl FromWorld for Images {
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
-        .insert_resource(Msaa::Sample4)
         .init_resource::<UiState>()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                // You may want this set to `true` if you need virtual keyboard work in mobile browsers.
-                prevent_default_event_handling: false,
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(LogPlugin {
+                    filter: "warn,ui=info".to_string(),
+                    level: Level::INFO,
+                    ..Default::default()
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        // You may want this set to `true` if you need virtual keyboard work in mobile browsers.
+                        prevent_default_event_handling: false,
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        )
         .add_plugins(EguiPlugin)
         .add_systems(Startup, configure_visuals_system)
         .add_systems(Startup, configure_ui_state_system)
