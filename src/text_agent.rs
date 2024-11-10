@@ -3,10 +3,9 @@
 
 use std::sync::{LazyLock, Mutex};
 
-use bevy::{
-    prelude::{EventWriter, NonSendMut, Res, Resource},
-    window::RequestRedraw,
-};
+use bevy_ecs::prelude::*;
+use bevy_window::RequestRedraw;
+
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use wasm_bindgen::prelude::*;
@@ -364,21 +363,21 @@ pub fn update_text_agent(editing_text: bool) {
     let window = match web_sys::window() {
         Some(window) => window,
         None => {
-            bevy::log::error!("No window found");
+            bevy_log::error!("No window found");
             return;
         }
     };
     let document = match window.document() {
         Some(doc) => doc,
         None => {
-            bevy::log::error!("No document found");
+            bevy_log::error!("No document found");
             return;
         }
     };
     let input: HtmlInputElement = match document.get_element_by_id(AGENT_ID) {
         Some(ele) => ele,
         None => {
-            bevy::log::error!("Agent element not found");
+            bevy_log::error!("Agent element not found");
             return;
         }
     }
@@ -393,13 +392,13 @@ pub fn update_text_agent(editing_text: bool) {
         match input.focus().ok() {
             Some(_) => {}
             None => {
-                bevy::log::error!("Unable to set focus");
+                bevy_log::error!("Unable to set focus");
             }
         }
     } else if keyboard_open {
         // Close the keyboard.
         if input.blur().is_err() {
-            bevy::log::error!("Agent element not found");
+            bevy_log::error!("Agent element not found");
             return;
         }
 

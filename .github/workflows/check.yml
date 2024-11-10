@@ -179,7 +179,7 @@ jobs:
           restore-keys: |
             cache-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-doc-cargo
-      - run: cargo doc --all --features "bevy/x11"
+      - run: cargo doc --all --features "bevy_winit/x11"
         env:
           RUSTDOCFLAGS: -D warnings
 
