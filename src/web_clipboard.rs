@@ -1,5 +1,6 @@
 use crate::{string_from_js_value, EguiClipboard, EventClosure, SubscribedEvents};
-use bevy::{log, prelude::*};
+use bevy_ecs::prelude::*;
+use bevy_log as log;
 use crossbeam_channel::{Receiver, Sender};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;

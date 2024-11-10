@@ -5,9 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.1] - 10-Nov-2024
+
+### Changed
+
+- Depend on bevy subcrates for compile time improvement ([#319](https://github.com/mvlabat/bevy_egui/pull/319) by @aevyrie).
+
 ## [0.30.0] - 4-Oct-2024
 
 ### Added
+
 - `prepare_render` step support for `EguiBevyPaintCallbackImpl` ([#306](https://github.com/mvlabat/bevy_egui/pull/306) by @PPakalns).
 - Mobile virtual keyboard support in web ([#279](https://github.com/mvlabat/bevy_egui/pull/279) by @v-kat).
   - Requires `Window::prevent_default_event_handling` being set to `false`.

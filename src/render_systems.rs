@@ -4,25 +4,26 @@ use crate::{
     EguiManagedTextures, EguiRenderToTextureHandle, EguiSettings, EguiUserTextures,
     RenderTargetSize,
 };
-use bevy::{
-    ecs::system::SystemParam,
-    prelude::*,
-    render::{
-        extract_resource::ExtractResource,
-        render_asset::RenderAssets,
-        render_graph::{RenderGraph, RenderLabel},
-        render_resource::{
-            BindGroup, BindGroupEntry, BindingResource, BufferId, CachedRenderPipelineId,
-            DynamicUniformBuffer, PipelineCache, ShaderType, SpecializedRenderPipelines,
-        },
-        renderer::{RenderDevice, RenderQueue},
-        sync_world::{MainEntity, RenderEntity},
-        texture::GpuImage,
-        view::ExtractedWindows,
-        Extract,
+use bevy_asset::prelude::*;
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::{prelude::*, system::SystemParam};
+use bevy_math::Vec2;
+use bevy_render::{
+    extract_resource::ExtractResource,
+    render_asset::RenderAssets,
+    render_graph::{RenderGraph, RenderLabel},
+    render_resource::{
+        BindGroup, BindGroupEntry, BindingResource, BufferId, CachedRenderPipelineId,
+        DynamicUniformBuffer, PipelineCache, SpecializedRenderPipelines,
     },
-    utils::HashMap,
+    renderer::{RenderDevice, RenderQueue},
+    sync_world::{MainEntity, RenderEntity},
+    texture::{GpuImage, Image},
+    view::ExtractedWindows,
+    Extract,
 };
+use bevy_utils::HashMap;
+use bevy_window::Window;
 
 /// Extracted Egui settings.
 #[derive(Resource, Deref, DerefMut, Default)]
@@ -101,7 +102,7 @@ pub fn setup_new_windows_render_system(
 
         render_graph.add_node(egui_pass.clone(), new_node);
 
-        render_graph.add_node_edge(bevy::render::graph::CameraDriverLabel, egui_pass);
+        render_graph.add_node_edge(bevy_render::graph::CameraDriverLabel, egui_pass);
     }
 }
 /// Sets up the pipeline for newly created Render to texture entities.
@@ -124,7 +125,7 @@ pub fn setup_new_rtt_render_system(
 
         render_graph.add_node(egui_rtt_pass.clone(), new_node);
 
-        render_graph.add_node_edge(egui_rtt_pass, bevy::render::graph::CameraDriverLabel);
+        render_graph.add_node_edge(egui_rtt_pass, bevy_render::graph::CameraDriverLabel);
     }
 }
 
@@ -141,7 +142,7 @@ pub struct EguiTransforms {
 
 /// Scale and translation for rendering Egui shapes. Is needed to transform Egui coordinates from
 /// the screen space with the center at (0, 0) to the normalised viewport space.
-#[derive(ShaderType, Default)]
+#[derive(encase::ShaderType, Default)]
 pub struct EguiTransform {
     /// Is affected by window size and [`EguiSettings::scale_factor`].
     pub scale: Vec2,

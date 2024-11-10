@@ -79,6 +79,7 @@ mod text_agent;
 ))]
 pub mod web_clipboard;
 
+use bevy_winit::cursor::CursorIcon;
 pub use egui;
 
 use crate::systems::*;
@@ -92,41 +93,30 @@ use crate::{
     not(any(target_arch = "wasm32", target_os = "android"))
 ))]
 use arboard::Clipboard;
+
 #[cfg(feature = "render")]
-use bevy::ecs::query::Or;
-#[allow(unused_imports)]
-use bevy::log;
+use bevy_asset::{load_internal_asset, AssetEvent, Assets, Handle};
 #[cfg(feature = "render")]
-use bevy::{
-    app::Last,
-    asset::{load_internal_asset, AssetEvent, Assets, Handle},
-    ecs::{event::EventReader, system::ResMut},
-    prelude::Shader,
-    render::{
-        extract_component::{ExtractComponent, ExtractComponentPlugin},
-        extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_resource::SpecializedRenderPipelines,
-        texture::{Image, ImageSampler},
-        ExtractSchedule, Render, RenderApp, RenderSet,
-    },
-    utils::HashMap,
+use bevy_render::{
+    extract_component::{ExtractComponent, ExtractComponentPlugin},
+    extract_resource::{ExtractResource, ExtractResourcePlugin},
+    render_resource::SpecializedRenderPipelines,
+    texture::{Image, ImageSampler},
+    ExtractSchedule, Render, RenderApp, RenderSet,
 };
-use bevy::{
-    app::{App, Plugin, PostUpdate, PreStartup, PreUpdate},
-    ecs::{
-        query::{QueryData, QueryEntityError},
-        schedule::apply_deferred,
-        system::SystemParam,
-    },
-    input::InputSystem,
-    prelude::{
-        Added, Commands, Component, Deref, DerefMut, Entity, IntoSystemConfigs, Query, SystemSet,
-        With, Without,
-    },
-    reflect::Reflect,
-    window::{PrimaryWindow, SystemCursorIcon, Window},
-    winit::cursor::CursorIcon,
+
+use bevy_app::prelude::*;
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::{
+    prelude::*,
+    query::{QueryData, QueryEntityError},
+    schedule::apply_deferred,
+    system::SystemParam,
 };
+use bevy_input::InputSystem;
+use bevy_reflect::Reflect;
+use bevy_window::{PrimaryWindow, SystemCursorIcon, Window};
+
 #[cfg(all(
     feature = "manage_clipboard",
     not(any(target_arch = "wasm32", target_os = "android"))
@@ -209,7 +199,7 @@ pub struct EguiFullOutput(pub Option<egui::FullOutput>);
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-#[derive(Default, bevy::ecs::system::Resource)]
+#[derive(Default, bevy_ecs::system::Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
@@ -259,7 +249,7 @@ impl EguiClipboard {
     fn set_contents_impl(&mut self, contents: &str) {
         if let Some(mut clipboard) = self.get() {
             if let Err(err) = clipboard.set_text(contents.to_owned()) {
-                log::error!("Failed to set clipboard contents: {:?}", err);
+                bevy_log::error!("Failed to set clipboard contents: {:?}", err);
             }
         }
     }
@@ -274,7 +264,7 @@ impl EguiClipboard {
         if let Some(mut clipboard) = self.get() {
             match clipboard.get_text() {
                 Ok(contents) => return Some(contents),
-                Err(err) => log::error!("Failed to get clipboard contents: {:?}", err),
+                Err(err) => bevy_log::error!("Failed to get clipboard contents: {:?}", err),
             }
         };
         None
@@ -293,7 +283,7 @@ impl EguiClipboard {
                 Clipboard::new()
                     .map(RefCell::new)
                     .map_err(|err| {
-                        log::error!("Failed to initialize clipboard: {:?}", err);
+                        bevy_log::error!("Failed to initialize clipboard: {:?}", err);
                     })
                     .ok()
             })
@@ -563,10 +553,10 @@ impl EguiContexts<'_, '_> {
 pub struct EguiRenderToTextureHandle(pub Handle<Image>);
 
 /// A resource for storing `bevy_egui` user textures.
-#[derive(Clone, bevy::ecs::system::Resource, Default, ExtractResource)]
+#[derive(Clone, bevy_ecs::system::Resource, Default, ExtractResource)]
 #[cfg(feature = "render")]
 pub struct EguiUserTextures {
-    textures: HashMap<Handle<Image>, u64>,
+    textures: bevy_utils::HashMap<Handle<Image>, u64>,
     last_texture_id: u64,
 }
 
@@ -582,7 +572,7 @@ impl EguiUserTextures {
     pub fn add_image(&mut self, image: Handle<Image>) -> egui::TextureId {
         let id = *self.textures.entry(image.clone()).or_insert_with(|| {
             let id = self.last_texture_id;
-            log::debug!("Add a new image (id: {}, handle: {:?})", id, image);
+            bevy_log::debug!("Add a new image (id: {}, handle: {:?})", id, image);
             self.last_texture_id += 1;
             id
         });
@@ -592,7 +582,7 @@ impl EguiUserTextures {
     /// Removes the image handle and an Egui texture id associated with it.
     pub fn remove_image(&mut self, image: &Handle<Image>) -> Option<egui::TextureId> {
         let id = self.textures.remove(image);
-        log::debug!("Remove image (id: {:?}, handle: {:?})", id, image);
+        bevy_log::debug!("Remove image (id: {:?}, handle: {:?})", id, image);
         id.map(egui::TextureId::User)
     }
 
@@ -735,7 +725,7 @@ impl Plugin for EguiPlugin {
         {
             use std::sync::{LazyLock, Mutex};
 
-            let maybe_window_plugin = app.get_added_plugins::<bevy::prelude::WindowPlugin>();
+            let maybe_window_plugin = app.get_added_plugins::<bevy_window::WindowPlugin>();
 
             if !maybe_window_plugin.is_empty()
                 && maybe_window_plugin[0].primary_window.is_some()
@@ -816,7 +806,12 @@ impl Plugin for EguiPlugin {
         .add_systems(Last, free_egui_textures_system);
 
         #[cfg(feature = "render")]
-        load_internal_asset!(app, EGUI_SHADER_HANDLE, "egui.wgsl", Shader::from_wgsl);
+        load_internal_asset!(
+            app,
+            EGUI_SHADER_HANDLE,
+            "egui.wgsl",
+            bevy_render::render_resource::Shader::from_wgsl
+        );
     }
 
     #[cfg(feature = "render")]
@@ -901,8 +896,8 @@ impl EguiContextQueryItem<'_> {
 
 /// Contains textures allocated and painted by Egui.
 #[cfg(feature = "render")]
-#[derive(bevy::ecs::system::Resource, Deref, DerefMut, Default)]
-pub struct EguiManagedTextures(pub HashMap<(Entity, u64), EguiManagedTexture>);
+#[derive(bevy_ecs::system::Resource, Deref, DerefMut, Default)]
+pub struct EguiManagedTextures(pub bevy_utils::HashMap<(Entity, u64), EguiManagedTexture>);
 
 /// Represents a texture allocated and painted by Egui.
 #[cfg(feature = "render")]
@@ -991,7 +986,7 @@ pub fn update_egui_textures_system(
                         egui_node::color_image_as_bevy_image(&managed_texture.color_image, sampler);
                     managed_texture.handle = image_assets.add(image);
                 } else {
-                    log::warn!("Partial update of a missing texture (id: {:?})", texture_id);
+                    bevy_log::warn!("Partial update of a missing texture (id: {:?})", texture_id);
                 }
             } else {
                 // Full update.

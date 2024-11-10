@@ -4,31 +4,31 @@ use crate::{
     },
     EguiRenderOutput, EguiSettings, RenderTargetSize,
 };
-use bevy::{
-    ecs::world::{FromWorld, World},
-    prelude::{Handle, Resource},
-    render::{
-        render_asset::RenderAssetUsages,
-        render_graph::{Node, NodeRunError, RenderGraphContext},
-        render_phase::TrackedRenderPass,
-        render_resource::{
-            BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
-            BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor,
-            BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState, FrontFace,
-            IndexFormat, LoadOp, MultisampleState, Operations, PipelineCache, PrimitiveState,
-            RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
-            SamplerBindingType, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline,
-            StoreOp, TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
-            VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
-        },
-        renderer::{RenderContext, RenderDevice, RenderQueue},
-        sync_world::{MainEntity, RenderEntity},
-        texture::{
-            GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler,
-            ImageSamplerDescriptor,
-        },
-        view::{ExtractedWindow, ExtractedWindows},
+use bevy_asset::prelude::*;
+use bevy_ecs::{
+    prelude::*,
+    world::{FromWorld, World},
+};
+use bevy_render::{
+    render_asset::RenderAssetUsages,
+    render_graph::{Node, NodeRunError, RenderGraphContext},
+    render_phase::TrackedRenderPass,
+    render_resource::{
+        BindGroupLayout, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
+        BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor,
+        BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState, FrontFace,
+        IndexFormat, LoadOp, MultisampleState, Operations, PipelineCache, PrimitiveState,
+        RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
+        SamplerBindingType, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline, StoreOp,
+        TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension,
+        VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
     },
+    renderer::{RenderContext, RenderDevice, RenderQueue},
+    sync_world::{MainEntity, RenderEntity},
+    texture::{
+        GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor,
+    },
+    view::{ExtractedWindow, ExtractedWindows},
 };
 use bytemuck::cast_slice;
 use egui::{TextureFilter, TextureOptions};
@@ -265,19 +265,19 @@ impl Node for EguiNode {
             primitive,
         } in paint_jobs
         {
-            let clip_urect = bevy::math::URect {
-                min: bevy::math::UVec2 {
+            let clip_urect = bevy_math::URect {
+                min: bevy_math::UVec2 {
                     x: (clip_rect.min.x * self.pixels_per_point).round() as u32,
                     y: (clip_rect.min.y * self.pixels_per_point).round() as u32,
                 },
-                max: bevy::math::UVec2 {
+                max: bevy_math::UVec2 {
                     x: (clip_rect.max.x * self.pixels_per_point).round() as u32,
                     y: (clip_rect.max.y * self.pixels_per_point).round() as u32,
                 },
             };
 
             if clip_urect
-                .intersect(bevy::math::URect::new(
+                .intersect(bevy_math::URect::new(
                     0,
                     0,
                     window_size.physical_width as u32,
@@ -505,23 +505,19 @@ impl Node for EguiNode {
                 requires_reset = false;
             }
 
-            let clip_urect = bevy::math::URect {
-                min: bevy::math::UVec2 {
+            let clip_urect = bevy_math::URect {
+                min: bevy_math::UVec2 {
                     x: (draw_command.clip_rect.min.x * self.pixels_per_point).round() as u32,
                     y: (draw_command.clip_rect.min.y * self.pixels_per_point).round() as u32,
                 },
-                max: bevy::math::UVec2 {
+                max: bevy_math::UVec2 {
                     x: (draw_command.clip_rect.max.x * self.pixels_per_point).round() as u32,
                     y: (draw_command.clip_rect.max.y * self.pixels_per_point).round() as u32,
                 },
             };
 
-            let scissor_rect = clip_urect.intersect(bevy::math::URect::new(
-                0,
-                0,
-                physical_width,
-                physical_height,
-            ));
+            let scissor_rect =
+                clip_urect.intersect(bevy_math::URect::new(0, 0, physical_width, physical_height));
             if scissor_rect.is_empty() {
                 continue;
             }
@@ -667,7 +663,7 @@ pub(crate) fn texture_options_as_sampler_descriptor(
 ///
 /// Rendering can be implemented using for example:
 /// * native wgpu rendering libraries,
-/// * or with [`bevy::render::render_phase`] approach.
+/// * or with [`bevy_render::render_phase`] approach.
 pub struct EguiBevyPaintCallback(Box<dyn EguiBevyPaintCallbackImpl>);
 
 impl EguiBevyPaintCallback {
