@@ -79,7 +79,7 @@ webbrowser = { version = "1.0.1", optional = true }
 bytemuck = { version = "1", optional = true }
 bevy_asset = { version = "0.14", optional = true }
 bevy_render = { version = "0.14", optional = true }
-encase = { version = "0.8", optional = true }
+encase = { version = "0.10", optional = true }
 wgpu-types = { version = "0.20", optional = true }
 
 # `manage_clipboard` feature
